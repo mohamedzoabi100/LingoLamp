@@ -4,7 +4,10 @@
 # Interactive Offline Language-Learning App
 
 ## Motivation
-Travellers and language students often lack connectivity, yet need real-time conversation help. Existing apps either require internet for translation or limit users to canned drills.
+Travellers and language students often lack connectivity, yet still need real-time conversation help.  
+Existing apps usually **either** require internet for translation **or** confine users to canned drills.  
+**LingoLamp bridges that gap by uniting true offline translation, spaced-repetition gamification, and a flexible free-chat interface—all inside a single mobile app.**
+
 
 ## Core Features
 1. **Offline chat with instant translation** – hold a freeform dialogue anywhere.
