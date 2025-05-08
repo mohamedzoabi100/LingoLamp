@@ -6,7 +6,7 @@
 ## Motivation
 Travellers and language students often lack connectivity, yet still need real-time conversation help.  
 Existing apps usually **either** require internet for translation **or** confine users to canned drills.  
-**LingoLamp bridges that gap by uniting true offline translation, spaced-repetition gamification, and a flexible free-chat interface—all inside a single mobile app.**
+LingoLamp bridges that gap by uniting true offline translation, spaced-repetition gamification, and a flexible free-chat interface—all inside a single mobile app.
 
 
 ## Core Features
