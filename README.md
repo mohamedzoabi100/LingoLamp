@@ -14,12 +14,12 @@ LingoLamp bridges that gap by uniting true offline translation, spaced-repetitio
 2. **Tap-to-speak (TTS)** – hear correct pronunciation without data.
 3. **Thematic phrasebook** – quick access to common situations.
 4. **Flash-cards with spaced repetition** – remember what you learn.
+5. **Automatic flash-card suggestions from chat history.
+6. **Optional cloud sync & multi-device hand-off.
 
 ## Complementary Features
-* Pronunciation scoring (offline STT).
-* Automatic flash-card suggestions from chat history.
-* Optional cloud sync & multi-device hand-off.
 * Study streak and basic analytics.
+* Pronunciation scoring (offline STT).
 
 
 > See the GitHub **Projects** board for the full, prioritised user stories.
