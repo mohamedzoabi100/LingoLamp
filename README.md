@@ -1,24 +1,31 @@
 # \<LingoLamp>
 
-> This is the project description. Give a consice decription of no more than 2-3 lines.
+
+# Interactive Offline Language-Learning App
 
 ## Motivation
-
-Describe the problem your project solves, and why it is important. Write a short paragraph. Example:
-* *For many people in Israel, ordering takeout food or going out to eat is not a cheap treat. For many others, cooking for themselves and their family at home is not a privilege. We want to change the way people think about home-made food, using an on-demand service platform, similar to Uber and Airbnb.* **(Taken from [Cookoo](https://github.com/Technion236503/2019b-Cookoo))**
+Travellers and language students often lack connectivity, yet need real-time conversation help. Existing apps either require internet for translation or limit users to canned drills.
 
 ## Core Features
+1. **Offline chat with instant translation** – hold a freeform dialogue anywhere.
+2. **Tap-to-speak (TTS)** – hear correct pronunciation without data.
+3. **Thematic phrasebook** – quick access to common situations.
+4. **Flash-cards with spaced repetition** – remember what you learn.
 
-Describe the core features of your project, which contribute the most to its value. Example:
+## Complementary Features
+* Pronunciation scoring (offline STT).
+* Automatic flash-card suggestions from chat history.
+* Optional cloud sync & multi-device hand-off.
+* Study streak and basic analytics.
 
-* [ ] View stores around your location.
-* [ ] Filter neraby stores by distance, rating and keywords.
+## Backlog Columns
+| Sprint 1 | Sprint 2 | Nice to Have |
+|----------|----------|--------------|
+| Offline chat & translation | Auto-flash-card extraction | Delete model packs |
+| Tap-to-speak (TTS) | Pronunciation score | Advanced extraction pack |
+| Phrasebook | Account + sync | Lightweight mode |
+| Save to flash-card | Streak & stats | Social share |
+| Spaced-repetition review |  | Flash-card export |
 
-## Complementary features
+> See the GitHub **Projects** board for the full, prioritised user stories.
 
-Describe extra features of your project, which contribute significant value to the user. Example:
-
-* [ ] Signup and login with Google and Facebook.
-* [ ] Save you favorite stores for later in a favorites list.
-
- TODO
