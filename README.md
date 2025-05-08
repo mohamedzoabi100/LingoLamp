@@ -21,14 +21,6 @@ LingoLamp bridges that gap by uniting true offline translation, spaced-repetitio
 * Optional cloud sync & multi-device hand-off.
 * Study streak and basic analytics.
 
-## Backlog Columns
-| Sprint 1 | Sprint 2 | Nice to Have |
-|----------|----------|--------------|
-| Offline chat & translation | Auto-flash-card extraction | Delete model packs |
-| Tap-to-speak (TTS) | Pronunciation score | Advanced extraction pack |
-| Phrasebook | Account + sync | Lightweight mode |
-| Save to flash-card | Streak & stats | Social share |
-| Spaced-repetition review |  | Flash-card export |
 
 > See the GitHub **Projects** board for the full, prioritised user stories.
 
