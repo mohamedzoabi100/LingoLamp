@@ -18,9 +18,9 @@ LingoLamp bridges that gap by uniting true offline translation, spaced-repetitio
 6. **Optional cloud sync & multi-device hand-off.
 
 ## Complementary Features
-1. **Smart Reply (offline)** – quick 3-4 suggested responses in the target language.  
-2.* Pronunciation scoring (offline STT).
-3.* Study streak and basic analytics.
+1. **Smart Reply (offline)** – quick 3-4 suggested responses in the target language.
+2. *Pronunciation scoring (offline STT).
+3. *Study streak and basic analytics.
 
 
 
