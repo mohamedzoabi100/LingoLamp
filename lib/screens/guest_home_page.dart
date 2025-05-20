@@ -1,16 +1,13 @@
-// lib/screens/guest_home_page.dart
+//lib/screens/guest_home_page.dart
 import 'package:flutter/material.dart';
-import 'chat_screen.dart'; // Assuming these exist
+import 'chat_screen.dart'; 
 import 'phrasebook_screen.dart';
 import 'flashcards_screen.dart';
-// You'll also need a placeholder for the settings screen
-import 'settings_screen.dart'; // Create this file
+import 'settings_screen.dart'; 
 
 class GuestHomePage extends StatelessWidget {
   const GuestHomePage({super.key});
 
-  // ... _buildFeatureButton, _buildStreakPanel, _buildDailyTaskPanel methods remain THE SAME ...
-  // (Copy them from your previous version)
   Widget _buildFeatureButton({
     required BuildContext context,
     required IconData icon,
@@ -139,7 +136,7 @@ class GuestHomePage extends StatelessWidget {
       ),
     );
   }
-  // --- End Helper Methods ---
+  //--- End Helper Methods ---
 
 
   @override
@@ -155,7 +152,7 @@ class GuestHomePage extends StatelessWidget {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: <Widget>[
-          // --- HEADER BAR ---
+          //--- HEADER BAR ---
           Container(
             width: double.infinity,
             color: primaryTeal,
@@ -177,12 +174,10 @@ class GuestHomePage extends StatelessWidget {
                       ),
                 ),
                 IconButton(
-                  // VVVVVV ICON CHANGE HERE VVVVVV
                   icon: const Icon(Icons.settings_outlined, size: 30.0, color: Colors.white),
-                  // ^^^^^^ ICON CHANGE HERE ^^^^^^
                   onPressed: () {
                     print('Settings button pressed');
-                    // Navigate to SettingsScreen
+                    //Navigate to SettingsScreen
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const SettingsScreen()),
@@ -192,16 +187,16 @@ class GuestHomePage extends StatelessWidget {
               ],
             ),
           ),
-          // --- END HEADER BAR ---
+          //--- END HEADER BAR ---
 
-          // --- CONTENT AREA (NOT SCROLLABLE) ---
+          //--- CONTENT AREA ---
           Flexible(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 20.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  // Feature Buttons
+                  //Feature Buttons
                   Column(
                     children: [
                       Row(

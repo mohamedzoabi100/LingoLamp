@@ -1,9 +1,7 @@
-// lib/main.dart
+//lib/main.dart
 import 'package:flutter/material.dart';
-import 'screens/guest_home_page.dart'; // Or your actual initial page
+import 'screens/guest_home_page.dart'; 
 
-// Your GlobalKey for the Navigator (if you need it for deep linking or global navigation)
-// final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() {
   runApp(const MyApp());
@@ -14,35 +12,34 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const Color primaryTeal = Color(0xFF0E7A71); // Your main teal
+    const Color primaryTeal = Color(0xFF0E7A71); 
 
     return MaterialApp(
-      // navigatorKey: navigatorKey, // If using global key
       title: 'LingoLamp',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.teal, // Base for some Material components
-        scaffoldBackgroundColor: primaryTeal, // Default for InitialPage (dark)
+        primarySwatch: Colors.teal, //Base for some Material components
+        scaffoldBackgroundColor: primaryTeal, //Default for InitialPage 
 
         colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.teal).copyWith(
-          surface: const Color.fromARGB(255, 255, 255, 255), // Main background for GuestHomePage etc.
-          onSurface: Colors.black87, // Default text on light surface
-          primary: primaryTeal, // Explicitly set primary
-          secondary: primaryTeal, // Can be same or a variation
+          surface: const Color.fromARGB(255, 255, 255, 255), 
+          onSurface: Colors.black87, 
+          primary: primaryTeal, 
+          secondary: primaryTeal, 
         ),
 
         textTheme: const TextTheme(
-          headlineSmall: TextStyle( // For "Hi there!"
+          headlineSmall: TextStyle( //For "Hi there!"
             fontWeight: FontWeight.bold,
-            fontSize: 45, // Slightly larger
+            fontSize: 45, 
             color: primaryTeal,
           ),
-          titleLarge: TextStyle( // For prominent button text
-            fontSize: 16, // Button text size
-            fontWeight: FontWeight.w600, // Bolder
+          titleLarge: TextStyle( //For prominent button text
+            fontSize: 16, 
+            fontWeight: FontWeight.w600, 
             color: Colors.black87,
           ),
-          // Keep titleMedium if used elsewhere or rename for button text
+         
           titleMedium: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w500,
@@ -50,7 +47,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
 
-        // Button themes from previous setup (adjust if needed)
+        
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color.fromARGB(255, 255, 255, 255),
@@ -79,15 +76,13 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-        // fontFamily: 'Poppins',
       ),
-      home: const InitialPage(), // Your actual starting page
+      home: const InitialPage(), //Actual starting page
     );
   }
 }
 
-// --- InitialPage and LoginScreenPlaceholder from your main.dart ---
-// (Assuming they are still in main.dart as per previous setup)
+//--- InitialPage and LoginScreenPlaceholder from main.dart ---
 class InitialPage extends StatelessWidget {
   const InitialPage({super.key});
 
@@ -134,7 +129,7 @@ class LoginScreenPlaceholder extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Login'), backgroundColor: Theme.of(context).primaryColor, foregroundColor: const Color.fromARGB(255, 255, 255, 255)),
       body: const Center(child: Text('Login Screen - Coming Soon!', style: TextStyle(fontSize: 24, color: Color.fromARGB(255, 255, 255, 255)))),
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor, // Use the dark theme background
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor, 
     );
   }
 }

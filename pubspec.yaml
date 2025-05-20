@@ -35,6 +35,16 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
+  google_mlkit_translation: ^0.13.0 # Use the version you had or latest
+  flutter_tts: ^4.2.2             # Use the version you had or latest
+  speech_to_text: ^7.0.0            # Use the version you had or latest
+  permission_handler: ^11.3.0     # For microphone permission
+
+  sqflite: ^2.3.2 # Check pub.dev for the latest version
+  path: ^1.9.0    # Usually used with sqflite
+  intl: ^0.19.0 # For date formatting (optional but nice)
+
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
