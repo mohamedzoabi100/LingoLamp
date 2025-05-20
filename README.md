@@ -1,30 +1,16 @@
-# \<LingoLamp>
+# lingolampmainpage
 
+A new Flutter project.
 
-# Interactive Offline Language-Learning App
+## Getting Started
 
-## Motivation
-Travellers and language students often lack connectivity, yet still need real-time conversation help.  
-Existing apps usually **either** require internet for translation **or** confine users to canned drills.  
-LingoLamp bridges that gap by uniting true offline translation, spaced-repetition gamification, and a flexible free-chat interface—all inside a single mobile app.
+This project is a starting point for a Flutter application.
 
+A few resources to get you started if this is your first Flutter project:
 
-## Core Features
-1. **Offline chat with instant translation** – hold a freeform dialogue anywhere.
-2. **Tap-to-speak (TTS)** – hear correct pronunciation without data.
-3. **Thematic phrasebook** – quick access to common situations.
-4. **Flash-cards with spaced repetition** – remember what you learn.
-5. **Automatic flash-card suggestions from chat history.
-6. **Optional cloud sync & multi-device hand-off.
+- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
+- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
 
-## Complementary Features
-1. **Smart Reply (offline)** – quick 3-4 suggested responses in the target language.
-2. **Pronunciation scoring** (offline STT).
-3. **Study streak** and basic analytics.
-
-
-
-
-
-> See the GitHub **Projects** board for the full, prioritised user stories.
-
+For help getting started with Flutter development, view the
+[online documentation](https://docs.flutter.dev/), which offers tutorials,
+samples, guidance on mobile development, and a full API reference.
