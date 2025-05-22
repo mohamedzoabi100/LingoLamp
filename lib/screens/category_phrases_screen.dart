@@ -158,8 +158,8 @@ class _CategoryPhrasesScreenState extends State<CategoryPhrasesScreen> {
         ),
       );
       
-      // Force UI rebuild to update heart immediately
-      setState(() {});
+      // NO setState() call - let the StreamBuilder handle updates naturally
+      // The phrase object is already updated above, so the UI will reflect the change
     }
   }
 
@@ -257,156 +257,186 @@ class _CategoryPhrasesScreenState extends State<CategoryPhrasesScreen> {
   }
 
   Widget _buildPhraseCard(PhraseModel phrase) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            spreadRadius: 0,
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Header with favorite button
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
+    return StatefulBuilder(
+      builder: (context, setCardState) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                spreadRadius: 0,
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                GestureDetector(
-                  onTap: () => _toggleFavorite(phrase),
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Icon(
-                      phrase.isFavorite ? Icons.favorite : Icons.favorite_border,
-                      color: phrase.isFavorite ? Theme.of(context).colorScheme.primary : Colors.grey[600],
-                      size: 20,
-                    ),
+            ],
+          ),
+          child: Column(
+            children: [
+              // Header with favorite button
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    topRight: Radius.circular(16),
                   ),
                 ),
-              ],
-            ),
-          ),
-          
-          // English section
-          GestureDetector(
-            onTap: () => _speakEnglish(phrase.english),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      'EN',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue[700],
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    GestureDetector(
+                      onTap: () async {
+                        // Toggle favorite status
+                        await _phraseService.toggleFavorite(phrase.id);
+                        
+                        // Update the phrase object immediately
+                        phrase.isFavorite = !phrase.isFavorite;
+                        
+                        // Update only this card's state (no page reload!)
+                        setCardState(() {});
+                        
+                        // Show snackbar feedback
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                phrase.isFavorite 
+                                  ? '💚 Added to favorites' 
+                                  : 'Removed from favorites',
+                              ),
+                              duration: const Duration(seconds: 2),
+                              backgroundColor: phrase.isFavorite 
+                                ? Theme.of(context).colorScheme.primary
+                                : Colors.grey[600],
+                            ),
+                          );
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Icon(
+                          phrase.isFavorite ? Icons.favorite : Icons.favorite_border,
+                          color: phrase.isFavorite ? Theme.of(context).colorScheme.primary : Colors.grey[600],
+                          size: 20,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      phrase.english,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ),
-                  Icon(
-                    Icons.volume_up_rounded,
-                    size: 24,
-                    color: Colors.blue[600],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          
-          // Divider
-          Container(
-            height: 1,
-            color: Colors.grey[200],
-          ),
-          
-          // Spanish section
-          GestureDetector(
-            onTap: () => _speakSpanish(phrase.spanish),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(16),
-                  bottomRight: Radius.circular(16),
+                  ],
                 ),
               ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      'ES',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.red[700],
+              
+              // English section
+              GestureDetector(
+                onTap: () => _speakEnglish(phrase.english),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          'EN',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue[700],
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      phrase.spanish,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.black87,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          phrase.english,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black87,
+                          ),
+                        ),
                       ),
-                    ),
+                      Icon(
+                        Icons.volume_up_rounded,
+                        size: 24,
+                        color: Colors.blue[600],
+                      ),
+                    ],
                   ),
-                  Icon(
-                    Icons.volume_up_rounded,
-                    size: 24,
-                    color: Colors.red[600],
-                  ),
-                ],
+                ),
               ),
-            ),
+              
+              // Divider
+              Container(
+                height: 1,
+                color: Colors.grey[200],
+              ),
+              
+              // Spanish section
+              GestureDetector(
+                onTap: () => _speakSpanish(phrase.spanish),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: const BoxDecoration(
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(16),
+                      bottomRight: Radius.circular(16),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          'ES',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red[700],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          phrase.spanish,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.volume_up_rounded,
+                        size: 24,
+                        color: Colors.red[600],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

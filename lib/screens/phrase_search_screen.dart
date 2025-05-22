@@ -150,8 +150,8 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
         ),
       );
       
-      // Force UI rebuild to update heart immediately
-      setState(() {});
+      // NO setState() call - let the StreamBuilder handle updates naturally
+      // The phrase object is already updated above, so the UI will reflect the change
     }
   }
 
@@ -314,7 +314,7 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
       ),
       child: Column(
         children: [
-          // Category badge and favorite button
+          // Category badge only (no favorite button)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -325,29 +325,13 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
                 topRight: Radius.circular(16),
               ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  phrase.category,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => _toggleFavorite(phrase),
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    child: Icon(
-                      phrase.isFavorite ? Icons.favorite : Icons.favorite_border,
-                      color: phrase.isFavorite ? Theme.of(context).colorScheme.primary : Colors.grey,
-                      size: 20,
-                    ),
-                  ),
-                ),
-              ],
+            child: Text(
+              phrase.category,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.primary,
+              ),
             ),
           ),
           
