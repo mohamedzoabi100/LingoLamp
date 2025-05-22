@@ -137,13 +137,14 @@ class _CategoryPhrasesScreenState extends State<CategoryPhrasesScreen> {
 
   Future<void> _toggleFavorite(PhraseModel phrase) async {
     await _phraseService.toggleFavorite(phrase.id);
+    
     // Show a snackbar to give user feedback
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             !phrase.isFavorite 
-              ? '❤️ Added to favorites' 
+              ? '💚 Added to favorites' 
               : 'Removed from favorites',
           ),
           duration: const Duration(seconds: 2),
@@ -152,6 +153,9 @@ class _CategoryPhrasesScreenState extends State<CategoryPhrasesScreen> {
             : Colors.grey[600],
         ),
       );
+      
+      // Force UI rebuild to update heart immediately
+      setState(() {});
     }
   }
 

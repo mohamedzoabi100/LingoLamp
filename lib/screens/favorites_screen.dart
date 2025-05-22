@@ -124,10 +124,25 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     }
   }
 
-  Future<void> _toggleFavorite(PhraseModel phrase) async {
+  Future<void> _removeFromFavorites(PhraseModel phrase) async {
     await _phraseService.toggleFavorite(phrase.id);
-    // Trigger a rebuild to update the UI
-    setState(() {});
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Removed from favorites'),
+          duration: const Duration(seconds: 2),
+          backgroundColor: Colors.grey[600],
+          action: SnackBarAction(
+            label: 'Undo',
+            textColor: Colors.white,
+            onPressed: () async {
+              await _phraseService.toggleFavorite(phrase.id);
+            },
+          ),
+        ),
+      );
+    }
   }
 
   @override
@@ -212,7 +227,67 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             padding: const EdgeInsets.all(16),
             itemCount: phrases.length,
             itemBuilder: (context, index) {
-              return _buildPhraseCard(phrases[index]);
+              return Dismissible(
+                key: Key(phrases[index].id),
+                direction: DismissDirection.endToStart,
+                confirmDismiss: (direction) async {
+                  return await showDialog<bool>(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (BuildContext dialogContext) {
+                      return AlertDialog(
+                        title: const Text('Delete Favorite'),
+                        content: Text('Are you sure you want to remove "${phrases[index].english}" from your favorites?'),
+                        actions: <Widget>[
+                          TextButton(
+                            child: const Text('No'),
+                            onPressed: () => Navigator.of(dialogContext).pop(false),
+                          ),
+                          TextButton(
+                            style: TextButton.styleFrom(
+                              foregroundColor: primaryColor,
+                            ),
+                            child: const Text('Yes'),
+                            onPressed: () => Navigator.of(dialogContext).pop(true),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+                onDismissed: (direction) {
+                  _removeFromFavorites(phrases[index]);
+                },
+                background: Container(
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 20),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: primaryColor,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Icon(
+                        Icons.delete_outline,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Delete',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                child: _buildPhraseCard(phrases[index]),
+              );
             },
           );
         },
@@ -237,7 +312,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       ),
       child: Column(
         children: [
-          // Category badge and favorite button
+          // Category badge only (no favorite button)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -248,29 +323,13 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                 topRight: Radius.circular(16),
               ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  phrase.category,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => _toggleFavorite(phrase),
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    child: Icon(
-                      phrase.isFavorite ? Icons.favorite : Icons.favorite_border,
-                      color: phrase.isFavorite ? Theme.of(context).colorScheme.primary : Colors.grey,
-                      size: 20,
-                    ),
-                  ),
-                ),
-              ],
+            child: Text(
+              phrase.category,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.primary,
+              ),
             ),
           ),
           
