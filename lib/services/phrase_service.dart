@@ -101,8 +101,8 @@ class PhraseService {
           final categoryText = row[2].trim();
           final difficultyText = row[3].trim();
           
-          // Create unique ID
-          final id = '${englishText.toLowerCase().replaceAll(' ', '_')}_${categoryText.toLowerCase()}';
+          // Create unique ID (more reliable)
+          final id = '${englishText.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}_${categoryText.toLowerCase().replaceAll(' ', '_')}_$i';
           
           final phrase = PhraseModel(
             id: id,
@@ -115,6 +115,7 @@ class PhraseService {
           );
           
           _allPhrases.add(phrase);
+          print('Loaded phrase: $id - ${englishText} (isFavorite: ${phrase.isFavorite})');
         }
       }
 
@@ -188,10 +189,13 @@ class PhraseService {
       _favoriteIds.add(phraseId);
     }
     
-    // Update the phrase in memory
+    // CRITICAL: Update the phrase in the in-memory list immediately
     final phraseIndex = _allPhrases.indexWhere((p) => p.id == phraseId);
     if (phraseIndex != -1) {
       _allPhrases[phraseIndex].isFavorite = _favoriteIds.contains(phraseId);
+      print('Updated phrase ${phraseId} in memory: isFavorite = ${_allPhrases[phraseIndex].isFavorite}');
+    } else {
+      print('Warning: Phrase $phraseId not found in _allPhrases');
     }
     
     await _saveFavorites();

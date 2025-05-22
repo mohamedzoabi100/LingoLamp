@@ -294,11 +294,16 @@ class _CategoryPhrasesScreenState extends State<CategoryPhrasesScreen> {
                         // Store the old state to show correct message
                         final wasInFavorites = phrase.isFavorite;
                         
-                        // Toggle favorite status
+                        print('Before toggle: ${phrase.id} isFavorite = ${phrase.isFavorite}');
+                        
+                        // Toggle favorite status in service
                         await _phraseService.toggleFavorite(phrase.id);
                         
-                        // Update the phrase object immediately
-                        phrase.isFavorite = !phrase.isFavorite;
+                        // Get the updated status from service to ensure sync
+                        final updatedIsFavorite = await _phraseService.isFavorite(phrase.id);
+                        phrase.isFavorite = updatedIsFavorite;
+                        
+                        print('After toggle: ${phrase.id} isFavorite = ${phrase.isFavorite}');
                         
                         // Update only this card's state (no page reload!)
                         setCardState(() {});
