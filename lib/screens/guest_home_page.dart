@@ -71,20 +71,24 @@ class GuestHomePage extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: <Widget>[
-          Column(
-            children: [
-              Text('$currentStreak 🔥', style: TextStyle(fontSize: 35, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
-              const SizedBox(height: 4),
-              Text('Current Streak', style: TextStyle(fontSize: 20, color: Theme.of(context).colorScheme.primary.withOpacity(1))),
-            ],
+          Expanded(
+            child: Column(
+              children: [
+                Text('$currentStreak 🔥', style: TextStyle(fontSize: 35, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
+                const SizedBox(height: 4),
+                Text('Current Streak', style: TextStyle(fontSize: 20, color: Theme.of(context).colorScheme.primary.withOpacity(1)), textAlign: TextAlign.center),
+              ],
+            ),
           ),
           Container(height: 55, width: 1.0, color: Theme.of(context).colorScheme.primary.withOpacity(1)),
-          Column(
-            children: [
-              Text('$longestStreak 🏆', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
-              const SizedBox(height: 4),
-              Text('Longest Streak', style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.primary.withOpacity(1))),
-            ],
+          Expanded(
+            child: Column(
+              children: [
+                Text('$longestStreak 🏆', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
+                const SizedBox(height: 4),
+                Text('Longest Streak', style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.primary.withOpacity(1)), textAlign: TextAlign.center),
+              ],
+            ),
           ),
         ],
       ),
@@ -112,14 +116,40 @@ class GuestHomePage extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("Today's Task ✨", style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: isTaskCompleted ? Colors.green[700] : Theme.of(context).colorScheme.secondary)),
-              Icon(isTaskCompleted ? Icons.check_circle : Icons.radio_button_unchecked, color: isTaskCompleted ? Colors.green[700] : Theme.of(context).colorScheme.secondary.withOpacity(1), size: 26)
+              Expanded(
+                child: Text(
+                  "Today's Task ✨", 
+                  style: TextStyle(
+                    fontSize: 17, 
+                    fontWeight: FontWeight.bold, 
+                    color: isTaskCompleted ? Colors.green[700] : Theme.of(context).colorScheme.secondary
+                  ),
+                ),
+              ),
+              Icon(
+                isTaskCompleted ? Icons.check_circle : Icons.radio_button_unchecked, 
+                color: isTaskCompleted ? Colors.green[700] : Theme.of(context).colorScheme.secondary.withOpacity(1), 
+                size: 26
+              )
             ],
           ),
           const SizedBox(height: 10.0),
-          Text(taskTitle, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface.withOpacity(1))),
+          Text(
+            taskTitle, 
+            style: TextStyle(
+              fontSize: 20, 
+              fontWeight: FontWeight.w600, 
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(1)
+            )
+          ),
           const SizedBox(height: 5.0),
-          Text(taskDescription, style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withOpacity(1))),
+          Text(
+            taskDescription, 
+            style: TextStyle(
+              fontSize: 13, 
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(1)
+            )
+          ),
           if (!isTaskCompleted)
             Padding(
               padding: const EdgeInsets.only(top: 12.0),
@@ -127,7 +157,12 @@ class GuestHomePage extends StatelessWidget {
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: () => print("Start Task / Mark as Complete pressed"),
-                  style: TextButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.secondary.withOpacity(0.13), foregroundColor: Theme.of(context).colorScheme.secondary, padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6), textStyle: const TextStyle(fontSize: 14)),
+                  style: TextButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.secondary.withOpacity(0.13), 
+                    foregroundColor: Theme.of(context).colorScheme.secondary, 
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6), 
+                    textStyle: const TextStyle(fontSize: 14)
+                  ),
                   child: const Text('Start Task'),
                 ),
               ),
@@ -136,8 +171,6 @@ class GuestHomePage extends StatelessWidget {
       ),
     );
   }
-  //--- End Helper Methods ---
-
 
   @override
   Widget build(BuildContext context) {
@@ -145,7 +178,6 @@ class GuestHomePage extends StatelessWidget {
     final screenWidth = MediaQuery.of(context).size.width;
     final double buttonWidth = (screenWidth / 2) - 45;
     final double buttonHeight = buttonWidth * 1.05;
-
     final double statusBarHeight = MediaQuery.of(context).padding.top;
 
     return Scaffold(
@@ -177,7 +209,6 @@ class GuestHomePage extends StatelessWidget {
                   icon: const Icon(Icons.settings_outlined, size: 30.0, color: Colors.white),
                   onPressed: () {
                     print('Settings button pressed');
-                    //Navigate to SettingsScreen
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const SettingsScreen()),
@@ -190,48 +221,68 @@ class GuestHomePage extends StatelessWidget {
           //--- END HEADER BAR ---
 
           //--- CONTENT AREA ---
-          Flexible(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  //Feature Buttons
-                  Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: <Widget>[
-                          _buildFeatureButton(
-                            context: context, icon: Icons.chat, label: 'Chat', iconColor: primaryTeal, borderColor: primaryTeal, Twidth: buttonWidth, Theight: buttonHeight,
-                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ChatScreen())),
-                          ),
-                          const SizedBox(width: 12),
-                          _buildFeatureButton(
-                            context: context, icon: Icons.auto_stories, label: 'Phrasebook', iconColor: primaryTeal, borderColor: primaryTeal, Twidth: buttonWidth, Theight: buttonHeight,
-                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PhrasebookScreen())),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: MediaQuery.of(context).size.height * 0.03),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: <Widget>[
-                          _buildFeatureButton(
-                            context: context, icon: Icons.diamond, label: 'Flashcards', iconColor: primaryTeal, borderColor: primaryTeal, Twidth: buttonWidth, Theight: buttonHeight,
-                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const FlashcardsScreen())),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: MediaQuery.of(context).size.height * 0.02),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    //Feature Buttons
+                    Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: <Widget>[
+                            _buildFeatureButton(
+                              context: context, 
+                              icon: Icons.chat, 
+                              label: 'Chat', 
+                              iconColor: primaryTeal, 
+                              borderColor: primaryTeal, 
+                              Twidth: buttonWidth, 
+                              Theight: buttonHeight,
+                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ChatScreen())),
+                            ),
+                            const SizedBox(width: 12),
+                            _buildFeatureButton(
+                              context: context, 
+                              icon: Icons.auto_stories, 
+                              label: 'Phrasebook', 
+                              iconColor: primaryTeal, 
+                              borderColor: primaryTeal, 
+                              Twidth: buttonWidth, 
+                              Theight: buttonHeight,
+                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PhrasebookScreen())),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: MediaQuery.of(context).size.height * 0.03),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: <Widget>[
+                            _buildFeatureButton(
+                              context: context, 
+                              icon: Icons.diamond, 
+                              label: 'Flashcards', 
+                              iconColor: primaryTeal, 
+                              borderColor: primaryTeal, 
+                              Twidth: buttonWidth, 
+                              Theight: buttonHeight,
+                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const FlashcardsScreen())),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: MediaQuery.of(context).size.height * 0.02),
 
-                  _buildStreakPanel(context),
-                  _buildDailyTaskPanel(context),
+                    _buildStreakPanel(context),
+                    _buildDailyTaskPanel(context),
 
-                  const SizedBox(height: 20),
-                ],
+                    const SizedBox(height: 20),
+                  ],
+                ),
               ),
             ),
           ),
