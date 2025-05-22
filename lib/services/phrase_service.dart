@@ -1,5 +1,7 @@
 //lib/services/phrase_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
+import 'dart:convert';
 
 class PhraseModel {
   final String id;
@@ -89,72 +91,97 @@ class PhraseService {
     await _firestore.collection(_collection).add(phrase.toFirestore());
   }
 
-  // Initialize with sample data (run once)
+  // Auto-sync CSV data with Firebase
   Future<void> initializeSampleData() async {
-    final samplePhrases = [
-      // Food & Dining
-      PhraseModel(id: '', english: 'I would like to order', spanish: 'Me gustaría pedir', category: 'Food & Dining', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'The menu, please', spanish: 'La carta, por favor', category: 'Food & Dining', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'What do you recommend?', spanish: '¿Qué me recomienda?', category: 'Food & Dining', difficulty: 'intermediate', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'I am vegetarian', spanish: 'Soy vegetariano/a', category: 'Food & Dining', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'The bill, please', spanish: 'La cuenta, por favor', category: 'Food & Dining', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'Is this spicy?', spanish: '¿Está picante?', category: 'Food & Dining', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'I am allergic to...', spanish: 'Soy alérgico/a a...', category: 'Food & Dining', difficulty: 'intermediate', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'More water, please', spanish: 'Más agua, por favor', category: 'Food & Dining', difficulty: 'beginner', createdAt: DateTime.now()),
+    try {
+      // Always load CSV file
+      final csvString = await rootBundle.loadString('assets/data/phrases.csv');
+      final List<List<String>> csvData = csvString
+          .split('\n')
+          .where((line) => line.trim().isNotEmpty)
+          .map((line) => line.split(','))
+          .toList();
 
-      // Transport
-      PhraseModel(id: '', english: 'Where is the bus station?', spanish: '¿Dónde está la estación de autobús?', category: 'Transport', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'How much is a ticket?', spanish: '¿Cuánto cuesta un boleto?', category: 'Transport', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'I need to go to...', spanish: 'Necesito ir a...', category: 'Transport', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'Is this the right bus?', spanish: '¿Es este el autobús correcto?', category: 'Transport', difficulty: 'intermediate', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'Please stop here', spanish: 'Pare aquí, por favor', category: 'Transport', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'Call a taxi, please', spanish: 'Llame un taxi, por favor', category: 'Transport', difficulty: 'beginner', createdAt: DateTime.now()),
+      print('Found ${csvData.length - 1} phrases in CSV');
 
-      // Emergencies
-      PhraseModel(id: '', english: 'Help!', spanish: '¡Ayuda!', category: 'Emergencies', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'Call the police', spanish: 'Llame a la policía', category: 'Emergencies', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'I need a doctor', spanish: 'Necesito un médico', category: 'Emergencies', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'Where is the hospital?', spanish: '¿Dónde está el hospital?', category: 'Emergencies', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'I am lost', spanish: 'Estoy perdido/a', category: 'Emergencies', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'Call an ambulance', spanish: 'Llame una ambulancia', category: 'Emergencies', difficulty: 'intermediate', createdAt: DateTime.now()),
+      // Get existing phrases from Firebase
+      final snapshot = await _firestore.collection(_collection).get();
+      final existingPhrases = <String, PhraseModel>{};
+      
+      for (var doc in snapshot.docs) {
+        final phrase = PhraseModel.fromFirestore(doc);
+        // Create unique key from english + category
+        final key = '${phrase.english.toLowerCase()}_${phrase.category.toLowerCase()}';
+        existingPhrases[key] = phrase;
+      }
 
-      // Greetings
+      print('Found ${existingPhrases.length} existing phrases in Firebase');
+
+      int addedCount = 0;
+      int updatedCount = 0;
+
+      // Process CSV data (skip header row)
+      for (int i = 1; i < csvData.length; i++) {
+        final row = csvData[i];
+        if (row.length >= 4) {
+          final englishText = row[0].trim();
+          final spanishText = row[1].trim();
+          final categoryText = row[2].trim();
+          final difficultyText = row[3].trim();
+          
+          final key = '${englishText.toLowerCase()}_${categoryText.toLowerCase()}';
+          
+          if (existingPhrases.containsKey(key)) {
+            // Check if phrase needs updating
+            final existing = existingPhrases[key]!;
+            if (existing.spanish != spanishText || 
+                existing.difficulty != difficultyText) {
+              // Update existing phrase
+              await _firestore.collection(_collection).doc(existing.id).update({
+                'spanish': spanishText,
+                'difficulty': difficultyText,
+              });
+              updatedCount++;
+            }
+          } else {
+            // Add new phrase
+            final newPhrase = PhraseModel(
+              id: '',
+              english: englishText,
+              spanish: spanishText,
+              category: categoryText,
+              difficulty: difficultyText,
+              createdAt: DateTime.now(),
+            );
+            await addPhrase(newPhrase);
+            addedCount++;
+          }
+        }
+      }
+
+      print('CSV sync complete: $addedCount added, $updatedCount updated');
+
+    } catch (e) {
+      print('Error syncing CSV with Firebase: $e');
+      // Fallback to basic phrases if CSV fails
+      await _initializeBasicPhrases();
+    }
+  }
+
+  // Fallback basic phrases
+  Future<void> _initializeBasicPhrases() async {
+    final snapshot = await _firestore.collection(_collection).limit(1).get();
+    if (snapshot.docs.isNotEmpty) return;
+
+    final basicPhrases = [
       PhraseModel(id: '', english: 'Hello', spanish: 'Hola', category: 'Greetings', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'Good morning', spanish: 'Buenos días', category: 'Greetings', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'Good afternoon', spanish: 'Buenas tardes', category: 'Greetings', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'Good night', spanish: 'Buenas noches', category: 'Greetings', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'Please', spanish: 'Por favor', category: 'Greetings', difficulty: 'beginner', createdAt: DateTime.now()),
       PhraseModel(id: '', english: 'Thank you', spanish: 'Gracias', category: 'Greetings', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'Excuse me', spanish: 'Disculpe', category: 'Greetings', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'See you later', spanish: 'Hasta luego', category: 'Greetings', difficulty: 'beginner', createdAt: DateTime.now()),
-
-      // Shopping
-      PhraseModel(id: '', english: 'How much does this cost?', spanish: '¿Cuánto cuesta esto?', category: 'Shopping', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'Do you accept credit cards?', spanish: '¿Aceptan tarjetas de crédito?', category: 'Shopping', difficulty: 'intermediate', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'Can I try this on?', spanish: '¿Me lo puedo probar?', category: 'Shopping', difficulty: 'intermediate', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'Do you have this in another size?', spanish: '¿Tienen esto en otra talla?', category: 'Shopping', difficulty: 'intermediate', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'I am just looking', spanish: 'Solo estoy mirando', category: 'Shopping', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'Where is the cashier?', spanish: '¿Dónde está la caja?', category: 'Shopping', difficulty: 'beginner', createdAt: DateTime.now()),
-
-      // Accommodation
-      PhraseModel(id: '', english: 'I have a reservation', spanish: 'Tengo una reservación', category: 'Accommodation', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'Do you have available rooms?', spanish: '¿Tienen habitaciones disponibles?', category: 'Accommodation', difficulty: 'intermediate', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'What time is check-out?', spanish: '¿A qué hora es el check-out?', category: 'Accommodation', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'Can I have extra towels?', spanish: '¿Puedo tener toallas extra?', category: 'Accommodation', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'The Wi-Fi password, please', spanish: 'La contraseña del Wi-Fi, por favor', category: 'Accommodation', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'Where is the elevator?', spanish: '¿Dónde está el ascensor?', category: 'Accommodation', difficulty: 'beginner', createdAt: DateTime.now()),
+      PhraseModel(id: '', english: 'Help!', spanish: '¡Ayuda!', category: 'Emergencies', difficulty: 'beginner', createdAt: DateTime.now()),
     ];
 
-    // Check if data already exists
-    final snapshot = await _firestore.collection(_collection).limit(1).get();
-    if (snapshot.docs.isEmpty) {
-      // Add sample data
-      for (var phrase in samplePhrases) {
-        await addPhrase(phrase);
-      }
-      print('Sample phrases added to Firestore');
-    } else {
-      print('Phrases already exist in Firestore');
+    for (var phrase in basicPhrases) {
+      await addPhrase(phrase);
     }
+    print('Basic fallback phrases added');
   }
 }

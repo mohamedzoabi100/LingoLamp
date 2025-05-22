@@ -1,0 +1,42 @@
+english,spanish,category,difficulty
+Hello,Hola,Greetings,beginner
+Good morning,Buenos días,Greetings,beginner
+Good afternoon,Buenas tardes,Greetings,beginner
+Good night,Buenas noches,Greetings,beginner
+Please,Por favor,Greetings,beginner
+Thank you,Gracias,Greetings,beginner
+Excuse me,Disculpe,Greetings,beginner
+See you later,Hasta luego,Greetings,beginner
+I would like to order,Me gustaría pedir,Food & Dining,beginner
+The menu please,La carta por favor,Food & Dining,beginner
+What do you recommend?,¿Qué me recomienda?,Food & Dining,intermediate
+I am vegetarian,Soy vegetariano/a,Food & Dining,beginner
+The bill please,La cuenta por favor,Food & Dining,beginner
+Is this spicy?,¿Está picante?,Food & Dining,beginner
+I am allergic to...,Soy alérgico/a a...,Food & Dining,intermediate
+More water please,Más agua por favor,Food & Dining,beginner
+Where is the bus station?,¿Dónde está la estación de autobús?,Transport,beginner
+How much is a ticket?,¿Cuánto cuesta un boleto?,Transport,beginner
+I need to go to...,Necesito ir a...,Transport,beginner
+Is this the right bus?,¿Es este el autobús correcto?,Transport,intermediate
+Please stop here,Pare aquí por favor,Transport,beginner
+Call a taxi please,Llame un taxi por favor,Transport,beginner
+Help!,¡Ayuda!,Emergencies,beginner
+Call the police,Llame a la policía,Emergencies,beginner
+I need a doctor,Necesito un médico,Emergencies,beginner
+Where is the hospital?,¿Dónde está el hospital?,Emergencies,beginner
+I am lost,Estoy perdido/a,Emergencies,beginner
+Call an ambulance,Llame una ambulancia,Emergencies,intermediate
+How much does this cost?,¿Cuánto cuesta esto?,Shopping,beginner
+Do you accept credit cards?,¿Aceptan tarjetas de crédito?,Shopping,intermediate
+Can I try this on?,¿Me lo puedo probar?,Shopping,intermediate
+Do you have this in another size?,¿Tienen esto en otra talla?,Shopping,intermediate
+I am just looking,Solo estoy mirando,Shopping,beginner
+Where is the cashier?,¿Dónde está la caja?,Shopping,beginner
+I have a reservation,Tengo una reservación,Accommodation,beginner
+Do you have available rooms?,¿Tienen habitaciones disponibles?,Accommodation,intermediate
+What time is check-out?,¿A qué hora es el check-out?,Accommodation,beginner
+Can I have extra towels?,¿Puedo tener toallas extra?,Accommodation,beginner
+The Wi-Fi password please,La contraseña del Wi-Fi por favor,Accommodation,beginner
+Where is the elevator?,¿Dónde está el ascensor?,Accommodation,beginner
+try,try,Accommodation,beginner
