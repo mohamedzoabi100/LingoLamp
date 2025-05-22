@@ -1,22 +1,20 @@
-//lib/screens/phrase_search_screen.dart
+//lib/screens/favorites_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../services/phrase_service.dart';
 
-class PhraseSearchScreen extends StatefulWidget {
-  const PhraseSearchScreen({super.key});
+class FavoritesScreen extends StatefulWidget {
+  const FavoritesScreen({super.key});
 
   @override
-  State<PhraseSearchScreen> createState() => _PhraseSearchScreenState();
+  State<FavoritesScreen> createState() => _FavoritesScreenState();
 }
 
-class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
-  final TextEditingController _searchController = TextEditingController();
+class _FavoritesScreenState extends State<FavoritesScreen> {
   late FlutterTts _tts;
   bool _ttsReady = false;
-  String _searchQuery = '';
   final PhraseService _phraseService = PhraseService();
-  
+
   @override
   void initState() {
     super.initState();
@@ -54,7 +52,6 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
   @override
   void dispose() {
     _tts.stop();
-    _searchController.dispose();
     super.dispose();
   }
 
@@ -129,22 +126,8 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
 
   Future<void> _toggleFavorite(PhraseModel phrase) async {
     await _phraseService.toggleFavorite(phrase.id);
-    // Show a snackbar to give user feedback
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            !phrase.isFavorite 
-              ? '❤️ Added to favorites' 
-              : 'Removed from favorites',
-          ),
-          duration: const Duration(seconds: 2),
-          backgroundColor: !phrase.isFavorite 
-            ? Theme.of(context).colorScheme.primary
-            : Colors.grey[600],
-        ),
-      );
-    }
+    // Trigger a rebuild to update the UI
+    setState(() {});
   }
 
   @override
@@ -153,138 +136,86 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
     
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Search Phrases'),
+        title: Row(
+          children: [
+            Icon(Icons.star, color: Colors.white),
+            const SizedBox(width: 8),
+            const Text('Favorite Phrases'),
+          ],
+        ),
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
       ),
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: Column(
-        children: [
-          // Search bar
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey[300]!),
-              ),
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Search phrases in English or Spanish...',
-                  hintStyle: TextStyle(color: Colors.grey[600]),
-                  prefixIcon: Icon(
-                    Icons.search,
-                    color: primaryColor,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value.toLowerCase();
-                  });
-                },
-              ),
-            ),
-          ),
-
-          // Search results
-          Expanded(
-            child: _searchQuery.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.search,
-                          size: 64,
-                          color: Colors.grey[400],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Type to search phrases',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Search in English or Spanish',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : StreamBuilder<List<PhraseModel>>(
-                    stream: _phraseService.searchPhrases(_searchQuery),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      
-                      if (snapshot.hasError) {
-                        return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                              const SizedBox(height: 16),
-                              Text('Error: ${snapshot.error}'),
-                            ],
-                          ),
-                        );
-                      }
-                      
-                      final phrases = snapshot.data ?? [];
-                      
-                      if (phrases.isEmpty) {
-                        return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.search_off,
-                                size: 64,
-                                color: Colors.grey[400],
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'No phrases found',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Try a different search term',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[500],
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }
-                      
-                      return ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: phrases.length,
-                        itemBuilder: (context, index) {
-                          return _buildPhraseCard(phrases[index]);
-                        },
-                      );
+      body: StreamBuilder<List<PhraseModel>>(
+        stream: _phraseService.getFavoritePhrases(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          
+          if (snapshot.hasError) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text('Error: ${snapshot.error}'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {}); // Trigger rebuild
                     },
+                    child: const Text('Retry'),
                   ),
-          ),
-        ],
+                ],
+              ),
+            );
+          }
+          
+          final phrases = snapshot.data ?? [];
+          
+          if (phrases.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.star_outline,
+                    size: 64,
+                    color: Colors.grey[400],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No favorite phrases yet',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Tap the ❤️ icon on phrases to add them here',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[500],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            );
+          }
+          
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: phrases.length,
+            itemBuilder: (context, index) {
+              return _buildPhraseCard(phrases[index]);
+            },
+          );
+        },
       ),
     );
   }

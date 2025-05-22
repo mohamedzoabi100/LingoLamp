@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'category_phrases_screen.dart';
 import 'phrase_search_screen.dart';
+import 'favorites_screen.dart';
 
 class PhrasebookScreen extends StatefulWidget {
   const PhrasebookScreen({super.key});
@@ -67,6 +68,21 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
+        actions: [
+          // Favorites star icon in top right
+          IconButton(
+            icon: const Icon(Icons.star, color: Colors.white),
+            tooltip: 'Favorite Phrases',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const FavoritesScreen(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(

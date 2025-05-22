@@ -135,6 +135,26 @@ class _CategoryPhrasesScreenState extends State<CategoryPhrasesScreen> {
     }
   }
 
+  Future<void> _toggleFavorite(PhraseModel phrase) async {
+    await _phraseService.toggleFavorite(phrase.id);
+    // Show a snackbar to give user feedback
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            !phrase.isFavorite 
+              ? '❤️ Added to favorites' 
+              : 'Removed from favorites',
+          ),
+          duration: const Duration(seconds: 2),
+          backgroundColor: !phrase.isFavorite 
+            ? Theme.of(context).colorScheme.primary
+            : Colors.grey[600],
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).colorScheme.primary;
@@ -245,19 +265,45 @@ class _CategoryPhrasesScreenState extends State<CategoryPhrasesScreen> {
       ),
       child: Column(
         children: [
+          // Header with favorite button
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                GestureDetector(
+                  onTap: () => _toggleFavorite(phrase),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Icon(
+                      phrase.isFavorite ? Icons.favorite : Icons.favorite_border,
+                      color: phrase.isFavorite ? Theme.of(context).colorScheme.primary : Colors.grey[600],
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
           // English section
           GestureDetector(
             onTap: () => _speakEnglish(phrase.english),
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  topRight: Radius.circular(16),
-                ),
-              ),
               child: Row(
                 children: [
                   Container(
