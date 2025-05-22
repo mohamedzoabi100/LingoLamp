@@ -1,6 +1,7 @@
 //lib/screens/category_phrases_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import '../services/phrase_service.dart';
 
 class CategoryPhrasesScreen extends StatefulWidget {
   final String categoryTitle;
@@ -21,11 +22,14 @@ class CategoryPhrasesScreen extends StatefulWidget {
 class _CategoryPhrasesScreenState extends State<CategoryPhrasesScreen> {
   late FlutterTts _tts;
   bool _ttsReady = false;
+  final PhraseService _phraseService = PhraseService();
 
   @override
   void initState() {
     super.initState();
     _initTts();
+    // Initialize sample data on first run
+    _phraseService.initializeSampleData();
   }
 
   Future<void> _initTts() async {
@@ -60,72 +64,6 @@ class _CategoryPhrasesScreenState extends State<CategoryPhrasesScreen> {
   void dispose() {
     _tts.stop();
     super.dispose();
-  }
-
-  // Sample phrases data - you can expand this
-  List<Phrase> get _phrases {
-    switch (widget.categoryTitle) {
-      case 'Food & Dining':
-        return [
-          Phrase(english: 'I would like to order', spanish: 'Me gustaría pedir'),
-          Phrase(english: 'The menu, please', spanish: 'La carta, por favor'),
-          Phrase(english: 'What do you recommend?', spanish: '¿Qué me recomienda?'),
-          Phrase(english: 'I am vegetarian', spanish: 'Soy vegetariano/a'),
-          Phrase(english: 'The bill, please', spanish: 'La cuenta, por favor'),
-          Phrase(english: 'Is this spicy?', spanish: '¿Está picante?'),
-          Phrase(english: 'I am allergic to...', spanish: 'Soy alérgico/a a...'),
-          Phrase(english: 'More water, please', spanish: 'Más agua, por favor'),
-        ];
-      case 'Transport':
-        return [
-          Phrase(english: 'Where is the bus station?', spanish: '¿Dónde está la estación de autobús?'),
-          Phrase(english: 'How much is a ticket?', spanish: '¿Cuánto cuesta un boleto?'),
-          Phrase(english: 'I need to go to...', spanish: 'Necesito ir a...'),
-          Phrase(english: 'Is this the right bus?', spanish: '¿Es este el autobús correcto?'),
-          Phrase(english: 'Please stop here', spanish: 'Pare aquí, por favor'),
-          Phrase(english: 'Call a taxi, please', spanish: 'Llame un taxi, por favor'),
-        ];
-      case 'Emergencies':
-        return [
-          Phrase(english: 'Help!', spanish: '¡Ayuda!'),
-          Phrase(english: 'Call the police', spanish: 'Llame a la policía'),
-          Phrase(english: 'I need a doctor', spanish: 'Necesito un médico'),
-          Phrase(english: 'Where is the hospital?', spanish: '¿Dónde está el hospital?'),
-          Phrase(english: 'I am lost', spanish: 'Estoy perdido/a'),
-          Phrase(english: 'Call an ambulance', spanish: 'Llame una ambulancia'),
-        ];
-      case 'Greetings':
-        return [
-          Phrase(english: 'Hello', spanish: 'Hola'),
-          Phrase(english: 'Good morning', spanish: 'Buenos días'),
-          Phrase(english: 'Good afternoon', spanish: 'Buenas tardes'),
-          Phrase(english: 'Good night', spanish: 'Buenas noches'),
-          Phrase(english: 'Please', spanish: 'Por favor'),
-          Phrase(english: 'Thank you', spanish: 'Gracias'),
-          Phrase(english: 'Excuse me', spanish: 'Disculpe'),
-          Phrase(english: 'See you later', spanish: 'Hasta luego'),
-        ];
-      case 'Shopping':
-        return [
-          Phrase(english: 'How much does this cost?', spanish: '¿Cuánto cuesta esto?'),
-          Phrase(english: 'Do you accept credit cards?', spanish: '¿Aceptan tarjetas de crédito?'),
-          Phrase(english: 'Can I try this on?', spanish: '¿Me lo puedo probar?'),
-          Phrase(english: 'Do you have this in another size?', spanish: '¿Tienen esto en otra talla?'),
-          Phrase(english: 'I am just looking', spanish: 'Solo estoy mirando'),
-          Phrase(english: 'Where is the cashier?', spanish: '¿Dónde está la caja?'),
-        ];
-      case 'Accommodation':
-        return [
-          Phrase(english: 'I have a reservation', spanish: 'Tengo una reservación'),
-          Phrase(english: 'Do you have available rooms?', spanish: '¿Tienen habitaciones disponibles?'),
-          Phrase(english: 'What time is check-out?', spanish: '¿A qué hora es el check-out?'),
-          Phrase(english: 'Can I have extra towels?', spanish: '¿Puedo tener toallas extra?'),
-          Phrase(english: 'The Wi-Fi password, please', spanish: 'La contraseña del Wi-Fi, por favor'),
-          Phrase(english: 'Where is the elevator?', spanish: '¿Dónde está el ascensor?'),
-        ];
-      default:
-        return [];
-    }
   }
 
   Future<void> _speakSpanish(String text) async {
@@ -219,8 +157,37 @@ class _CategoryPhrasesScreenState extends State<CategoryPhrasesScreen> {
         foregroundColor: Colors.white,
       ),
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: _phrases.isEmpty
-          ? Center(
+      body: StreamBuilder<List<PhraseModel>>(
+        stream: _phraseService.getPhrasesForCategory(widget.categoryTitle),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          
+          if (snapshot.hasError) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text('Error: ${snapshot.error}'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {}); // Trigger rebuild
+                    },
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            );
+          }
+          
+          final phrases = snapshot.data ?? [];
+          
+          if (phrases.isEmpty) {
+            return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -231,26 +198,37 @@ class _CategoryPhrasesScreenState extends State<CategoryPhrasesScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Phrases coming soon!',
+                    'No phrases found for ${widget.categoryTitle}',
                     style: TextStyle(
                       fontSize: 18,
                       color: Colors.grey[600],
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      _phraseService.initializeSampleData();
+                    },
+                    child: const Text('Load Sample Data'),
+                  ),
                 ],
               ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _phrases.length,
-              itemBuilder: (context, index) {
-                return _buildPhraseCard(_phrases[index]);
-              },
-            ),
+            );
+          }
+          
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: phrases.length,
+            itemBuilder: (context, index) {
+              return _buildPhraseCard(phrases[index]);
+            },
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildPhraseCard(Phrase phrase) {
+  Widget _buildPhraseCard(PhraseModel phrase) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -377,15 +355,4 @@ class _CategoryPhrasesScreenState extends State<CategoryPhrasesScreen> {
       ),
     );
   }
-}
-
-// Data model for phrases
-class Phrase {
-  final String english;
-  final String spanish;
-
-  Phrase({
-    required this.english,
-    required this.spanish,
-  });
 }

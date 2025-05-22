@@ -1,6 +1,7 @@
 //lib/screens/phrase_search_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import '../services/phrase_service.dart';
 
 class PhraseSearchScreen extends StatefulWidget {
   const PhraseSearchScreen({super.key});
@@ -14,6 +15,7 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
   late FlutterTts _tts;
   bool _ttsReady = false;
   String _searchQuery = '';
+  final PhraseService _phraseService = PhraseService();
   
   @override
   void initState() {
@@ -54,73 +56,6 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
     _tts.stop();
     _searchController.dispose();
     super.dispose();
-  }
-
-  // All phrases from all categories
-  List<PhraseWithCategory> get _allPhrases {
-    return [
-      // Food & Dining
-      PhraseWithCategory(english: 'I would like to order', spanish: 'Me gustaría pedir', category: 'Food & Dining'),
-      PhraseWithCategory(english: 'The menu, please', spanish: 'La carta, por favor', category: 'Food & Dining'),
-      PhraseWithCategory(english: 'What do you recommend?', spanish: '¿Qué me recomienda?', category: 'Food & Dining'),
-      PhraseWithCategory(english: 'I am vegetarian', spanish: 'Soy vegetariano/a', category: 'Food & Dining'),
-      PhraseWithCategory(english: 'The bill, please', spanish: 'La cuenta, por favor', category: 'Food & Dining'),
-      PhraseWithCategory(english: 'Is this spicy?', spanish: '¿Está picante?', category: 'Food & Dining'),
-      PhraseWithCategory(english: 'I am allergic to...', spanish: 'Soy alérgico/a a...', category: 'Food & Dining'),
-      PhraseWithCategory(english: 'More water, please', spanish: 'Más agua, por favor', category: 'Food & Dining'),
-
-      // Transport
-      PhraseWithCategory(english: 'Where is the bus station?', spanish: '¿Dónde está la estación de autobús?', category: 'Transport'),
-      PhraseWithCategory(english: 'How much is a ticket?', spanish: '¿Cuánto cuesta un boleto?', category: 'Transport'),
-      PhraseWithCategory(english: 'I need to go to...', spanish: 'Necesito ir a...', category: 'Transport'),
-      PhraseWithCategory(english: 'Is this the right bus?', spanish: '¿Es este el autobús correcto?', category: 'Transport'),
-      PhraseWithCategory(english: 'Please stop here', spanish: 'Pare aquí, por favor', category: 'Transport'),
-      PhraseWithCategory(english: 'Call a taxi, please', spanish: 'Llame un taxi, por favor', category: 'Transport'),
-
-      // Emergencies
-      PhraseWithCategory(english: 'Help!', spanish: '¡Ayuda!', category: 'Emergencies'),
-      PhraseWithCategory(english: 'Call the police', spanish: 'Llame a la policía', category: 'Emergencies'),
-      PhraseWithCategory(english: 'I need a doctor', spanish: 'Necesito un médico', category: 'Emergencies'),
-      PhraseWithCategory(english: 'Where is the hospital?', spanish: '¿Dónde está el hospital?', category: 'Emergencies'),
-      PhraseWithCategory(english: 'I am lost', spanish: 'Estoy perdido/a', category: 'Emergencies'),
-      PhraseWithCategory(english: 'Call an ambulance', spanish: 'Llame una ambulancia', category: 'Emergencies'),
-
-      // Greetings
-      PhraseWithCategory(english: 'Hello', spanish: 'Hola', category: 'Greetings'),
-      PhraseWithCategory(english: 'Good morning', spanish: 'Buenos días', category: 'Greetings'),
-      PhraseWithCategory(english: 'Good afternoon', spanish: 'Buenas tardes', category: 'Greetings'),
-      PhraseWithCategory(english: 'Good night', spanish: 'Buenas noches', category: 'Greetings'),
-      PhraseWithCategory(english: 'Please', spanish: 'Por favor', category: 'Greetings'),
-      PhraseWithCategory(english: 'Thank you', spanish: 'Gracias', category: 'Greetings'),
-      PhraseWithCategory(english: 'Excuse me', spanish: 'Disculpe', category: 'Greetings'),
-      PhraseWithCategory(english: 'See you later', spanish: 'Hasta luego', category: 'Greetings'),
-
-      // Shopping
-      PhraseWithCategory(english: 'How much does this cost?', spanish: '¿Cuánto cuesta esto?', category: 'Shopping'),
-      PhraseWithCategory(english: 'Do you accept credit cards?', spanish: '¿Aceptan tarjetas de crédito?', category: 'Shopping'),
-      PhraseWithCategory(english: 'Can I try this on?', spanish: '¿Me lo puedo probar?', category: 'Shopping'),
-      PhraseWithCategory(english: 'Do you have this in another size?', spanish: '¿Tienen esto en otra talla?', category: 'Shopping'),
-      PhraseWithCategory(english: 'I am just looking', spanish: 'Solo estoy mirando', category: 'Shopping'),
-      PhraseWithCategory(english: 'Where is the cashier?', spanish: '¿Dónde está la caja?', category: 'Shopping'),
-
-      // Accommodation
-      PhraseWithCategory(english: 'I have a reservation', spanish: 'Tengo una reservación', category: 'Accommodation'),
-      PhraseWithCategory(english: 'Do you have available rooms?', spanish: '¿Tienen habitaciones disponibles?', category: 'Accommodation'),
-      PhraseWithCategory(english: 'What time is check-out?', spanish: '¿A qué hora es el check-out?', category: 'Accommodation'),
-      PhraseWithCategory(english: 'Can I have extra towels?', spanish: '¿Puedo tener toallas extra?', category: 'Accommodation'),
-      PhraseWithCategory(english: 'The Wi-Fi password, please', spanish: 'La contraseña del Wi-Fi, por favor', category: 'Accommodation'),
-      PhraseWithCategory(english: 'Where is the elevator?', spanish: '¿Dónde está el ascensor?', category: 'Accommodation'),
-    ];
-  }
-
-  List<PhraseWithCategory> get _filteredPhrases {
-    if (_searchQuery.isEmpty) {
-      return [];
-    }
-    return _allPhrases.where((phrase) =>
-      phrase.english.toLowerCase().contains(_searchQuery) ||
-      phrase.spanish.toLowerCase().contains(_searchQuery)
-    ).toList();
   }
 
   Future<void> _speakSpanish(String text) async {
@@ -266,49 +201,75 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
                       ],
                     ),
                   )
-                : _filteredPhrases.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.search_off,
-                              size: 64,
-                              color: Colors.grey[400],
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No phrases found',
-                              style: TextStyle(
-                                fontSize: 18,
-                                color: Colors.grey[600],
+                : StreamBuilder<List<PhraseModel>>(
+                    stream: _phraseService.searchPhrases(_searchQuery),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      
+                      if (snapshot.hasError) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                              const SizedBox(height: 16),
+                              Text('Error: ${snapshot.error}'),
+                            ],
+                          ),
+                        );
+                      }
+                      
+                      final phrases = snapshot.data ?? [];
+                      
+                      if (phrases.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.search_off,
+                                size: 64,
+                                color: Colors.grey[400],
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Try a different search term',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[500],
+                              const SizedBox(height: 16),
+                              Text(
+                                'No phrases found',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.grey[600],
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
+                              const SizedBox(height: 8),
+                              Text(
+                                'Try a different search term',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                      
+                      return ListView.builder(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: _filteredPhrases.length,
+                        itemCount: phrases.length,
                         itemBuilder: (context, index) {
-                          return _buildPhraseCard(_filteredPhrases[index]);
+                          return _buildPhraseCard(phrases[index]);
                         },
-                      ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildPhraseCard(PhraseWithCategory phrase) {
+  Widget _buildPhraseCard(PhraseModel phrase) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -449,17 +410,4 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
       ),
     );
   }
-}
-
-// Data model for phrases with category info
-class PhraseWithCategory {
-  final String english;
-  final String spanish;
-  final String category;
-
-  PhraseWithCategory({
-    required this.english,
-    required this.spanish,
-    required this.category,
-  });
 }

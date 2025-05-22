@@ -43,6 +43,8 @@ dependencies:
   sqflite: ^2.3.2 # Check pub.dev for the latest version
   path: ^1.9.0    # Usually used with sqflite
   intl: ^0.19.0 # For date formatting (optional but nice)
+  firebase_core: ^3.6.0
+  cloud_firestore: ^5.4.4
 
 
 dev_dependencies:
