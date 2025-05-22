@@ -291,6 +291,9 @@ class _CategoryPhrasesScreenState extends State<CategoryPhrasesScreen> {
                   children: [
                     GestureDetector(
                       onTap: () async {
+                        // Store the old state to show correct message
+                        final wasInFavorites = phrase.isFavorite;
+                        
                         // Toggle favorite status
                         await _phraseService.toggleFavorite(phrase.id);
                         
@@ -300,17 +303,17 @@ class _CategoryPhrasesScreenState extends State<CategoryPhrasesScreen> {
                         // Update only this card's state (no page reload!)
                         setCardState(() {});
                         
-                        // Show snackbar feedback
+                        // Show snackbar feedback with CORRECT message
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                phrase.isFavorite 
+                                !wasInFavorites  // Use the OLD state to determine message
                                   ? '💚 Added to favorites' 
                                   : 'Removed from favorites',
                               ),
                               duration: const Duration(seconds: 2),
-                              backgroundColor: phrase.isFavorite 
+                              backgroundColor: !wasInFavorites 
                                 ? Theme.of(context).colorScheme.primary
                                 : Colors.grey[600],
                             ),
