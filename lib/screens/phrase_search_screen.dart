@@ -229,8 +229,8 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
                       ],
                     ),
                   )
-                : StreamBuilder<List<PhraseModel>>(
-                    stream: _phraseService.searchPhrases(_searchQuery),
+                : FutureBuilder<List<PhraseModel>>(
+                    future: _phraseService.searchPhrases(_searchQuery),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(child: CircularProgressIndicator());

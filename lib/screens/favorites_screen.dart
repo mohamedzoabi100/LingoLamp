@@ -128,6 +128,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     await _phraseService.toggleFavorite(phrase.id);
     
     if (mounted) {
+      // Refresh the screen to show updated list
+      setState(() {});
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Removed from favorites'),
@@ -138,6 +141,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             textColor: Colors.white,
             onPressed: () async {
               await _phraseService.toggleFavorite(phrase.id);
+              setState(() {}); // Refresh after undo
             },
           ),
         ),
@@ -162,8 +166,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         foregroundColor: Colors.white,
       ),
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: StreamBuilder<List<PhraseModel>>(
-        stream: _phraseService.getFavoritePhrases(),
+      body: FutureBuilder<List<PhraseModel>>(
+        future: _phraseService.getFavoritePhrases(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

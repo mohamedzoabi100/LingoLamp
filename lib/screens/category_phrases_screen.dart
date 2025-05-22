@@ -185,8 +185,8 @@ class _CategoryPhrasesScreenState extends State<CategoryPhrasesScreen> {
         foregroundColor: Colors.white,
       ),
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: StreamBuilder<List<PhraseModel>>(
-        stream: _phraseService.getPhrasesForCategory(widget.categoryTitle),
+      body: FutureBuilder<List<PhraseModel>>(
+        future: _phraseService.getPhrasesForCategory(widget.categoryTitle),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

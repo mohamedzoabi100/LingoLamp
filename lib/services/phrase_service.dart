@@ -1,5 +1,4 @@
 //lib/services/phrase_service.dart
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -11,7 +10,7 @@ class PhraseModel {
   final String category;
   final String difficulty;
   final DateTime createdAt;
-  bool isFavorite; // Added for favorites functionality
+  bool isFavorite;
 
   PhraseModel({
     required this.id,
@@ -22,29 +21,6 @@ class PhraseModel {
     required this.createdAt,
     this.isFavorite = false,
   });
-
-  factory PhraseModel.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-    return PhraseModel(
-      id: doc.id,
-      english: data['english'] ?? '',
-      spanish: data['spanish'] ?? '',
-      category: data['category'] ?? '',
-      difficulty: data['difficulty'] ?? 'beginner',
-      createdAt: (data['created_at'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      isFavorite: false, // Will be set by local preferences
-    );
-  }
-
-  Map<String, dynamic> toFirestore() {
-    return {
-      'english': english,
-      'spanish': spanish,
-      'category': category,
-      'difficulty': difficulty,
-      'created_at': Timestamp.fromDate(createdAt),
-    };
-  }
 
   // Helper method to create a copy with updated favorite status
   PhraseModel copyWith({bool? isFavorite}) {
@@ -58,6 +34,32 @@ class PhraseModel {
       isFavorite: isFavorite ?? this.isFavorite,
     );
   }
+
+  // Convert to JSON for local storage (if needed)
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'english': english,
+      'spanish': spanish,
+      'category': category,
+      'difficulty': difficulty,
+      'createdAt': createdAt.toIso8601String(),
+      'isFavorite': isFavorite,
+    };
+  }
+
+  // Create from JSON (if needed)
+  factory PhraseModel.fromJson(Map<String, dynamic> json) {
+    return PhraseModel(
+      id: json['id'],
+      english: json['english'],
+      spanish: json['spanish'],
+      category: json['category'],
+      difficulty: json['difficulty'],
+      createdAt: DateTime.parse(json['createdAt']),
+      isFavorite: json['isFavorite'] ?? false,
+    );
+  }
 }
 
 class PhraseService {
@@ -65,133 +67,20 @@ class PhraseService {
   factory PhraseService() => _instance;
   PhraseService._internal();
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final String _collection = 'phrases';
-  Set<String> _favoriteIds = {}; // Cache for favorite phrase IDs
-  bool _favoritesLoaded = false; // Track if favorites are loaded
+  // Local storage
+  static List<PhraseModel> _allPhrases = [];
+  Set<String> _favoriteIds = {};
+  bool _isInitialized = false;
 
-  // Initialize favorites from local storage
-  Future<void> _loadFavorites() async {
-    if (_favoritesLoaded) return; // Only load once
-    
-    final prefs = await SharedPreferences.getInstance();
-    final favoritesList = prefs.getStringList('favorite_phrases') ?? [];
-    _favoriteIds = favoritesList.toSet();
-    _favoritesLoaded = true;
-  }
-
-  // Save favorites to local storage
-  Future<void> _saveFavorites() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('favorite_phrases', _favoriteIds.toList());
-  }
-
-  // Toggle favorite status
-  Future<void> toggleFavorite(String phraseId) async {
-    await _loadFavorites(); // Ensure favorites are loaded
-    
-    if (_favoriteIds.contains(phraseId)) {
-      _favoriteIds.remove(phraseId);
-    } else {
-      _favoriteIds.add(phraseId);
-    }
-    await _saveFavorites();
-  }
-
-  // Check if phrase is favorite
-  Future<bool> isFavorite(String phraseId) async {
-    await _loadFavorites(); // Ensure favorites are loaded
-    return _favoriteIds.contains(phraseId);
-  }
-
-  // Helper method to add favorite status to phrases
-  Future<List<PhraseModel>> _addFavoriteStatus(List<PhraseModel> phrases) async {
-    await _loadFavorites(); // Ensure favorites are loaded
-    return phrases.map((phrase) => 
-      phrase.copyWith(isFavorite: _favoriteIds.contains(phrase.id))
-    ).toList();
-  }
-
-  // Get phrases by category
-  Stream<List<PhraseModel>> getPhrasesForCategory(String category) {
-    return _firestore
-        .collection(_collection)
-        .where('category', isEqualTo: category)
-        .snapshots()
-        .asyncMap((snapshot) async {
-          final phrases = snapshot.docs
-              .map((doc) => PhraseModel.fromFirestore(doc))
-              .toList()
-              ..sort((a, b) => a.english.compareTo(b.english));
-          return await _addFavoriteStatus(phrases);
-        });
-  }
-
-  // Get all phrases for search
-  Stream<List<PhraseModel>> getAllPhrases() {
-    return _firestore
-        .collection(_collection)
-        .snapshots()
-        .asyncMap((snapshot) async {
-          final phrases = snapshot.docs
-              .map((doc) => PhraseModel.fromFirestore(doc))
-              .toList()
-              ..sort((a, b) => a.category.compareTo(b.category));
-          return await _addFavoriteStatus(phrases);
-        });
-  }
-
-  // Get favorite phrases only - ordered by recently added (newest first)
-  Stream<List<PhraseModel>> getFavoritePhrases() {
-    return getAllPhrases().map((allPhrases) {
-      final favorites = allPhrases.where((phrase) => phrase.isFavorite).toList();
-      
-      // Sort by the order they appear in _favoriteIds (recently added first)
-      // Since we add new favorites to the end of the list, reverse it
-      final favoriteIdsList = _favoriteIds.toList().reversed.toList();
-      
-      favorites.sort((a, b) {
-        final indexA = favoriteIdsList.indexOf(a.id);
-        final indexB = favoriteIdsList.indexOf(b.id);
-        
-        // If both are found, sort by their position in the favorites list
-        if (indexA != -1 && indexB != -1) {
-          return indexA.compareTo(indexB);
-        }
-        
-        // If only one is found, prioritize it
-        if (indexA != -1) return -1;
-        if (indexB != -1) return 1;
-        
-        // If neither is found (shouldn't happen), sort alphabetically
-        return a.english.compareTo(b.english);
-      });
-      
-      return favorites;
-    });
-  }
-
-  // Search phrases with favorites
-  Stream<List<PhraseModel>> searchPhrases(String query) {
-    if (query.isEmpty) return Stream.value([]);
-    
-    return getAllPhrases().map((phrases) => phrases
-        .where((phrase) =>
-            phrase.english.toLowerCase().contains(query.toLowerCase()) ||
-            phrase.spanish.toLowerCase().contains(query.toLowerCase()))
-        .toList()
-        ..sort((a, b) => a.english.compareTo(b.english)));
-  }
-
-  // Add a new phrase (for admin use)
-  Future<void> addPhrase(PhraseModel phrase) async {
-    await _firestore.collection(_collection).add(phrase.toFirestore());
-  }
-
-  // Auto-sync CSV data with Firebase
+  // Initialize from CSV file
   Future<void> initializeSampleData() async {
+    if (_isInitialized) return; // Only initialize once
+
     try {
-      // Always load CSV file
+      // Load favorites first
+      await _loadFavorites();
+
+      // Load CSV file
       final csvString = await rootBundle.loadString('assets/data/phrases.csv');
       final List<List<String>> csvData = csvString
           .split('\n')
@@ -201,21 +90,7 @@ class PhraseService {
 
       print('Found ${csvData.length - 1} phrases in CSV');
 
-      // Get existing phrases from Firebase
-      final snapshot = await _firestore.collection(_collection).get();
-      final existingPhrases = <String, PhraseModel>{};
-      
-      for (var doc in snapshot.docs) {
-        final phrase = PhraseModel.fromFirestore(doc);
-        // Create unique key from english + category
-        final key = '${phrase.english.toLowerCase()}_${phrase.category.toLowerCase()}';
-        existingPhrases[key] = phrase;
-      }
-
-      print('Found ${existingPhrases.length} existing phrases in Firebase');
-
-      int addedCount = 0;
-      int updatedCount = 0;
+      _allPhrases.clear();
 
       // Process CSV data (skip header row)
       for (int i = 1; i < csvData.length; i++) {
@@ -226,59 +101,225 @@ class PhraseService {
           final categoryText = row[2].trim();
           final difficultyText = row[3].trim();
           
-          final key = '${englishText.toLowerCase()}_${categoryText.toLowerCase()}';
+          // Create unique ID
+          final id = '${englishText.toLowerCase().replaceAll(' ', '_')}_${categoryText.toLowerCase()}';
           
-          if (existingPhrases.containsKey(key)) {
-            // Check if phrase needs updating
-            final existing = existingPhrases[key]!;
-            if (existing.spanish != spanishText || 
-                existing.difficulty != difficultyText) {
-              // Update existing phrase
-              await _firestore.collection(_collection).doc(existing.id).update({
-                'spanish': spanishText,
-                'difficulty': difficultyText,
-              });
-              updatedCount++;
-            }
-          } else {
-            // Add new phrase
-            final newPhrase = PhraseModel(
-              id: '',
-              english: englishText,
-              spanish: spanishText,
-              category: categoryText,
-              difficulty: difficultyText,
-              createdAt: DateTime.now(),
-            );
-            await addPhrase(newPhrase);
-            addedCount++;
-          }
+          final phrase = PhraseModel(
+            id: id,
+            english: englishText,
+            spanish: spanishText,
+            category: categoryText,
+            difficulty: difficultyText,
+            createdAt: DateTime.now(),
+            isFavorite: _favoriteIds.contains(id),
+          );
+          
+          _allPhrases.add(phrase);
         }
       }
 
-      print('CSV sync complete: $addedCount added, $updatedCount updated');
+      _isInitialized = true;
+      print('Loaded ${_allPhrases.length} phrases from CSV');
 
     } catch (e) {
-      print('Error syncing CSV with Firebase: $e');
-      // Fallback to basic phrases if CSV fails
+      print('Error loading CSV: $e');
+      // Fallback to basic phrases
       await _initializeBasicPhrases();
     }
   }
 
   // Fallback basic phrases
   Future<void> _initializeBasicPhrases() async {
-    final snapshot = await _firestore.collection(_collection).limit(1).get();
-    if (snapshot.docs.isNotEmpty) return;
+    if (_allPhrases.isNotEmpty) return;
 
     final basicPhrases = [
-      PhraseModel(id: '', english: 'Hello', spanish: 'Hola', category: 'Greetings', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'Thank you', spanish: 'Gracias', category: 'Greetings', difficulty: 'beginner', createdAt: DateTime.now()),
-      PhraseModel(id: '', english: 'Help!', spanish: '¡Ayuda!', category: 'Emergencies', difficulty: 'beginner', createdAt: DateTime.now()),
+      PhraseModel(
+        id: 'hello_greetings',
+        english: 'Hello',
+        spanish: 'Hola',
+        category: 'Greetings',
+        difficulty: 'beginner',
+        createdAt: DateTime.now(),
+        isFavorite: _favoriteIds.contains('hello_greetings'),
+      ),
+      PhraseModel(
+        id: 'thank_you_greetings',
+        english: 'Thank you',
+        spanish: 'Gracias',
+        category: 'Greetings',
+        difficulty: 'beginner',
+        createdAt: DateTime.now(),
+        isFavorite: _favoriteIds.contains('thank_you_greetings'),
+      ),
+      PhraseModel(
+        id: 'help_emergencies',
+        english: 'Help!',
+        spanish: '¡Ayuda!',
+        category: 'Emergencies',
+        difficulty: 'beginner',
+        createdAt: DateTime.now(),
+        isFavorite: _favoriteIds.contains('help_emergencies'),
+      ),
     ];
 
-    for (var phrase in basicPhrases) {
-      await addPhrase(phrase);
+    _allPhrases.addAll(basicPhrases);
+    _isInitialized = true;
+    print('Basic fallback phrases loaded');
+  }
+
+  // Load favorites from SharedPreferences
+  Future<void> _loadFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    final favoritesList = prefs.getStringList('favorite_phrases') ?? [];
+    _favoriteIds = favoritesList.toSet();
+  }
+
+  // Save favorites to SharedPreferences
+  Future<void> _saveFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('favorite_phrases', _favoriteIds.toList());
+  }
+
+  // Toggle favorite status
+  Future<void> toggleFavorite(String phraseId) async {
+    if (_favoriteIds.contains(phraseId)) {
+      _favoriteIds.remove(phraseId);
+    } else {
+      _favoriteIds.add(phraseId);
     }
-    print('Basic fallback phrases added');
+    
+    // Update the phrase in memory
+    final phraseIndex = _allPhrases.indexWhere((p) => p.id == phraseId);
+    if (phraseIndex != -1) {
+      _allPhrases[phraseIndex].isFavorite = _favoriteIds.contains(phraseId);
+    }
+    
+    await _saveFavorites();
+  }
+
+  // Check if phrase is favorite
+  Future<bool> isFavorite(String phraseId) async {
+    return _favoriteIds.contains(phraseId);
+  }
+
+  // Get phrases by category (returns Future instead of Stream)
+  Future<List<PhraseModel>> getPhrasesForCategory(String category) async {
+    await initializeSampleData(); // Ensure data is loaded
+    
+    return _allPhrases
+        .where((phrase) => phrase.category == category)
+        .toList()
+        ..sort((a, b) => a.english.compareTo(b.english));
+  }
+
+  // Get phrases by category as Stream (for compatibility with existing UI)
+  Stream<List<PhraseModel>> getPhrasesForCategoryStream(String category) async* {
+    await initializeSampleData(); // Ensure data is loaded
+    
+    yield _allPhrases
+        .where((phrase) => phrase.category == category)
+        .toList()
+        ..sort((a, b) => a.english.compareTo(b.english));
+  }
+
+  // Get all phrases
+  Future<List<PhraseModel>> getAllPhrases() async {
+    await initializeSampleData(); // Ensure data is loaded
+    
+    return List.from(_allPhrases)
+      ..sort((a, b) => a.category.compareTo(b.category));
+  }
+
+  // Get all phrases as Stream (for compatibility)
+  Stream<List<PhraseModel>> getAllPhrasesStream() async* {
+    await initializeSampleData(); // Ensure data is loaded
+    
+    yield List.from(_allPhrases)
+      ..sort((a, b) => a.category.compareTo(b.category));
+  }
+
+  // Get favorite phrases only - ordered by recently added (newest first)
+  Future<List<PhraseModel>> getFavoritePhrases() async {
+    await initializeSampleData(); // Ensure data is loaded
+    
+    final favorites = _allPhrases.where((phrase) => phrase.isFavorite).toList();
+    
+    // Sort by the order they appear in _favoriteIds (recently added first)
+    final favoriteIdsList = _favoriteIds.toList().reversed.toList();
+    
+    favorites.sort((a, b) {
+      final indexA = favoriteIdsList.indexOf(a.id);
+      final indexB = favoriteIdsList.indexOf(b.id);
+      
+      if (indexA != -1 && indexB != -1) {
+        return indexA.compareTo(indexB);
+      }
+      
+      if (indexA != -1) return -1;
+      if (indexB != -1) return 1;
+      
+      return a.english.compareTo(b.english);
+    });
+    
+    return favorites;
+  }
+
+  // Get favorite phrases as Stream (for compatibility)
+  Stream<List<PhraseModel>> getFavoritePhrasesStream() async* {
+    yield await getFavoritePhrases();
+  }
+
+  // Search phrases
+  Future<List<PhraseModel>> searchPhrases(String query) async {
+    if (query.isEmpty) return [];
+    
+    await initializeSampleData(); // Ensure data is loaded
+    
+    return _allPhrases
+        .where((phrase) =>
+            phrase.english.toLowerCase().contains(query.toLowerCase()) ||
+            phrase.spanish.toLowerCase().contains(query.toLowerCase()))
+        .toList()
+        ..sort((a, b) => a.english.compareTo(b.english));
+  }
+
+  // Search phrases as Stream (for compatibility)
+  Stream<List<PhraseModel>> searchPhrasesStream(String query) async* {
+    yield await searchPhrases(query);
+  }
+
+  // Get unique categories
+  Future<List<String>> getCategories() async {
+    await initializeSampleData(); // Ensure data is loaded
+    
+    return _allPhrases
+        .map((phrase) => phrase.category)
+        .toSet()
+        .toList()
+        ..sort();
+  }
+
+  // Get unique difficulties
+  Future<List<String>> getDifficulties() async {
+    await initializeSampleData(); // Ensure data is loaded
+    
+    return _allPhrases
+        .map((phrase) => phrase.difficulty)
+        .toSet()
+        .toList()
+        ..sort();
+  }
+
+  // Refresh data (for pull-to-refresh functionality)
+  Future<void> refreshData() async {
+    _isInitialized = false;
+    _allPhrases.clear();
+    await initializeSampleData();
+  }
+
+  // Get phrase count for a category
+  Future<int> getPhraseCountForCategory(String category) async {
+    await initializeSampleData();
+    return _allPhrases.where((phrase) => phrase.category == category).length;
   }
 }
