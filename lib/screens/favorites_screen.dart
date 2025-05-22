@@ -236,18 +236,26 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     barrierDismissible: false,
                     builder: (BuildContext dialogContext) {
                       return AlertDialog(
-                        title: const Text('Delete Favorite'),
-                        content: Text('Are you sure you want to remove "${phrases[index].english}" from your favorites?'),
+                        title: const Text(
+                          'Delete Suggestion',
+                          style: TextStyle(fontSize: 18),
+                        ),
+                        content: Text(
+                          'Are you sure you want to remove "${phrases[index].english}" from your favorites?',
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                        contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+                        actionsPadding: const EdgeInsets.fromLTRB(8, 0, 16, 16),
                         actions: <Widget>[
                           TextButton(
-                            child: const Text('No'),
+                            child: const Text('No', style: TextStyle(fontSize: 14)),
                             onPressed: () => Navigator.of(dialogContext).pop(false),
                           ),
                           TextButton(
                             style: TextButton.styleFrom(
                               foregroundColor: primaryColor,
                             ),
-                            child: const Text('Yes'),
+                            child: const Text('Yes', style: TextStyle(fontSize: 14)),
                             onPressed: () => Navigator.of(dialogContext).pop(true),
                           ),
                         ],

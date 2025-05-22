@@ -68,12 +68,16 @@ class PhraseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final String _collection = 'phrases';
   Set<String> _favoriteIds = {}; // Cache for favorite phrase IDs
+  bool _favoritesLoaded = false; // Track if favorites are loaded
 
   // Initialize favorites from local storage
   Future<void> _loadFavorites() async {
+    if (_favoritesLoaded) return; // Only load once
+    
     final prefs = await SharedPreferences.getInstance();
     final favoritesList = prefs.getStringList('favorite_phrases') ?? [];
     _favoriteIds = favoritesList.toSet();
+    _favoritesLoaded = true;
   }
 
   // Save favorites to local storage
@@ -84,6 +88,8 @@ class PhraseService {
 
   // Toggle favorite status
   Future<void> toggleFavorite(String phraseId) async {
+    await _loadFavorites(); // Ensure favorites are loaded
+    
     if (_favoriteIds.contains(phraseId)) {
       _favoriteIds.remove(phraseId);
     } else {
@@ -93,14 +99,16 @@ class PhraseService {
   }
 
   // Check if phrase is favorite
-  bool isFavorite(String phraseId) {
+  Future<bool> isFavorite(String phraseId) async {
+    await _loadFavorites(); // Ensure favorites are loaded
     return _favoriteIds.contains(phraseId);
   }
 
   // Helper method to add favorite status to phrases
-  List<PhraseModel> _addFavoriteStatus(List<PhraseModel> phrases) {
+  Future<List<PhraseModel>> _addFavoriteStatus(List<PhraseModel> phrases) async {
+    await _loadFavorites(); // Ensure favorites are loaded
     return phrases.map((phrase) => 
-      phrase.copyWith(isFavorite: isFavorite(phrase.id))
+      phrase.copyWith(isFavorite: _favoriteIds.contains(phrase.id))
     ).toList();
   }
 
@@ -111,12 +119,11 @@ class PhraseService {
         .where('category', isEqualTo: category)
         .snapshots()
         .asyncMap((snapshot) async {
-          await _loadFavorites(); // Ensure favorites are loaded
           final phrases = snapshot.docs
               .map((doc) => PhraseModel.fromFirestore(doc))
               .toList()
               ..sort((a, b) => a.english.compareTo(b.english));
-          return _addFavoriteStatus(phrases);
+          return await _addFavoriteStatus(phrases);
         });
   }
 
@@ -126,21 +133,42 @@ class PhraseService {
         .collection(_collection)
         .snapshots()
         .asyncMap((snapshot) async {
-          await _loadFavorites(); // Ensure favorites are loaded
           final phrases = snapshot.docs
               .map((doc) => PhraseModel.fromFirestore(doc))
               .toList()
               ..sort((a, b) => a.category.compareTo(b.category));
-          return _addFavoriteStatus(phrases);
+          return await _addFavoriteStatus(phrases);
         });
   }
 
-  // Get favorite phrases only
+  // Get favorite phrases only - ordered by recently added (newest first)
   Stream<List<PhraseModel>> getFavoritePhrases() {
-    return getAllPhrases().map((allPhrases) => 
-      allPhrases.where((phrase) => phrase.isFavorite).toList()
-        ..sort((a, b) => a.english.compareTo(b.english))
-    );
+    return getAllPhrases().map((allPhrases) {
+      final favorites = allPhrases.where((phrase) => phrase.isFavorite).toList();
+      
+      // Sort by the order they appear in _favoriteIds (recently added first)
+      // Since we add new favorites to the end of the list, reverse it
+      final favoriteIdsList = _favoriteIds.toList().reversed.toList();
+      
+      favorites.sort((a, b) {
+        final indexA = favoriteIdsList.indexOf(a.id);
+        final indexB = favoriteIdsList.indexOf(b.id);
+        
+        // If both are found, sort by their position in the favorites list
+        if (indexA != -1 && indexB != -1) {
+          return indexA.compareTo(indexB);
+        }
+        
+        // If only one is found, prioritize it
+        if (indexA != -1) return -1;
+        if (indexB != -1) return 1;
+        
+        // If neither is found (shouldn't happen), sort alphabetically
+        return a.english.compareTo(b.english);
+      });
+      
+      return favorites;
+    });
   }
 
   // Search phrases with favorites

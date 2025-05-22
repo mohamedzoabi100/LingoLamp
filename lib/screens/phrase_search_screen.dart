@@ -128,19 +128,23 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
   }
 
   Future<void> _toggleFavorite(PhraseModel phrase) async {
+    // First toggle the favorite status
     await _phraseService.toggleFavorite(phrase.id);
+    
+    // Update the phrase object immediately for UI responsiveness
+    phrase.isFavorite = !phrase.isFavorite;
     
     // Show a snackbar to give user feedback
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            !phrase.isFavorite 
+            phrase.isFavorite 
               ? '💚 Added to favorites' 
               : 'Removed from favorites',
           ),
           duration: const Duration(seconds: 2),
-          backgroundColor: !phrase.isFavorite 
+          backgroundColor: phrase.isFavorite 
             ? Theme.of(context).colorScheme.primary
             : Colors.grey[600],
         ),
