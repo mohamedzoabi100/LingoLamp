@@ -14,6 +14,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   late FlutterTts _tts;
   bool _ttsReady = false;
   final PhraseService _phraseService = PhraseService();
+  
+  // Track which categories are expanded
+  final Map<String, bool> _expandedCategories = {};
 
   @override
   void initState() {
@@ -149,6 +152,61 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     }
   }
 
+  // Group phrases by category and maintain order within categories
+  Map<String, List<PhraseModel>> _groupPhrasesByCategory(List<PhraseModel> phrases) {
+    final Map<String, List<PhraseModel>> grouped = {};
+    
+    for (final phrase in phrases) {
+      if (!grouped.containsKey(phrase.category)) {
+        grouped[phrase.category] = [];
+      }
+      grouped[phrase.category]!.add(phrase);
+    }
+    
+    // Each category maintains the order from getFavoritePhrases (recently added first)
+    return grouped;
+  }
+
+  // Get category color based on app's phrasebook theme colors
+  Color _getCategoryColor(String category) {
+    switch (category) {
+      case 'Food & Dining':
+        return Colors.orange;
+      case 'Transport':
+        return Colors.blue;
+      case 'Emergencies':
+        return Colors.red;
+      case 'Greetings':
+        return Colors.green;
+      case 'Shopping':
+        return Colors.purple;
+      case 'Accommodation':
+        return Colors.brown;
+      default:
+        return Theme.of(context).colorScheme.primary;
+    }
+  }
+
+  // Get category icon based on app's phrasebook theme icons
+  IconData _getCategoryIcon(String category) {
+    switch (category) {
+      case 'Food & Dining':
+        return Icons.restaurant;
+      case 'Transport':
+        return Icons.directions_car;
+      case 'Emergencies':
+        return Icons.local_hospital;
+      case 'Greetings':
+        return Icons.waving_hand;
+      case 'Shopping':
+        return Icons.shopping_bag;
+      case 'Accommodation':
+        return Icons.hotel;
+      default:
+        return Icons.category;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).colorScheme.primary;
@@ -227,78 +285,155 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             );
           }
           
+          // Group phrases by category
+          final groupedPhrases = _groupPhrasesByCategory(phrases);
+          final categories = groupedPhrases.keys.toList()..sort();
+          
           return ListView.builder(
             padding: const EdgeInsets.all(16),
-            itemCount: phrases.length,
-            itemBuilder: (context, index) {
-              return Dismissible(
-                key: Key(phrases[index].id),
-                direction: DismissDirection.endToStart,
-                confirmDismiss: (direction) async {
-                  return await showDialog<bool>(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (BuildContext dialogContext) {
-                      return AlertDialog(
-                        title: const Text(
-                          'Delete Suggestion',
-                          style: TextStyle(fontSize: 18),
+            itemCount: categories.length,
+            itemBuilder: (context, categoryIndex) {
+              final category = categories[categoryIndex];
+              final categoryPhrases = groupedPhrases[category]!;
+              final categoryColor = _getCategoryColor(category);
+              final categoryIcon = _getCategoryIcon(category);
+              
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Category header (clickable)
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _expandedCategories[category] = !(_expandedCategories[category] ?? true);
+                      });
+                    },
+                    child: Container(
+                      margin: EdgeInsets.only(bottom: 12, top: categoryIndex == 0 ? 0 : 24),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: categoryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: categoryColor.withOpacity(0.3),
+                          width: 2,
                         ),
-                        content: Text(
-                          'Are you sure you want to remove "${phrases[index].english}" from your favorites?',
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
-                        actionsPadding: const EdgeInsets.fromLTRB(8, 0, 16, 16),
-                        actions: <Widget>[
-                          TextButton(
-                            child: const Text('No', style: TextStyle(fontSize: 14)),
-                            onPressed: () => Navigator.of(dialogContext).pop(false),
-                          ),
-                          TextButton(
-                            style: TextButton.styleFrom(
-                              foregroundColor: primaryColor,
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: categoryColor.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Text('Yes', style: TextStyle(fontSize: 14)),
-                            onPressed: () => Navigator.of(dialogContext).pop(true),
+                            child: Icon(
+                              categoryIcon,
+                              color: categoryColor,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              category,
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: categoryColor,
+                              ),
+                            ),
+                          ),
+                          // Expand/collapse arrow
+                          AnimatedRotation(
+                            duration: const Duration(milliseconds: 200),
+                            turns: (_expandedCategories[category] ?? true) ? 0.5 : 0,
+                            child: Icon(
+                              Icons.keyboard_arrow_down,
+                              color: categoryColor,
+                              size: 24,
+                            ),
                           ),
                         ],
+                      ),
+                    ),
+                  ),
+                  
+                  // Phrases in this category (collapsible)
+                  if (_expandedCategories[category] ?? true)
+                    ...categoryPhrases.map((phrase) => Dismissible(
+                    key: Key(phrase.id),
+                    direction: DismissDirection.endToStart,
+                    confirmDismiss: (direction) async {
+                      return await showDialog<bool>(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (BuildContext dialogContext) {
+                          return AlertDialog(
+                            title: const Text(
+                              'Remove from Favorites',
+                              style: TextStyle(fontSize: 18),
+                            ),
+                            content: Text(
+                              'Are you sure you want to remove "${phrase.english}" from your favorites?',
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                            contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+                            actionsPadding: const EdgeInsets.fromLTRB(8, 0, 16, 16),
+                            actions: <Widget>[
+                              TextButton(
+                                child: const Text('Cancel', style: TextStyle(fontSize: 14)),
+                                onPressed: () => Navigator.of(dialogContext).pop(false),
+                              ),
+                              TextButton(
+                                style: TextButton.styleFrom(
+                                  foregroundColor: primaryColor,
+                                ),
+                                child: const Text('Remove', style: TextStyle(fontSize: 14)),
+                                onPressed: () => Navigator.of(dialogContext).pop(true),
+                              ),
+                            ],
+                          );
+                        },
                       );
                     },
-                  );
-                },
-                onDismissed: (direction) {
-                  _removeFromFavorites(phrases[index]);
-                },
-                background: Container(
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.only(right: 20),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: primaryColor,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Icon(
-                        Icons.delete_outline,
-                        color: Colors.white,
-                        size: 24,
+                    onDismissed: (direction) {
+                      _removeFromFavorites(phrase);
+                    },
+                    background: Container(
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.only(right: 20),
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: primaryColor,
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      SizedBox(width: 8),
-                      Text(
-                        'Delete',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Icon(
+                            Icons.delete_outline,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Remove',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-                child: _buildPhraseCard(phrases[index]),
+                    ),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: _buildPhraseCard(phrase),
+                    ),
+                  )).toList(),
+                ],
               );
             },
           );
@@ -309,71 +444,49 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   Widget _buildPhraseCard(PhraseModel phrase) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withOpacity(0.04),
             spreadRadius: 0,
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
         children: [
-          // Category badge only (no favorite button)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-              ),
-            ),
-            child: Text(
-              phrase.category,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-          ),
-          
           // English section
           GestureDetector(
             onTap: () => _speakEnglish(phrase.english),
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                     decoration: BoxDecoration(
                       color: Colors.blue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       'EN',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         fontWeight: FontWeight.bold,
                         color: Colors.blue[700],
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       phrase.english,
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.w500,
                         color: Colors.black87,
                       ),
@@ -381,7 +494,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                   ),
                   Icon(
                     Icons.volume_up_rounded,
-                    size: 24,
+                    size: 20,
                     color: Colors.blue[600],
                   ),
                 ],
@@ -400,36 +513,36 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             onTap: () => _speakSpanish(phrase.spanish),
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               decoration: const BoxDecoration(
                 borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(16),
-                  bottomRight: Radius.circular(16),
+                  bottomLeft: Radius.circular(12),
+                  bottomRight: Radius.circular(12),
                 ),
               ),
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                     decoration: BoxDecoration(
                       color: Colors.red.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       'ES',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         fontWeight: FontWeight.bold,
                         color: Colors.red[700],
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       phrase.spanish,
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.w500,
                         color: Colors.black87,
                       ),
@@ -437,7 +550,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                   ),
                   Icon(
                     Icons.volume_up_rounded,
-                    size: 24,
+                    size: 20,
                     color: Colors.red[600],
                   ),
                 ],
