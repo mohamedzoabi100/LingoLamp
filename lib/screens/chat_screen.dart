@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../utils/database_helper.dart';
 import '../models/chat_message_model.dart' as model; 
 import '../models/conversation_model.dart';
+import '../models/flashcard_model.dart';
 import 'chat_history_screen.dart';
 
 const sourceLang = TranslateLanguage.english;
@@ -143,7 +144,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       setState(() {
         _uiMessages.clear();
         for (var msg in dbMessages) {
-          _uiMessages.add(_ChatLineUi(msg.text, isUser: msg.isUserMessage, timestamp: msg.timestamp));
+          // For user messages, originalText is the same as text
+          // For bot messages (translations), originalText is the translatedText field (which contains the original user input)
+          String? originalText = msg.isUserMessage ? msg.text : msg.translatedText;
+          _uiMessages.add(_ChatLineUi(msg.text, isUser: msg.isUserMessage, timestamp: msg.timestamp, originalText: originalText));
         }
       });
     }
@@ -250,18 +254,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     DateTime messageTimestamp = DateTime.now();
     if (mounted) {
       setState(() {
-        _uiMessages.add(_ChatLineUi(text, isUser: true, timestamp: messageTimestamp));
+        _uiMessages.add(_ChatLineUi(text, isUser: true, timestamp: messageTimestamp, originalText: text));
       });
     }
     _scrollToBottom();
-    await _sendMessageToDb(text, true, messageTimestamp);
+    await _sendMessageToDb(text, true, messageTimestamp, translatedText: text);
 
     try {
       final translated = await _translator.translateText(text);
       DateTime botMessageTimestamp = DateTime.now();
       if (mounted) {
         setState(() {
-          _uiMessages.add(_ChatLineUi(translated, isUser: false, timestamp: botMessageTimestamp));
+          _uiMessages.add(_ChatLineUi(translated, isUser: false, timestamp: botMessageTimestamp, originalText: text));
         });
       }
       _scrollToBottom();
@@ -271,11 +275,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       DateTime errorTimestamp = DateTime.now();
       if (mounted) {
         setState(() {
-          _uiMessages.add(_ChatLineUi("Sorry, translation failed. Error: ${e.toString()}", isUser: false, timestamp: errorTimestamp));
+          _uiMessages.add(_ChatLineUi("Sorry, translation failed. Error: ${e.toString()}", isUser: false, timestamp: errorTimestamp, originalText: text));
         });
       }
       _scrollToBottom();
-      await _sendMessageToDb("Sorry, translation failed. Error: ${e.toString()}", false, errorTimestamp);
+      await _sendMessageToDb("Sorry, translation failed. Error: ${e.toString()}", false, errorTimestamp, translatedText: text);
     }
   }
 
@@ -299,6 +303,57 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (!_sttReady || !_listening) return; //Added check for _sttReady
     await _stt.stop();
     if (mounted) setState(() => _listening = false);
+  }
+
+  Future<void> _addToFlashcards(String originalText, String translatedText) async {
+    try {
+      // Check if flashcard already exists
+      bool exists = await _dbHelper.flashcardExists(originalText, translatedText);
+      if (exists) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('This flashcard already exists!'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      DateTime now = DateTime.now();
+      Flashcard flashcard = Flashcard(
+        originalText: originalText,
+        translatedText: translatedText,
+        sourceLanguage: sourceLang.bcpCode,
+        targetLanguage: targetLang.bcpCode,
+        createdAt: now,
+        lastStudied: now,
+        timesStudied: 0,
+        difficulty: 2, // Medium difficulty by default
+        isFavorite: false,
+      );
+
+      await _dbHelper.insertFlashcard(flashcard);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Added to flashcards! 📚'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error adding to flashcards: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -441,6 +496,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final bool isUser = message.isUser;
     final primaryColor = Theme.of(context).colorScheme.primary;
     final surfaceColor = Theme.of(context).colorScheme.surface;
+    
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -449,17 +505,69 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         decoration: BoxDecoration(
           color: isUser ? primaryColor : Colors.grey.shade200, 
           borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(18), topRight: const Radius.circular(18),
+            topLeft: const Radius.circular(18), 
+            topRight: const Radius.circular(18),
             bottomLeft: isUser ? const Radius.circular(18) : const Radius.circular(4),
             bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(18),
           ),
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 3, offset: const Offset(0, 1))],
         ),
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-        child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Flexible(child: Text(message.text, style: TextStyle(color: isUser ? Colors.white : Theme.of(context).colorScheme.onSurface))),
-          if (!isUser) ...[const SizedBox(width: 8), InkWell(onTap: !_modelsReady ? null : () => _tts.speak(message.text), child: Icon(Icons.volume_up_rounded, size: 20, color: primaryColor.withOpacity(0.7)), borderRadius: BorderRadius.circular(10))],
-        ]),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min, 
+              crossAxisAlignment: CrossAxisAlignment.end, 
+              children: [
+                Flexible(child: Text(message.text, style: TextStyle(color: isUser ? Colors.white : Theme.of(context).colorScheme.onSurface))),
+                if (!isUser) ...[
+                  const SizedBox(width: 8), 
+                  InkWell(
+                    onTap: !_modelsReady ? null : () => _tts.speak(message.text), 
+                    child: Icon(Icons.volume_up_rounded, size: 20, color: primaryColor.withOpacity(0.7)), 
+                    borderRadius: BorderRadius.circular(10)
+                  )
+                ],
+              ]
+            ),
+            // Add to flashcards button for translation pairs
+            if (!isUser && message.originalText != null && message.originalText!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: () => _addToFlashcards(message.originalText!, message.text),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: primaryColor.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.library_add_rounded, 
+                        size: 16, 
+                        color: primaryColor
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Add to Flashcards',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: primaryColor,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -470,5 +578,7 @@ class _ChatLineUi {
   final String text;
   final bool isUser;
   final DateTime timestamp;
-  _ChatLineUi(this.text, {required this.isUser, required this.timestamp});
+  final String? originalText;
+  
+  _ChatLineUi(this.text, {required this.isUser, required this.timestamp, this.originalText});
 }
