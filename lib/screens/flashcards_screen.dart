@@ -26,7 +26,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 2, vsync: this, initialIndex: 0);
     _initTts();
     _loadFlashcards();
   }
@@ -415,68 +415,91 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Card(
-                elevation: 8,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(32),
-                  child: Column(
-                    children: [
-                      Text(
-                        flashcard.originalText,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 16),
-                      IconButton(
-                        icon: const Icon(Icons.volume_up, size: 32),
-                        onPressed: () => _speakText(
-                          flashcard.originalText,
-                          flashcard.sourceLanguage,
-                        ),
-                      ),
-                      if (_showAnswer) ...[
-                        const SizedBox(height: 32),
-                        const Divider(),
-                        const SizedBox(height: 16),
-                        Text(
-                          flashcard.translatedText,
-                          style: TextStyle(
-                            fontSize: 20,
-                            color: Colors.grey[700],
+              GestureDetector(
+                onTap: () {
+                  setState(() => _showAnswer = !_showAnswer);
+                },
+                child: Card(
+                  elevation: 8,
+                  child: Container(
+                    width: double.infinity,
+                    height: 300,
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (!_showAnswer) ...[
+                          Text(
+                            flashcard.originalText,
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        IconButton(
-                          icon: const Icon(Icons.volume_up, size: 28),
-                          onPressed: () => _speakText(
+                          const SizedBox(height: 16),
+                          IconButton(
+                            icon: const Icon(Icons.volume_up, size: 32),
+                            onPressed: () => _speakText(
+                              flashcard.originalText,
+                              flashcard.sourceLanguage,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Tap card to see translation',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ] else ...[
+                          Text(
+                            flashcard.originalText,
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.grey[600],
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 20),
+                          const Divider(),
+                          const SizedBox(height: 20),
+                          Text(
                             flashcard.translatedText,
-                            flashcard.targetLanguage,
+                            style: const TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                            textAlign: TextAlign.center,
                           ),
-                        ),
+                          const SizedBox(height: 16),
+                          IconButton(
+                            icon: const Icon(Icons.volume_up, size: 32),
+                            onPressed: () => _speakText(
+                              flashcard.translatedText,
+                              flashcard.targetLanguage,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Tap card to flip back',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
               const SizedBox(height: 32),
-              if (!_showAnswer)
-                ElevatedButton(
-                  onPressed: () {
-                    setState(() => _showAnswer = true);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                  ),
-                  child: const Text('Show Answer'),
-                )
-              else
+              if (_showAnswer)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
@@ -488,6 +511,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       ),
                       child: const Text('Correct'),
                     ),
@@ -499,6 +523,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red,
                         foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       ),
                       child: const Text('Incorrect'),
                     ),
@@ -528,16 +553,16 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white70,
           tabs: const [
-            Tab(text: 'All Cards'),
             Tab(text: 'Study'),
+            Tab(text: 'All Cards'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildFlashcardsList(),
           _buildStudyMode(),
+          _buildFlashcardsList(),
         ],
       ),
     );
