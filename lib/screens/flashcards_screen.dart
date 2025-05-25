@@ -409,6 +409,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
           onPressed: _exitStudyMode,
         ),
       ),
+      backgroundColor: Colors.white,
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -421,6 +422,14 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
                 },
                 child: Card(
                   elevation: 8,
+                  color: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(
+                      color: Theme.of(context).primaryColor,
+                      width: 3,
+                    ),
+                  ),
                   child: Container(
                     width: double.infinity,
                     height: 300,
@@ -434,12 +443,13 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
                             style: const TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
+                              color: Colors.black87,
                             ),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 16),
                           IconButton(
-                            icon: const Icon(Icons.volume_up, size: 32),
+                            icon: Icon(Icons.volume_up, size: 32, color: Theme.of(context).primaryColor),
                             onPressed: () => _speakText(
                               flashcard.originalText,
                               flashcard.sourceLanguage,
@@ -450,7 +460,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
                             'Tap card to see translation',
                             style: TextStyle(
                               fontSize: 14,
-                              color: Colors.grey[600],
+                              color: Theme.of(context).primaryColor,
                               fontStyle: FontStyle.italic,
                             ),
                           ),
@@ -464,20 +474,20 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 20),
-                          const Divider(),
+                          Divider(color: Theme.of(context).primaryColor, thickness: 2),
                           const SizedBox(height: 20),
                           Text(
                             flashcard.translatedText,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 26,
                               fontWeight: FontWeight.bold,
-                              color: Colors.black87,
+                              color: Theme.of(context).primaryColor,
                             ),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 16),
                           IconButton(
-                            icon: const Icon(Icons.volume_up, size: 32),
+                            icon: Icon(Icons.volume_up, size: 32, color: Theme.of(context).primaryColor),
                             onPressed: () => _speakText(
                               flashcard.translatedText,
                               flashcard.targetLanguage,
@@ -488,7 +498,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
                             'Tap card to flip back',
                             style: TextStyle(
                               fontSize: 14,
-                              color: Colors.grey[600],
+                              color: Theme.of(context).primaryColor,
                               fontStyle: FontStyle.italic,
                             ),
                           ),
@@ -558,6 +568,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
           ],
         ),
       ),
+      backgroundColor: Colors.white,
       body: TabBarView(
         controller: _tabController,
         children: [
