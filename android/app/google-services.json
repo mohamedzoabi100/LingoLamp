@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "870289923429",
-    "project_id": "lingolamptrial",
-    "storage_bucket": "lingolamptrial.firebasestorage.app"
+    "project_number": "65099514942",
+    "project_id": "lingolamp",
+    "storage_bucket": "lingolamp.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:870289923429:android:8f5d4862f99f1e708c158c",
+        "mobilesdk_app_id": "1:65099514942:android:46687ad81478560e3d7d6f",
         "android_client_info": {
-          "package_name": "com.technion.android.hello_me"
+          "package_name": "com.technion.android.lingo_lamp"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyA_GPZdnwWUr15UgqhNtAjFvboS6x47cZ4"
+          "current_key": "AIzaSyDwfhHspex6gpfgnZprXmK-6w2iBH-0j5M"
         }
       ],
       "services": {
