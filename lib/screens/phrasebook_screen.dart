@@ -88,24 +88,25 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Search bar section
+          // FIXED: Search bar section - entire bar is now tappable
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey[300]!),
-              ),
-              child: GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const PhraseSearchScreen(),
-                    ),
-                  );
-                },
+            child: GestureDetector(
+              // FIXED: Make entire container tappable
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const PhraseSearchScreen(),
+                  ),
+                );
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(
@@ -118,6 +119,13 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
                       Text(
                         'Search phrases',
                         style: TextStyle(color: Colors.grey[600]),
+                      ),
+                      const Spacer(),
+                      // OPTIONAL: Add arrow indicator to show it's tappable
+                      Icon(
+                        Icons.arrow_forward_ios,
+                        size: 16,
+                        color: Colors.grey[400],
                       ),
                     ],
                   ),
