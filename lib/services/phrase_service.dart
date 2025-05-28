@@ -11,6 +11,7 @@ class PhraseModel {
   final String difficulty;
   final DateTime createdAt;
   bool isFavorite;
+  final bool isAiGenerated; // NEW: Track if it's AI-generated
 
   PhraseModel({
     required this.id,
@@ -20,10 +21,11 @@ class PhraseModel {
     required this.difficulty,
     required this.createdAt,
     this.isFavorite = false,
+    this.isAiGenerated = false, // NEW: Default to false for CSV phrases
   });
 
   // Helper method to create a copy with updated favorite status
-  PhraseModel copyWith({bool? isFavorite}) {
+  PhraseModel copyWith({bool? isFavorite, bool? isAiGenerated}) {
     return PhraseModel(
       id: id,
       english: english,
@@ -32,10 +34,11 @@ class PhraseModel {
       difficulty: difficulty,
       createdAt: createdAt,
       isFavorite: isFavorite ?? this.isFavorite,
+      isAiGenerated: isAiGenerated ?? this.isAiGenerated,
     );
   }
 
-  // Convert to JSON for local storage (if needed)
+  // Convert to JSON for local storage
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -45,10 +48,11 @@ class PhraseModel {
       'difficulty': difficulty,
       'createdAt': createdAt.toIso8601String(),
       'isFavorite': isFavorite,
+      'isAiGenerated': isAiGenerated, // NEW
     };
   }
 
-  // Create from JSON (if needed)
+  // Create from JSON
   factory PhraseModel.fromJson(Map<String, dynamic> json) {
     return PhraseModel(
       id: json['id'],
@@ -58,6 +62,7 @@ class PhraseModel {
       difficulty: json['difficulty'],
       createdAt: DateTime.parse(json['createdAt']),
       isFavorite: json['isFavorite'] ?? false,
+      isAiGenerated: json['isAiGenerated'] ?? false, // NEW
     );
   }
 }
@@ -69,18 +74,16 @@ class PhraseService {
 
   // Local storage
   static List<PhraseModel> _allPhrases = [];
+  static List<PhraseModel> _aiPhrases = []; // NEW: Store AI phrases separately
   Set<String> _favoriteIds = {};
   bool _isInitialized = false;
 
   // Initialize from CSV file
   Future<void> initializeSampleData() async {
-    if (_isInitialized) return; // Only initialize once
+    if (_isInitialized) return;
 
     try {
-      // Load favorites first
       await _loadFavorites();
-
-      // Load CSV file
       final csvString = await rootBundle.loadString('assets/data/phrases.csv');
       final List<List<String>> csvData = csvString
           .split('\n')
@@ -92,7 +95,6 @@ class PhraseService {
 
       _allPhrases.clear();
 
-      // Process CSV data (skip header row)
       for (int i = 1; i < csvData.length; i++) {
         final row = csvData[i];
         if (row.length >= 4) {
@@ -101,7 +103,6 @@ class PhraseService {
           final categoryText = row[2].trim();
           final difficultyText = row[3].trim();
           
-          // Create unique ID (more reliable)
           final id = '${englishText.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}_${categoryText.toLowerCase().replaceAll(' ', '_')}_$i';
           
           final phrase = PhraseModel(
@@ -112,21 +113,74 @@ class PhraseService {
             difficulty: difficultyText,
             createdAt: DateTime.now(),
             isFavorite: _favoriteIds.contains(id),
+            isAiGenerated: false, // CSV phrases are not AI-generated
           );
           
           _allPhrases.add(phrase);
-          print('Loaded phrase: $id - ${englishText} (isFavorite: ${phrase.isFavorite})');
         }
       }
 
+      // Load AI phrases from storage
+      await _loadAiPhrases();
+
       _isInitialized = true;
-      print('Loaded ${_allPhrases.length} phrases from CSV');
+      print('Loaded ${_allPhrases.length} CSV phrases and ${_aiPhrases.length} AI phrases');
 
     } catch (e) {
       print('Error loading CSV: $e');
-      // Fallback to basic phrases
       await _initializeBasicPhrases();
     }
+  }
+
+  // NEW: Load AI phrases from local storage
+  Future<void> _loadAiPhrases() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final aiPhrasesJson = prefs.getStringList('ai_phrases') ?? [];
+      
+      _aiPhrases.clear();
+      for (final phraseJson in aiPhrasesJson) {
+        try {
+          final phraseMap = jsonDecode(phraseJson);
+          final phrase = PhraseModel.fromJson(phraseMap);
+          phrase.isFavorite = _favoriteIds.contains(phrase.id);
+          _aiPhrases.add(phrase);
+        } catch (e) {
+          print('Error parsing AI phrase: $e');
+        }
+      }
+      
+      print('Loaded ${_aiPhrases.length} AI phrases from storage');
+    } catch (e) {
+      print('Error loading AI phrases: $e');
+    }
+  }
+
+  // NEW: Save AI phrases to local storage
+  Future<void> _saveAiPhrases() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final aiPhrasesJson = _aiPhrases.map((phrase) => jsonEncode(phrase.toJson())).toList();
+      await prefs.setStringList('ai_phrases', aiPhrasesJson);
+      print('Saved ${_aiPhrases.length} AI phrases to storage');
+    } catch (e) {
+      print('Error saving AI phrases: $e');
+    }
+  }
+
+  // NEW: Add AI-generated phrases
+  Future<void> addAiPhrases(List<PhraseModel> newAiPhrases) async {
+    for (final phrase in newAiPhrases) {
+      // Check if phrase already exists
+      if (!_aiPhrases.any((p) => p.id == phrase.id)) {
+        final aiPhrase = phrase.copyWith(isAiGenerated: true);
+        aiPhrase.isFavorite = _favoriteIds.contains(aiPhrase.id);
+        _aiPhrases.add(aiPhrase);
+      }
+    }
+    
+    await _saveAiPhrases();
+    print('Added ${newAiPhrases.length} new AI phrases');
   }
 
   // Fallback basic phrases
@@ -142,6 +196,7 @@ class PhraseService {
         difficulty: 'beginner',
         createdAt: DateTime.now(),
         isFavorite: _favoriteIds.contains('hello_greetings'),
+        isAiGenerated: false,
       ),
       PhraseModel(
         id: 'thank_you_greetings',
@@ -151,15 +206,7 @@ class PhraseService {
         difficulty: 'beginner',
         createdAt: DateTime.now(),
         isFavorite: _favoriteIds.contains('thank_you_greetings'),
-      ),
-      PhraseModel(
-        id: 'help_emergencies',
-        english: 'Help!',
-        spanish: '¡Ayuda!',
-        category: 'Emergencies',
-        difficulty: 'beginner',
-        createdAt: DateTime.now(),
-        isFavorite: _favoriteIds.contains('help_emergencies'),
+        isAiGenerated: false,
       ),
     ];
 
@@ -181,7 +228,7 @@ class PhraseService {
     await prefs.setStringList('favorite_phrases', _favoriteIds.toList());
   }
 
-  // Toggle favorite status
+  // Toggle favorite status - UPDATED to handle both CSV and AI phrases
   Future<void> toggleFavorite(String phraseId) async {
     if (_favoriteIds.contains(phraseId)) {
       _favoriteIds.remove(phraseId);
@@ -189,13 +236,17 @@ class PhraseService {
       _favoriteIds.add(phraseId);
     }
     
-    // CRITICAL: Update the phrase in the in-memory list immediately
-    final phraseIndex = _allPhrases.indexWhere((p) => p.id == phraseId);
-    if (phraseIndex != -1) {
-      _allPhrases[phraseIndex].isFavorite = _favoriteIds.contains(phraseId);
-      print('Updated phrase ${phraseId} in memory: isFavorite = ${_allPhrases[phraseIndex].isFavorite}');
-    } else {
-      print('Warning: Phrase $phraseId not found in _allPhrases');
+    // Update CSV phrases
+    final csvPhraseIndex = _allPhrases.indexWhere((p) => p.id == phraseId);
+    if (csvPhraseIndex != -1) {
+      _allPhrases[csvPhraseIndex].isFavorite = _favoriteIds.contains(phraseId);
+    }
+    
+    // Update AI phrases
+    final aiPhraseIndex = _aiPhrases.indexWhere((p) => p.id == phraseId);
+    if (aiPhraseIndex != -1) {
+      _aiPhrases[aiPhraseIndex].isFavorite = _favoriteIds.contains(phraseId);
+      await _saveAiPhrases(); // Save AI phrases when favorites change
     }
     
     await _saveFavorites();
@@ -206,52 +257,42 @@ class PhraseService {
     return _favoriteIds.contains(phraseId);
   }
 
-  // Get phrases by category (returns Future instead of Stream)
+  // Get all phrases (CSV + AI) by category
   Future<List<PhraseModel>> getPhrasesForCategory(String category) async {
-    await initializeSampleData(); // Ensure data is loaded
+    await initializeSampleData();
     
-    return _allPhrases
-        .where((phrase) => phrase.category == category)
-        .toList()
-        ..sort((a, b) => a.english.compareTo(b.english));
+    final csvPhrases = _allPhrases.where((phrase) => phrase.category == category).toList();
+    final aiPhrases = _aiPhrases.where((phrase) => phrase.category == category).toList();
+    
+    final allPhrases = [...csvPhrases, ...aiPhrases];
+    allPhrases.sort((a, b) => a.english.compareTo(b.english));
+    
+    return allPhrases;
   }
 
-  // Get phrases by category as Stream (for compatibility with existing UI)
-  Stream<List<PhraseModel>> getPhrasesForCategoryStream(String category) async* {
-    await initializeSampleData(); // Ensure data is loaded
-    
-    yield _allPhrases
-        .where((phrase) => phrase.category == category)
-        .toList()
-        ..sort((a, b) => a.english.compareTo(b.english));
-  }
-
-  // Get all phrases
+  // Get all phrases (CSV + AI)
   Future<List<PhraseModel>> getAllPhrases() async {
-    await initializeSampleData(); // Ensure data is loaded
+    await initializeSampleData();
     
-    return List.from(_allPhrases)
-      ..sort((a, b) => a.category.compareTo(b.category));
+    final allPhrases = [..._allPhrases, ..._aiPhrases];
+    allPhrases.sort((a, b) => a.category.compareTo(b.category));
+    
+    return allPhrases;
   }
 
-  // Get all phrases as Stream (for compatibility)
-  Stream<List<PhraseModel>> getAllPhrasesStream() async* {
-    await initializeSampleData(); // Ensure data is loaded
-    
-    yield List.from(_allPhrases)
-      ..sort((a, b) => a.category.compareTo(b.category));
-  }
-
-  // Get favorite phrases only - ordered by recently added (newest first)
+  // Get favorite phrases (CSV + AI) - ordered by recently added
   Future<List<PhraseModel>> getFavoritePhrases() async {
-    await initializeSampleData(); // Ensure data is loaded
+    await initializeSampleData();
     
-    final favorites = _allPhrases.where((phrase) => phrase.isFavorite).toList();
+    final csvFavorites = _allPhrases.where((phrase) => phrase.isFavorite).toList();
+    final aiFavorites = _aiPhrases.where((phrase) => phrase.isFavorite).toList();
+    
+    final allFavorites = [...csvFavorites, ...aiFavorites];
     
     // Sort by the order they appear in _favoriteIds (recently added first)
     final favoriteIdsList = _favoriteIds.toList().reversed.toList();
     
-    favorites.sort((a, b) {
+    allFavorites.sort((a, b) {
       final indexA = favoriteIdsList.indexOf(a.id);
       final indexB = favoriteIdsList.indexOf(b.id);
       
@@ -265,65 +306,99 @@ class PhraseService {
       return a.english.compareTo(b.english);
     });
     
-    return favorites;
+    return allFavorites;
   }
 
-  // Get favorite phrases as Stream (for compatibility)
-  Stream<List<PhraseModel>> getFavoritePhrasesStream() async* {
-    yield await getFavoritePhrases();
-  }
-
-  // Search phrases
+  // Search phrases (CSV + AI)
   Future<List<PhraseModel>> searchPhrases(String query) async {
     if (query.isEmpty) return [];
     
-    await initializeSampleData(); // Ensure data is loaded
+    await initializeSampleData();
     
-    return _allPhrases
-        .where((phrase) =>
-            phrase.english.toLowerCase().contains(query.toLowerCase()) ||
-            phrase.spanish.toLowerCase().contains(query.toLowerCase()))
-        .toList()
-        ..sort((a, b) => a.english.compareTo(b.english));
+    final csvResults = _allPhrases.where((phrase) =>
+        phrase.english.toLowerCase().contains(query.toLowerCase()) ||
+        phrase.spanish.toLowerCase().contains(query.toLowerCase())).toList();
+        
+    final aiResults = _aiPhrases.where((phrase) =>
+        phrase.english.toLowerCase().contains(query.toLowerCase()) ||
+        phrase.spanish.toLowerCase().contains(query.toLowerCase())).toList();
+    
+    final allResults = [...csvResults, ...aiResults];
+    allResults.sort((a, b) => a.english.compareTo(b.english));
+    
+    return allResults;
   }
 
-  // Search phrases as Stream (for compatibility)
-  Stream<List<PhraseModel>> searchPhrasesStream(String query) async* {
-    yield await searchPhrases(query);
-  }
-
-  // Get unique categories
+  // Get unique categories (CSV + AI)
   Future<List<String>> getCategories() async {
-    await initializeSampleData(); // Ensure data is loaded
+    await initializeSampleData();
     
-    return _allPhrases
-        .map((phrase) => phrase.category)
-        .toSet()
-        .toList()
-        ..sort();
+    final csvCategories = _allPhrases.map((phrase) => phrase.category).toSet();
+    final aiCategories = _aiPhrases.map((phrase) => phrase.category).toSet();
+    
+    final allCategories = {...csvCategories, ...aiCategories}.toList();
+    allCategories.sort();
+    
+    return allCategories;
   }
 
   // Get unique difficulties
   Future<List<String>> getDifficulties() async {
-    await initializeSampleData(); // Ensure data is loaded
+    await initializeSampleData();
     
-    return _allPhrases
-        .map((phrase) => phrase.difficulty)
-        .toSet()
-        .toList()
-        ..sort();
+    final csvDifficulties = _allPhrases.map((phrase) => phrase.difficulty).toSet();
+    final aiDifficulties = _aiPhrases.map((phrase) => phrase.difficulty).toSet();
+    
+    final allDifficulties = {...csvDifficulties, ...aiDifficulties}.toList();
+    allDifficulties.sort();
+    
+    return allDifficulties;
   }
 
-  // Refresh data (for pull-to-refresh functionality)
+  // Refresh data
   Future<void> refreshData() async {
     _isInitialized = false;
     _allPhrases.clear();
+    _aiPhrases.clear();
     await initializeSampleData();
   }
 
-  // Get phrase count for a category
+  // Get phrase count for a category (CSV + AI)
   Future<int> getPhraseCountForCategory(String category) async {
     await initializeSampleData();
-    return _allPhrases.where((phrase) => phrase.category == category).length;
+    
+    final csvCount = _allPhrases.where((phrase) => phrase.category == category).length;
+    final aiCount = _aiPhrases.where((phrase) => phrase.category == category).length;
+    
+    return csvCount + aiCount;
+  }
+
+  // NEW: Get AI phrases count for a category
+  Future<int> getAiPhraseCountForCategory(String category) async {
+    await initializeSampleData();
+    return _aiPhrases.where((phrase) => phrase.category == category).length;
+  }
+
+  // NEW: Clear AI phrases for a category (for "Generate More" functionality)
+  Future<void> clearAiPhrasesForCategory(String category) async {
+    _aiPhrases.removeWhere((phrase) => phrase.category == category);
+    await _saveAiPhrases();
+  }
+
+  // Compatibility methods for existing code
+  Stream<List<PhraseModel>> getPhrasesForCategoryStream(String category) async* {
+    yield await getPhrasesForCategory(category);
+  }
+
+  Stream<List<PhraseModel>> getAllPhrasesStream() async* {
+    yield await getAllPhrases();
+  }
+
+  Stream<List<PhraseModel>> getFavoritePhrasesStream() async* {
+    yield await getFavoritePhrases();
+  }
+
+  Stream<List<PhraseModel>> searchPhrasesStream(String query) async* {
+    yield await searchPhrases(query);
   }
 }

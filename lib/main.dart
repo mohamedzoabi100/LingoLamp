@@ -1,8 +1,18 @@
 //lib/main.dart
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'screens/guest_home_page.dart'; 
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  try {
+    await Firebase.initializeApp();
+    print("✅ Firebase initialized successfully");
+  } catch (e) {
+    print("❌ Firebase initialization failed: $e");
+  }
+  
   runApp(const MyApp());
 }
 
@@ -76,7 +86,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const InitialPage(), // Direct navigation - no Firebase initialization!
+      home: const InitialPage(), 
     );
   }
 }

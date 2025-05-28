@@ -222,13 +222,25 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         ),
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
+        elevation: 2,
       ),
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: FutureBuilder<List<PhraseModel>>(
         future: _phraseService.getFavoritePhrases(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Loading your favorites...'),
+                ],
+              ),
+            );
           }
           
           if (snapshot.hasError) {
@@ -258,17 +270,25 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.star_outline,
-                    size: 64,
-                    color: Colors.grey[400],
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Icon(
+                      Icons.star_outline,
+                      size: 64,
+                      color: Colors.grey[400],
+                    ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   Text(
                     'No favorite phrases yet',
                     style: TextStyle(
                       fontSize: 18,
                       color: Colors.grey[600],
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -313,7 +333,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
                         color: categoryColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(16),
                         border: Border.all(
                           color: categoryColor.withOpacity(0.3),
                           width: 2,
@@ -344,6 +364,23 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                               ),
                             ),
                           ),
+                          // Show count of phrases in category
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: categoryColor.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '${categoryPhrases.length}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: categoryColor,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
                           // Expand/collapse arrow
                           AnimatedRotation(
                             duration: const Duration(milliseconds: 200),
@@ -446,10 +483,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withOpacity(0.06),
             spreadRadius: 0,
             blurRadius: 8,
             offset: const Offset(0, 2),
@@ -458,6 +495,99 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       ),
       child: Column(
         children: [
+          // UPDATED: Header with AI badge (if AI-generated) OR Built-in badge for all phrases
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              gradient: phrase.isAiGenerated 
+                ? LinearGradient(
+                    colors: [
+                      Colors.purple.withOpacity(0.1),
+                      Colors.blue.withOpacity(0.1),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : LinearGradient(
+                    colors: [
+                      Theme.of(context).colorScheme.primary.withOpacity(0.05),
+                      Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    ],
+                  ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              children: [
+                if (phrase.isAiGenerated) 
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.purple.withOpacity(0.2), Colors.blue.withOpacity(0.2)],
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.auto_awesome,
+                          size: 12,
+                          color: Colors.purple[700],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'AI',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.purple[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.book,
+                          size: 12,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Built-in',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const Spacer(),
+                Icon(
+                  Icons.favorite,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 16,
+                ),
+              ],
+            ),
+          ),
+          
           // English section
           GestureDetector(
             onTap: () => _speakEnglish(phrase.english),
@@ -516,8 +646,11 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
               padding: const EdgeInsets.all(16),
               decoration: const BoxDecoration(
                 borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(12),
-                  bottomRight: Radius.circular(12),
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(16),
+                  // Always have rounded corners since we always show header now
+                  topLeft: Radius.zero,
+                  topRight: Radius.zero,
                 ),
               ),
               child: Row(

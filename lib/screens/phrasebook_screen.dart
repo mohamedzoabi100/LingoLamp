@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'category_phrases_screen.dart';
 import 'phrase_search_screen.dart';
 import 'favorites_screen.dart';
+import 'ai_suggestions_screen.dart'; // NEW IMPORT
 
 class PhrasebookScreen extends StatefulWidget {
   const PhrasebookScreen({super.key});
@@ -125,6 +126,12 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
             ),
           ),
           
+          // NEW: AI Suggestions Card
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: _buildAiSuggestionsCard(),
+          ),
+          
           // Themes grid
           Expanded(
             child: Padding(
@@ -148,6 +155,156 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
     );
   }
 
+  // NEW: AI Suggestions Card
+  Widget _buildAiSuggestionsCard() {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const AiSuggestionsScreen(),
+          ),
+        );
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16), // Reduced padding
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.purple.shade400,
+              Colors.blue.shade400,
+              Colors.cyan.shade300,
+            ],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.purple.withOpacity(0.3),
+              spreadRadius: 0,
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start, // Better alignment
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10), // Slightly smaller
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome,
+                    color: Colors.white,
+                    size: 28, // Slightly smaller
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded( // This is KEY for responsive design
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'AI Smart Suggestions',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18, // Slightly smaller
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1, // Prevent overflow
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Get phrases for any topic you need',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: 13, // Smaller font
+                        ),
+                        maxLines: 2, // Allow wrapping but limit lines
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(6), // Smaller arrow container
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_forward_ios,
+                    color: Colors.white,
+                    size: 14, // Smaller arrow
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            
+            // Responsive example text container
+            LayoutBuilder(
+              builder: (context, constraints) {
+                // Adjust text based on available width
+                final availableWidth = constraints.maxWidth;
+                String exampleText = 'Try: "golf", "business meeting", "airport"...';
+                
+                // For very small screens, use shorter text
+                if (availableWidth < 300) {
+                  exampleText = 'Try: "golf", "business"...';
+                } else if (availableWidth < 350) {
+                  exampleText = 'Try: "golf", "business", "airport"...';
+                }
+                
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.psychology,
+                        color: Colors.white.withOpacity(0.8),
+                        size: 16, // Smaller icon
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded( // KEY: Prevent overflow
+                        child: Text(
+                          exampleText,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.8),
+                            fontSize: 12, // Smaller font
+                            fontStyle: FontStyle.italic,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
   Widget _buildThemeCard(PhrasebookTheme theme) {
     return GestureDetector(
       onTap: () {
