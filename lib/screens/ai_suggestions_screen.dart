@@ -69,11 +69,17 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
     });
 
     try {
+      // Add performance timing
+      final stopwatch = Stopwatch()..start();
+      
       final aiPhrases = await _aiPhraseService.generatePhrasesForTopic(topic);
       final phraseModels = _aiPhraseService.aiPhrasesToPhraseModels(aiPhrases);
       
       // FIXED: Add new AI phrases to the main phrase service
       await _phraseService.addAiPhrases(phraseModels);
+      
+      stopwatch.stop();
+      debugPrint('⏱️ Phrase generation took: ${stopwatch.elapsedMilliseconds}ms');
       
       setState(() {
         _generatedPhrases = phraseModels;
@@ -135,6 +141,12 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
   }
 
   Future<void> _addToFavorites(PhraseModel phrase) async {
+    // FIXED: Check if already favorite to prevent double-tap issue
+    if (phrase.isFavorite) {
+      // Already a favorite, don't do anything
+      return;
+    }
+    
     try {
       await _phraseService.toggleFavorite(phrase.id);
       
@@ -634,11 +646,14 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
           ),
         ),
         
-        // IMPROVED: Better scrolling phrases list
+        // IMPROVED: Better scrolling phrases list with performance optimization
         Expanded(
           child: ListView.builder(
             padding: const EdgeInsets.all(20),
             itemCount: _generatedPhrases.length,
+            // Add performance optimizations
+            cacheExtent: 200, // Cache nearby items
+            itemExtent: null, // Let Flutter calculate
             itemBuilder: (context, index) {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),
@@ -717,7 +732,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                 ),
                 const Spacer(),
                 GestureDetector(
-                  onTap: () => _addToFavorites(phrase),
+                  onTap: phrase.isFavorite ? null : () => _addToFavorites(phrase), // FIXED: Disable if already favorite
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(

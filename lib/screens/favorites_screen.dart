@@ -495,31 +495,25 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       ),
       child: Column(
         children: [
-          // UPDATED: Header with AI badge (if AI-generated) OR Built-in badge for all phrases
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              gradient: phrase.isAiGenerated 
-                ? LinearGradient(
-                    colors: [
-                      Colors.purple.withOpacity(0.1),
-                      Colors.blue.withOpacity(0.1),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
-                : LinearGradient(
-                    colors: [
-                      Theme.of(context).colorScheme.primary.withOpacity(0.05),
-                      Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                    ],
-                  ),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
+          // UPDATED: Header with AI badge only (if AI-generated), no favorite icon
+          if (phrase.isAiGenerated)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.purple.withOpacity(0.1),
+                    Colors.blue.withOpacity(0.1),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
               ),
-            ),
             child: Row(
               children: [
                 if (phrase.isAiGenerated) 
@@ -550,40 +544,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                         ),
                       ],
                     ),
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.book,
-                          size: 12,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Built-in',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                 const Spacer(),
-                Icon(
-                  Icons.favorite,
-                  color: Theme.of(context).colorScheme.primary,
-                  size: 16,
-                ),
+                // REMOVED: No favorite icon needed in favorites screen
               ],
             ),
           ),
@@ -644,13 +607,13 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(16),
-                  bottomRight: Radius.circular(16),
-                  // Always have rounded corners since we always show header now
-                  topLeft: Radius.zero,
-                  topRight: Radius.zero,
+                  bottomLeft: const Radius.circular(16),
+                  bottomRight: const Radius.circular(16),
+                  // Only round top corners if there's no header
+                  topLeft: phrase.isAiGenerated ? Radius.zero : const Radius.circular(16),
+                  topRight: phrase.isAiGenerated ? Radius.zero : const Radius.circular(16),
                 ),
               ),
               child: Row(
