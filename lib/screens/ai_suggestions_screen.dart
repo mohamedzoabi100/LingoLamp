@@ -140,29 +140,27 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
     }
   }
 
-  Future<void> _addToFavorites(PhraseModel phrase) async {
-    // FIXED: Check if already favorite to prevent double-tap issue
-    if (phrase.isFavorite) {
-      // Already a favorite, don't do anything
-      return;
-    }
-    
+  Future<void> _toggleFavorite(PhraseModel phrase) async {
     try {
+      // Toggle the favorite status
       await _phraseService.toggleFavorite(phrase.id);
       
       // Update the phrase in the current list
       final index = _generatedPhrases.indexWhere((p) => p.id == phrase.id);
       if (index != -1) {
         setState(() {
-          _generatedPhrases[index].isFavorite = true;
+          _generatedPhrases[index].isFavorite = !_generatedPhrases[index].isFavorite;
         });
       }
       
       if (mounted) {
+        final isNowFavorite = _generatedPhrases[index].isFavorite;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('💚 Added to favorites!'),
-            backgroundColor: Theme.of(context).colorScheme.primary,
+            content: Text(isNowFavorite ? '💚 Added to favorites!' : '💔 Removed from favorites'),
+            backgroundColor: isNowFavorite 
+              ? Theme.of(context).colorScheme.primary 
+              : Colors.grey[600],
             duration: const Duration(seconds: 2),
           ),
         );
@@ -171,7 +169,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error adding to favorites: $e'),
+            content: Text('Error updating favorites: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -732,7 +730,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                 ),
                 const Spacer(),
                 GestureDetector(
-                  onTap: phrase.isFavorite ? null : () => _addToFavorites(phrase), // FIXED: Disable if already favorite
+                  onTap: () => _toggleFavorite(phrase), // FIXED: Now toggles favorite status
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
