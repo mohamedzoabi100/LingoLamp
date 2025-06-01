@@ -88,11 +88,17 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // FIXED: Search bar section - entire bar is now tappable
+          // AI Suggestions Card - NOW FIRST
           Padding(
             padding: const EdgeInsets.all(16.0),
+            child: _buildAiSuggestionsCard(),
+          ),
+          
+          // Search bar section - NOW SECOND
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: GestureDetector(
-              // FIXED: Make entire container tappable
+              // Make entire container tappable
               onTap: () {
                 Navigator.push(
                   context,
@@ -121,7 +127,7 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
                         style: TextStyle(color: Colors.grey[600]),
                       ),
                       const Spacer(),
-                      // OPTIONAL: Add arrow indicator to show it's tappable
+                      // Add arrow indicator to show it's tappable
                       Icon(
                         Icons.arrow_forward_ios,
                         size: 16,
@@ -132,12 +138,6 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
                 ),
               ),
             ),
-          ),
-          
-          // NEW: AI Suggestions Card
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: _buildAiSuggestionsCard(),
           ),
           
           // Themes grid
@@ -163,7 +163,7 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
     );
   }
 
-  // NEW: AI Suggestions Card
+  // AI Suggestions Card
   Widget _buildAiSuggestionsCard() {
     return GestureDetector(
       onTap: () {
