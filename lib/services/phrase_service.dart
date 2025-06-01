@@ -168,19 +168,33 @@ class PhraseService {
     }
   }
 
-  // NEW: Add AI-generated phrases
+  // NEW: Add AI-generated phrases WITHOUT clearing existing ones
   Future<void> addAiPhrases(List<PhraseModel> newAiPhrases) async {
     for (final phrase in newAiPhrases) {
-      // Check if phrase already exists
-      if (!_aiPhrases.any((p) => p.id == phrase.id)) {
+      // Check if phrase already exists (by content, not just ID)
+      final existsAlready = _aiPhrases.any((p) => 
+        p.english.toLowerCase() == phrase.english.toLowerCase() && 
+        p.spanish.toLowerCase() == phrase.spanish.toLowerCase() &&
+        p.category == phrase.category
+      );
+      
+      if (!existsAlready) {
         final aiPhrase = phrase.copyWith(isAiGenerated: true);
+        // CRITICAL: Ensure the favorite status is correct from the start
         aiPhrase.isFavorite = _favoriteIds.contains(aiPhrase.id);
         _aiPhrases.add(aiPhrase);
+        print('➕ Added new AI phrase: ${aiPhrase.english} (isFavorite: ${aiPhrase.isFavorite})');
+      } else {
+        print('⚠️ Skipped duplicate phrase: ${phrase.english}');
       }
     }
     
     await _saveAiPhrases();
-    print('Added ${newAiPhrases.length} new AI phrases');
+    print('✅ Added ${newAiPhrases.where((p) => !_aiPhrases.any((existing) => 
+      existing.english.toLowerCase() == p.english.toLowerCase() && 
+      existing.spanish.toLowerCase() == p.spanish.toLowerCase() &&
+      existing.category == p.category
+    )).length} new AI phrases. Total AI phrases: ${_aiPhrases.length}');
   }
 
   // Fallback basic phrases
@@ -230,26 +244,33 @@ class PhraseService {
 
   // Toggle favorite status - UPDATED to handle both CSV and AI phrases
   Future<void> toggleFavorite(String phraseId) async {
+    print('🔄 Toggling favorite for phrase ID: $phraseId');
+    
     if (_favoriteIds.contains(phraseId)) {
       _favoriteIds.remove(phraseId);
+      print('💔 Removed from favorites: $phraseId');
     } else {
       _favoriteIds.add(phraseId);
+      print('💚 Added to favorites: $phraseId');
     }
     
     // Update CSV phrases
     final csvPhraseIndex = _allPhrases.indexWhere((p) => p.id == phraseId);
     if (csvPhraseIndex != -1) {
       _allPhrases[csvPhraseIndex].isFavorite = _favoriteIds.contains(phraseId);
+      print('📝 Updated CSV phrase favorite status: ${_allPhrases[csvPhraseIndex].english}');
     }
     
     // Update AI phrases
     final aiPhraseIndex = _aiPhrases.indexWhere((p) => p.id == phraseId);
     if (aiPhraseIndex != -1) {
       _aiPhrases[aiPhraseIndex].isFavorite = _favoriteIds.contains(phraseId);
+      print('🤖 Updated AI phrase favorite status: ${_aiPhrases[aiPhraseIndex].english} -> isFavorite: ${_aiPhrases[aiPhraseIndex].isFavorite}');
       await _saveAiPhrases(); // Save AI phrases when favorites change
     }
     
     await _saveFavorites();
+    print('💾 Saved favorite IDs: ${_favoriteIds.toList()}');
   }
 
   // Check if phrase is favorite
@@ -263,6 +284,11 @@ class PhraseService {
     
     final csvPhrases = _allPhrases.where((phrase) => phrase.category == category).toList();
     final aiPhrases = _aiPhrases.where((phrase) => phrase.category == category).toList();
+    
+    print('📊 getPhrasesForCategory("$category"):');
+    print('📊 CSV phrases: ${csvPhrases.length}');
+    print('📊 AI phrases: ${aiPhrases.length}');
+    print('📊 AI favorites: ${aiPhrases.where((p) => p.isFavorite).length}');
     
     final allPhrases = [...csvPhrases, ...aiPhrases];
     allPhrases.sort((a, b) => a.english.compareTo(b.english));
@@ -379,8 +405,46 @@ class PhraseService {
     return _aiPhrases.where((phrase) => phrase.category == category).length;
   }
 
-  // NEW: Clear AI phrases for a category (for "Generate More" functionality)
+  // FIXED: Clear AI phrases for a category BUT preserve favorited ones
   Future<void> clearAiPhrasesForCategory(String category) async {
+    print('🧹 BEFORE clearing category "$category":');
+    print('🧹 Total AI phrases: ${_aiPhrases.length}');
+    final categoryPhrases = _aiPhrases.where((p) => p.category == category).toList();
+    print('🧹 AI phrases in category "$category": ${categoryPhrases.length}');
+    final categoryFavorites = categoryPhrases.where((p) => p.isFavorite).toList();
+    print('💚 Favorites in category "$category": ${categoryFavorites.length}');
+    for (final fav in categoryFavorites) {
+      print('💚 Favorite phrase: "${fav.english}" (ID: ${fav.id}, isFavorite: ${fav.isFavorite})');
+    }
+    
+    // Count before removal
+    final beforeCount = _aiPhrases.length;
+    
+    // Remove only NON-FAVORITED AI phrases for this category
+    _aiPhrases.removeWhere((phrase) => 
+        phrase.category == category && !phrase.isFavorite);
+    
+    // Count after removal
+    final afterCount = _aiPhrases.length;
+    final removedCount = beforeCount - afterCount;
+    
+    print('🧹 AFTER clearing category "$category":');
+    print('🧹 Removed $removedCount non-favorited phrases');
+    print('🧹 Total AI phrases: ${_aiPhrases.length}');
+    
+    final remainingCategoryPhrases = _aiPhrases.where((p) => p.category == category).toList();
+    print('🧹 Remaining AI phrases in category "$category": ${remainingCategoryPhrases.length}');
+    final remainingFavorites = remainingCategoryPhrases.where((p) => p.isFavorite).toList();
+    print('💚 Remaining favorites in category "$category": ${remainingFavorites.length}');
+    for (final fav in remainingFavorites) {
+      print('💚 Preserved favorite: "${fav.english}" (ID: ${fav.id}, isFavorite: ${fav.isFavorite})');
+    }
+    
+    await _saveAiPhrases();
+  }
+
+  // NEW: Clear ALL AI phrases for a category (including favorites) - for complete reset
+  Future<void> clearAllAiPhrasesForCategory(String category) async {
     _aiPhrases.removeWhere((phrase) => phrase.category == category);
     await _saveAiPhrases();
   }

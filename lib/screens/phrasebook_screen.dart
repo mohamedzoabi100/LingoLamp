@@ -88,7 +88,7 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // AI Suggestions Card - NOW FIRST
+          // AI Suggestions Card - NOW FIRST with APP COLORS
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: _buildAiSuggestionsCard(),
@@ -163,8 +163,10 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
     );
   }
 
-  // AI Suggestions Card
+  // AI Suggestions Card - UPDATED with App Colors (Teal gradient)
   Widget _buildAiSuggestionsCard() {
+    final primaryColor = Theme.of(context).colorScheme.primary; // Your teal color
+    
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -182,15 +184,15 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Colors.purple.shade400,
-              Colors.blue.shade400,
-              Colors.cyan.shade300,
+              primaryColor, // Your app's primary teal
+              primaryColor.withOpacity(0.8), // Lighter teal
+              primaryColor.withOpacity(0.6), // Even lighter teal
             ],
           ),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.purple.withOpacity(0.3),
+              color: primaryColor.withOpacity(0.3), // Teal shadow
               spreadRadius: 0,
               blurRadius: 12,
               offset: const Offset(0, 6),
@@ -313,6 +315,7 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
       ),
     );
   }
+  
   Widget _buildThemeCard(PhrasebookTheme theme) {
     return GestureDetector(
       onTap: () {

@@ -18,7 +18,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
   late FlutterTts _tts;
   bool _ttsReady = false;
   bool _isLoading = false;
-  bool _isGeneratingMore = false; // NEW: Separate loading state for generate more
+  bool _isGeneratingMore = false;
   List<PhraseModel> _generatedPhrases = [];
   String _currentTopic = '';
   String? _errorMessage;
@@ -69,25 +69,27 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
     });
 
     try {
-      // Add performance timing
       final stopwatch = Stopwatch()..start();
       
       final aiPhrases = await _aiPhraseService.generatePhrasesForTopic(topic);
       final phraseModels = _aiPhraseService.aiPhrasesToPhraseModels(aiPhrases);
       
-      // FIXED: Add new AI phrases to the main phrase service
       await _phraseService.addAiPhrases(phraseModels);
+      
+      // CRITICAL: Get ALL AI phrases for this category after adding
+      final allCategoryPhrases = await _phraseService.getPhrasesForCategory(topic);
+      final allAiPhrases = allCategoryPhrases.where((p) => p.isAiGenerated).toList();
       
       stopwatch.stop();
       debugPrint('⏱️ Phrase generation took: ${stopwatch.elapsedMilliseconds}ms');
+      debugPrint('📊 Showing ${allAiPhrases.length} total AI phrases for $topic');
       
       setState(() {
-        _generatedPhrases = phraseModels;
+        _generatedPhrases = allAiPhrases; // Show ALL AI phrases, not just new ones
         _currentTopic = topic;
         _isLoading = false;
       });
 
-      // Hide keyboard
       FocusScope.of(context).unfocus();
 
     } catch (e) {
@@ -140,25 +142,36 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
     }
   }
 
+  // FIXED: Favorites toggle with proper state management
   Future<void> _toggleFavorite(PhraseModel phrase) async {
     try {
-      // Toggle the favorite status
+      // Store the current state BEFORE any changes
+      final wasInFavorites = phrase.isFavorite;
+      
+      debugPrint('🔄 Toggling favorite for: ${phrase.english}');
+      debugPrint('🔄 Current state: ${wasInFavorites ? "IS favorite" : "NOT favorite"}');
+      
+      // Toggle the favorite status in the service
       await _phraseService.toggleFavorite(phrase.id);
       
       // Update the phrase in the current list
       final index = _generatedPhrases.indexWhere((p) => p.id == phrase.id);
       if (index != -1) {
         setState(() {
-          _generatedPhrases[index].isFavorite = !_generatedPhrases[index].isFavorite;
+          // Set to the OPPOSITE of what it was before
+          _generatedPhrases[index].isFavorite = !wasInFavorites;
         });
+        
+        debugPrint('🔄 Updated UI state to: ${_generatedPhrases[index].isFavorite ? "IS favorite" : "NOT favorite"}');
       }
       
       if (mounted) {
-        final isNowFavorite = _generatedPhrases[index].isFavorite;
+        // Use the OPPOSITE of the original state for the message
+        final isNowInFavorites = !wasInFavorites;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(isNowFavorite ? '💚 Added to favorites!' : '💔 Removed from favorites'),
-            backgroundColor: isNowFavorite 
+            content: Text(isNowInFavorites ? '💚 Added to favorites!' : '💔 Removed from favorites'),
+            backgroundColor: isNowInFavorites 
               ? Theme.of(context).colorScheme.primary 
               : Colors.grey[600],
             duration: const Duration(seconds: 2),
@@ -177,7 +190,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
     }
   }
 
-  // FIXED: Generate More button functionality
+  // FIXED: Generate More - Simple approach that ADDS to existing
   Future<void> _generateMorePhrases() async {
     if (_currentTopic.isEmpty) return;
     
@@ -187,59 +200,36 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
     });
 
     try {
-      // CRITICAL FIX: Clear all caches
-      _aiPhraseService.clearCacheForTopic(_currentTopic);
-      _aiPhraseService.clearAllCache();
-      await _phraseService.clearAiPhrasesForCategory(_currentTopic);
+      debugPrint('🔄 Generating MORE phrases for: $_currentTopic');
       
-      // WORKAROUND: Add timestamp to bypass Firebase cache
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final modifiedTopic = '${_currentTopic}_$timestamp';
+      // SIMPLE APPROACH: Just ask for "more" of the same topic
+      final moreAiPhrases = await _aiPhraseService.generatePhrasesForTopic(
+        '$_currentTopic more', // Simply add "more" to the topic
+        forceNew: true
+      );
       
-      debugPrint('🔄 Generating new phrases with modified topic: $modifiedTopic');
+      final morePhraseModels = _aiPhraseService.aiPhrasesToPhraseModels(moreAiPhrases);
       
-      // Generate with modified topic to bypass cache
-      final aiPhrases = await _aiPhraseService.generatePhrasesForTopic(modifiedTopic);
-      var phraseModels = _aiPhraseService.aiPhrasesToPhraseModels(aiPhrases);
+      // Add new AI phrases to existing ones
+      await _phraseService.addAiPhrases(morePhraseModels);
       
-      // Fix the category back to original topic for all phrases
-      phraseModels = phraseModels.map((phrase) {
-        return phrase.copyWith(
-          // Update the category to be the original topic
-          // Note: We need to create a new PhraseModel with correct category
-        );
-      }).toList();
+      // Get ALL AI phrases for this category
+      final allCategoryPhrases = await _phraseService.getPhrasesForCategory(_currentTopic);
+      final allAiPhrases = allCategoryPhrases.where((p) => p.isAiGenerated).toList();
       
-      // Manually fix each phrase's category
-      final fixedPhrases = <PhraseModel>[];
-      for (final phrase in phraseModels) {
-        final fixedPhrase = PhraseModel(
-          id: 'ai_${phrase.english.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}_${DateTime.now().millisecondsSinceEpoch}',
-          english: phrase.english,
-          spanish: phrase.spanish,
-          category: _currentTopic, // Use original topic as category
-          difficulty: phrase.difficulty,
-          createdAt: phrase.createdAt,
-          isFavorite: phrase.isFavorite,
-          isAiGenerated: true,
-        );
-        fixedPhrases.add(fixedPhrase);
-      }
-      
-      // Add new AI phrases to the main phrase service
-      await _phraseService.addAiPhrases(fixedPhrases);
+      debugPrint('✅ Generated ${morePhraseModels.length} MORE phrases');
+      debugPrint('📊 Total AI phrases now: ${allAiPhrases.length}');
       
       setState(() {
-        _generatedPhrases = fixedPhrases;
+        _generatedPhrases = allAiPhrases;
         _isGeneratingMore = false;
       });
 
-      debugPrint('✅ Generated ${fixedPhrases.length} NEW phrases for $_currentTopic');
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Generated ${fixedPhrases.length} fresh phrases for $_currentTopic! 🚀'),
+          content: Text('Added ${morePhraseModels.length} more phrases! Total: ${allAiPhrases.length} 🚀'),
           backgroundColor: Theme.of(context).colorScheme.primary,
+          duration: const Duration(seconds: 2),
         ),
       );
 
@@ -256,6 +246,8 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
     _topicController.text = topic;
     _generatePhrases();
   }
+  
+  @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).colorScheme.primary;
     
@@ -278,7 +270,6 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // IMPROVED: Better input section design
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -325,7 +316,6 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                   ),
                   const SizedBox(height: 16),
                   
-                  // Text input with better design
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.grey[50],
@@ -348,7 +338,6 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                   
                   const SizedBox(height: 16),
                   
-                  // Generate button with better design
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -376,7 +365,6 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                     ),
                   ),
                   
-                  // Quick topics - IMPROVED design
                   if (!_isLoading && _generatedPhrases.isEmpty) ...[
                     const SizedBox(height: 20),
                     Text(
@@ -425,7 +413,6 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
               ),
             ),
             
-            // IMPROVED: Better results section with enhanced scrolling
             Expanded(
               child: _buildResultsSection(),
             ),
@@ -565,7 +552,6 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // IMPROVED: Results header with better design
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -616,7 +602,6 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                 ],
               ),
               
-              // FIXED: Generate More button
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
@@ -629,7 +614,9 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.refresh_rounded),
-                  label: Text(_isGeneratingMore ? 'Generating...' : 'Generate More Phrases'),
+                  label: Text(_isGeneratingMore 
+                    ? 'Generating...' 
+                    : 'Generate More Phrases'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Theme.of(context).colorScheme.primary,
                     side: BorderSide(color: Theme.of(context).colorScheme.primary),
@@ -644,14 +631,12 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
           ),
         ),
         
-        // IMPROVED: Better scrolling phrases list with performance optimization
         Expanded(
           child: ListView.builder(
             padding: const EdgeInsets.all(20),
             itemCount: _generatedPhrases.length,
-            // Add performance optimizations
-            cacheExtent: 200, // Cache nearby items
-            itemExtent: null, // Let Flutter calculate
+            cacheExtent: 200,
+            itemExtent: null,
             itemBuilder: (context, index) {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),
@@ -680,15 +665,15 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
       ),
       child: Column(
         children: [
-          // Header with AI badge and favorite button
+          // Header with AI badge and favorite button - FIXED COLORS
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  Colors.purple.withOpacity(0.1),
-                  Colors.blue.withOpacity(0.1),
+                  Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                  Theme.of(context).colorScheme.primary.withOpacity(0.05),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -704,7 +689,10 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [Colors.purple.withOpacity(0.2), Colors.blue.withOpacity(0.2)],
+                      colors: [
+                        Theme.of(context).colorScheme.primary.withOpacity(0.2), 
+                        Theme.of(context).colorScheme.primary.withOpacity(0.15)
+                      ],
                     ),
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -714,7 +702,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                       Icon(
                         Icons.auto_awesome,
                         size: 14,
-                        color: Colors.purple[700],
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                       const SizedBox(width: 4),
                       Text(
@@ -722,7 +710,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
-                          color: Colors.purple[700],
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
                     ],
@@ -730,7 +718,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                 ),
                 const Spacer(),
                 GestureDetector(
-                  onTap: () => _toggleFavorite(phrase), // FIXED: Now toggles favorite status
+                  onTap: () => _toggleFavorite(phrase),
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
@@ -750,7 +738,6 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
             ),
           ),
       
-          // English section
           GestureDetector(
             onTap: () => _speakEnglish(phrase.english),
             child: Container(
@@ -794,14 +781,12 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
             ),
           ),
           
-          // Divider
           Container(
             height: 1,
             margin: const EdgeInsets.symmetric(horizontal: 20),
             color: Colors.grey[200],
           ),
           
-          // Spanish section
           GestureDetector(
             onTap: () => _speakSpanish(phrase.spanish),
             child: Container(

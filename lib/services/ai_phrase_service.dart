@@ -120,8 +120,10 @@ class AiPhraseService {
         throw Exception('No phrases were generated for "$topic". Please try a different topic.');
       }
       
-      // Cache locally
-      _cache[topic.toLowerCase()] = phrases;
+      // Cache locally only if not forceNew (to allow fresh generation next time)
+      if (!forceNew) {
+        _cache[topic.toLowerCase()] = phrases;
+      }
       
       debugPrint('✅ Generated ${phrases.length} ${forceNew ? "NEW" : ""} AI phrases for $topic');
       return phrases;
