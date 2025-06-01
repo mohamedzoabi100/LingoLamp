@@ -1,4 +1,4 @@
-//lib/screens/ai_suggestions_screen.dart - IMPROVED UX VERSION
+//lib/screens/ai_suggestions_screen.dart - ENHANCED Generate More
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../services/ai_phrase_service.dart';
@@ -12,6 +12,9 @@ class AiSuggestionsScreen extends StatefulWidget {
 }
 
 class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
+  // Feature flags - Set to true when ready to enable
+  static const bool _enableGenerateMore = false; // TODO: Enable in "Nice to have" phase
+  
   final TextEditingController _topicController = TextEditingController();
   final AiPhraseService _aiPhraseService = AiPhraseService();
   final PhraseService _phraseService = PhraseService();
@@ -76,6 +79,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
       
       await _phraseService.addAiPhrases(phraseModels);
       
+      // Get ALL AI phrases for this category after adding
       final allCategoryPhrases = await _phraseService.getPhrasesForCategory(topic);
       final allAiPhrases = allCategoryPhrases.where((p) => p.isAiGenerated).toList();
       
@@ -183,6 +187,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
     }
   }
 
+  // ENHANCED: Generate More with better AI context
   Future<void> _generateMorePhrases() async {
     if (_currentTopic.isEmpty) return;
     
@@ -195,9 +200,10 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
       debugPrint('🔄 Generating MORE phrases for: $_currentTopic');
       debugPrint('🔄 Current phrases count: ${_generatedPhrases.length}');
       
+      // ENHANCED: Use the new method that sends existing phrases as context
       final moreAiPhrases = await _aiPhraseService.generateMorePhrasesForTopic(
         _currentTopic,
-        _generatedPhrases,
+        _generatedPhrases, // Send existing phrases to avoid duplicates
       );
       
       if (moreAiPhrases.isEmpty) {
@@ -206,14 +212,17 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
       
       final morePhraseModels = _aiPhraseService.aiPhrasesToPhraseModels(moreAiPhrases);
       
+      // Add new AI phrases
       await _phraseService.addAiPhrases(morePhraseModels);
       
+      // Get ALL AI phrases for this category (including the new ones)
       final allCategoryPhrases = await _phraseService.getPhrasesForCategory(_currentTopic);
       final allAiPhrases = allCategoryPhrases.where((p) => p.isAiGenerated).toList();
       
       debugPrint('✅ Generated ${morePhraseModels.length} MORE phrases');
       debugPrint('📊 Total AI phrases now: ${allAiPhrases.length}');
       
+      // Calculate the actual number of new phrases added
       final actualNewPhrasesCount = allAiPhrases.length - _generatedPhrases.length;
       
       setState(() {
@@ -280,103 +289,102 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // IMPROVED: Compact header when phrases are shown
-            if (_generatedPhrases.isEmpty) ...[
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
-                      spreadRadius: 0,
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: primaryColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            Icons.psychology,
-                            color: primaryColor,
-                            size: 24,
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    spreadRadius: 0,
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: primaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          Icons.psychology,
+                          color: primaryColor,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'What do you need phrases for?',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Text(
-                            'What do you need phrases for?',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: TextField(
+                      controller: _topicController,
+                      decoration: InputDecoration(
+                        hintText: 'e.g., golf, business meeting, airport...',
+                        hintStyle: TextStyle(color: Colors.grey[600]),
+                        prefixIcon: Icon(Icons.search, color: primaryColor),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      ),
+                      onSubmitted: (_) => _generatePhrases(),
+                      textInputAction: TextInputAction.search,
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _isLoading ? null : _generatePhrases,
+                      icon: _isLoading 
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
-                          ),
+                          )
+                        : const Icon(Icons.auto_awesome),
+                      label: Text(_isLoading ? 'Generating...' : 'Generate Phrases'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.grey[300]!),
-                      ),
-                      child: TextField(
-                        controller: _topicController,
-                        decoration: InputDecoration(
-                          hintText: 'e.g., golf, business meeting, airport...',
-                          hintStyle: TextStyle(color: Colors.grey[600]),
-                          prefixIcon: Icon(Icons.search, color: primaryColor),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                        ),
-                        onSubmitted: (_) => _generatePhrases(),
-                        textInputAction: TextInputAction.search,
+                        elevation: 2,
                       ),
                     ),
-                    
-                    const SizedBox(height: 16),
-                    
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _isLoading ? null : _generatePhrases,
-                        icon: _isLoading 
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            )
-                          : const Icon(Icons.auto_awesome),
-                        label: Text(_isLoading ? 'Generating...' : 'Generate Phrases'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          elevation: 2,
-                        ),
-                      ),
-                    ),
-                    
+                  ),
+                  
+                  if (!_isLoading && _generatedPhrases.isEmpty) ...[
                     const SizedBox(height: 20),
                     Text(
                       'Popular topics:',
@@ -420,119 +428,9 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                       ),
                     ),
                   ],
-                ),
+                ],
               ),
-            ] else ...[
-              // IMPROVED: Compact header when results are shown
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    // Topic input (smaller)
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey[300]!),
-                      ),
-                      child: TextField(
-                        controller: _topicController,
-                        decoration: InputDecoration(
-                          hintText: 'Search new topic...',
-                          hintStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
-                          prefixIcon: Icon(Icons.search, color: primaryColor, size: 20),
-                          suffixIcon: IconButton(
-                            icon: Icon(Icons.send, color: primaryColor, size: 20),
-                            onPressed: _isLoading ? null : _generatePhrases,
-                          ),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        ),
-                        onSubmitted: (_) => _generatePhrases(),
-                        textInputAction: TextInputAction.search,
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 12),
-                    
-                    // Results header + Generate More button
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: primaryColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(Icons.auto_awesome, color: primaryColor, size: 16),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'AI Phrases for "$_currentTopic"',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                '${_generatedPhrases.length} phrases',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        // Compact Generate More button
-                        SizedBox(
-                          height: 36,
-                          child: OutlinedButton.icon(
-                            onPressed: _isGeneratingMore ? null : _generateMorePhrases,
-                            icon: _isGeneratingMore 
-                              ? const SizedBox(
-                                  width: 14,
-                                  height: 14,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.add, size: 16),
-                            label: Text(
-                              _isGeneratingMore ? 'Adding...' : 'More',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: primaryColor,
-                              side: BorderSide(color: primaryColor, width: 1),
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            ),
             
             Expanded(
               child: _buildResultsSection(),
@@ -670,81 +568,166 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
       );
     }
 
-    // IMPROVED: Better phrase cards layout
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      itemCount: _generatedPhrases.length,
-      itemBuilder: (context, index) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _buildImprovedPhraseCard(_generatedPhrases[index], index),
-        );
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.auto_awesome, color: Theme.of(context).colorScheme.primary),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'AI Phrases for "$_currentTopic"',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          '${_generatedPhrases.length} phrases generated',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _isGeneratingMore ? null : _generateMorePhrases,
+                  icon: _isGeneratingMore 
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh_rounded),
+                  label: Text(_isGeneratingMore 
+                    ? 'Generating More...' 
+                    : 'Generate More Phrases'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.primary,
+                    side: BorderSide(color: Theme.of(context).colorScheme.primary),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.all(20),
+            itemCount: _generatedPhrases.length,
+            cacheExtent: 200,
+            itemExtent: null,
+            itemBuilder: (context, index) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: _buildPhraseCard(_generatedPhrases[index]),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
-  // IMPROVED: Better phrase card design
-  Widget _buildImprovedPhraseCard(PhraseModel phrase, int index) {
+  Widget _buildPhraseCard(PhraseModel phrase) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withOpacity(0.08),
             spreadRadius: 0,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         children: [
-          // IMPROVED: Cleaner header
+          // Header with AI badge and favorite button
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 12, 12, 8),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                  Theme.of(context).colorScheme.primary.withOpacity(0.05),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
+              ),
+            ),
             child: Row(
               children: [
-                // Phrase number
                 Container(
-                  width: 24,
-                  height: 24,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '${index + 1}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
+                    gradient: LinearGradient(
+                      colors: [
+                        Theme.of(context).colorScheme.primary.withOpacity(0.2), 
+                        Theme.of(context).colorScheme.primary.withOpacity(0.15)
+                      ],
                     ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // AI badge
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
                         Icons.auto_awesome,
-                        size: 10,
+                        size: 14,
                         color: Theme.of(context).colorScheme.primary,
                       ),
-                      const SizedBox(width: 2),
+                      const SizedBox(width: 4),
                       Text(
                         'AI',
                         style: TextStyle(
-                          fontSize: 9,
+                          fontSize: 11,
                           fontWeight: FontWeight.bold,
                           color: Theme.of(context).colorScheme.primary,
                         ),
@@ -753,152 +736,122 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                   ),
                 ),
                 const Spacer(),
-                // Favorite button
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(20),
-                    onTap: () => _toggleFavorite(phrase),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        phrase.isFavorite ? Icons.favorite : Icons.favorite_border,
-                        color: phrase.isFavorite 
-                          ? Theme.of(context).colorScheme.primary 
-                          : Colors.grey[400],
-                        size: 18,
-                      ),
+                GestureDetector(
+                  onTap: () => _toggleFavorite(phrase),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.8),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Icon(
+                      phrase.isFavorite ? Icons.favorite : Icons.favorite_border,
+                      color: phrase.isFavorite 
+                        ? Theme.of(context).colorScheme.primary 
+                        : Colors.grey[600],
+                      size: 20,
                     ),
                   ),
                 ),
               ],
             ),
           ),
+      
+          GestureDetector(
+            onTap: () => _speakEnglish(phrase.english),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      'EN',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue[700],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      phrase.english,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.volume_up_rounded,
+                    size: 22,
+                    color: Colors.blue[600],
+                  ),
+                ],
+              ),
+            ),
+          ),
           
-          // IMPROVED: Side-by-side language layout
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // English side
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => _speakEnglish(phrase.english),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.blue.withOpacity(0.1),
-                          width: 1,
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  'EN',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.blue[700],
-                                  ),
-                                ),
-                              ),
-                              const Spacer(),
-                              Icon(
-                                Icons.volume_up_rounded,
-                                size: 16,
-                                color: Colors.blue[600],
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            phrase.english,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.black87,
-                              height: 1.3,
-                            ),
-                          ),
-                        ],
+          Container(
+            height: 1,
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            color: Colors.grey[200],
+          ),
+          
+          GestureDetector(
+            onTap: () => _speakSpanish(phrase.spanish),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      'ES',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red[700],
                       ),
                     ),
                   ),
-                ),
-                
-                const SizedBox(width: 8),
-                
-                // Spanish side
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => _speakSpanish(phrase.spanish),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.red.withOpacity(0.1),
-                          width: 1,
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.red.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  'ES',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.red[700],
-                                  ),
-                                ),
-                              ),
-                              const Spacer(),
-                              Icon(
-                                Icons.volume_up_rounded,
-                                size: 16,
-                                color: Colors.red[600],
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            phrase.spanish,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.black87,
-                              height: 1.3,
-                            ),
-                          ),
-                        ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      phrase.spanish,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black87,
                       ),
                     ),
                   ),
-                ),
-              ],
+                  Icon(
+                    Icons.volume_up_rounded,
+                    size: 22,
+                    color: Colors.red[600],
+                  ),
+                ],
+              ),
             ),
           ),
         ],
