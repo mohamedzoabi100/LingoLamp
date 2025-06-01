@@ -1,4 +1,4 @@
-// lib/services/ai_phrase_service.dart - CRITICAL FIX for Generate More
+// lib/services/ai_phrase_service.dart - ENHANCED FIX for Generate More
 import 'dart:convert';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
@@ -56,12 +56,16 @@ class AiPhraseService {
   final Map<String, List<AiGeneratedPhrase>> _cache = {};
 
   /// Generate phrases for a given topic using AI
-  /// FIXED: Added forceNew parameter to bypass all caches
-  Future<List<AiGeneratedPhrase>> generatePhrasesForTopic(String topic, {bool forceNew = false}) async {
+  /// ENHANCED: Better handling for generating more phrases
+  Future<List<AiGeneratedPhrase>> generatePhrasesForTopic(
+    String topic, {
+    bool forceNew = false,
+    List<String>? existingPhrases, // NEW: Pass existing phrases to avoid duplicates
+  }) async {
     try {
       debugPrint('🤖 Generating AI phrases for topic: $topic (forceNew: $forceNew)');
       
-      // FIXED: Skip cache check if forceNew is true
+      // Skip cache check if forceNew is true
       if (!forceNew) {
         final cachedPhrases = _getCachedPhrases(topic);
         if (cachedPhrases.isNotEmpty) {
@@ -70,7 +74,7 @@ class AiPhraseService {
         }
       }
 
-      // FIXED: Skip Firebase cache check if forceNew is true
+      // Skip Firebase cache check if forceNew is true
       if (!forceNew) {
         try {
           debugPrint('☁️ Checking Firebase cache for: $topic');
@@ -93,15 +97,25 @@ class AiPhraseService {
         }
       }
 
-      // Generate new phrases - FIXED: Added forceNew parameter
-      debugPrint('🚀 Calling generatePhrases function with forceNew: $forceNew');
+      // ENHANCED: Prepare request data with context for "Generate More"
+      final requestData = {
+        'topic': topic,
+        'forceNew': forceNew,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      };
+
+      // NEW: If we have existing phrases, send them to AI for context
+      if (existingPhrases != null && existingPhrases.isNotEmpty) {
+        requestData['existingPhrases'] = existingPhrases;
+        requestData['requestType'] = 'generateMore'; // Tell Firebase this is a "generate more" request
+        debugPrint('🔄 Sending ${existingPhrases.length} existing phrases to avoid duplicates');
+      }
+
+      // Generate new phrases
+      debugPrint('🚀 Calling generatePhrases function with enhanced context');
       final result = await _functions
           .httpsCallable('generatePhrases')
-          .call({
-            'topic': topic,
-            'forceNew': forceNew, // CRITICAL: Tell Firebase to bypass its cache too
-            'timestamp': DateTime.now().millisecondsSinceEpoch, // Ensure uniqueness
-          });
+          .call(requestData);
 
       debugPrint('📡 Generate phrases response: ${result.data}');
 
@@ -159,6 +173,26 @@ class AiPhraseService {
       
       throw Exception('Failed to generate phrases for "$topic". Please try again later.');
     }
+  }
+
+  /// NEW: Generate more phrases with better context
+  Future<List<AiGeneratedPhrase>> generateMorePhrasesForTopic(
+    String topic,
+    List<PhraseModel> existingPhrases,
+  ) async {
+    // Extract English phrases to send as context
+    final existingEnglishPhrases = existingPhrases
+        .map((p) => p.english)
+        .toList();
+
+    debugPrint('🔄 Generating MORE phrases for: $topic');
+    debugPrint('🔄 Avoiding duplicates of: ${existingEnglishPhrases.length} existing phrases');
+
+    return await generatePhrasesForTopic(
+      topic,
+      forceNew: true,
+      existingPhrases: existingEnglishPhrases,
+    );
   }
 
   /// Parse phrases from Firebase response

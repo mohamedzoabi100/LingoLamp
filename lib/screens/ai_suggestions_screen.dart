@@ -1,4 +1,4 @@
-//lib/screens/ai_suggestions_screen.dart
+//lib/screens/ai_suggestions_screen.dart - ENHANCED Generate More
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../services/ai_phrase_service.dart';
@@ -76,7 +76,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
       
       await _phraseService.addAiPhrases(phraseModels);
       
-      // CRITICAL: Get ALL AI phrases for this category after adding
+      // Get ALL AI phrases for this category after adding
       final allCategoryPhrases = await _phraseService.getPhrasesForCategory(topic);
       final allAiPhrases = allCategoryPhrases.where((p) => p.isAiGenerated).toList();
       
@@ -85,7 +85,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
       debugPrint('📊 Showing ${allAiPhrases.length} total AI phrases for $topic');
       
       setState(() {
-        _generatedPhrases = allAiPhrases; // Show ALL AI phrases, not just new ones
+        _generatedPhrases = allAiPhrases;
         _currentTopic = topic;
         _isLoading = false;
       });
@@ -142,23 +142,18 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
     }
   }
 
-  // FIXED: Favorites toggle with proper state management
   Future<void> _toggleFavorite(PhraseModel phrase) async {
     try {
-      // Store the current state BEFORE any changes
       final wasInFavorites = phrase.isFavorite;
       
       debugPrint('🔄 Toggling favorite for: ${phrase.english}');
       debugPrint('🔄 Current state: ${wasInFavorites ? "IS favorite" : "NOT favorite"}');
       
-      // Toggle the favorite status in the service
       await _phraseService.toggleFavorite(phrase.id);
       
-      // Update the phrase in the current list
       final index = _generatedPhrases.indexWhere((p) => p.id == phrase.id);
       if (index != -1) {
         setState(() {
-          // Set to the OPPOSITE of what it was before
           _generatedPhrases[index].isFavorite = !wasInFavorites;
         });
         
@@ -166,7 +161,6 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
       }
       
       if (mounted) {
-        // Use the OPPOSITE of the original state for the message
         final isNowInFavorites = !wasInFavorites;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -190,7 +184,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
     }
   }
 
-  // FIXED: Generate More - Simple approach that ADDS to existing
+  // ENHANCED: Generate More with better AI context
   Future<void> _generateMorePhrases() async {
     if (_currentTopic.isEmpty) return;
     
@@ -201,37 +195,49 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
 
     try {
       debugPrint('🔄 Generating MORE phrases for: $_currentTopic');
+      debugPrint('🔄 Current phrases count: ${_generatedPhrases.length}');
       
-      // SIMPLE APPROACH: Just ask for "more" of the same topic
-      final moreAiPhrases = await _aiPhraseService.generatePhrasesForTopic(
-        '$_currentTopic more', // Simply add "more" to the topic
-        forceNew: true
+      // ENHANCED: Use the new method that sends existing phrases as context
+      final moreAiPhrases = await _aiPhraseService.generateMorePhrasesForTopic(
+        _currentTopic,
+        _generatedPhrases, // Send existing phrases to avoid duplicates
       );
+      
+      if (moreAiPhrases.isEmpty) {
+        throw Exception('No new phrases could be generated. Try a different topic or come back later.');
+      }
       
       final morePhraseModels = _aiPhraseService.aiPhrasesToPhraseModels(moreAiPhrases);
       
-      // Add new AI phrases to existing ones
+      // Add new AI phrases
       await _phraseService.addAiPhrases(morePhraseModels);
       
-      // Get ALL AI phrases for this category
+      // Get ALL AI phrases for this category (including the new ones)
       final allCategoryPhrases = await _phraseService.getPhrasesForCategory(_currentTopic);
       final allAiPhrases = allCategoryPhrases.where((p) => p.isAiGenerated).toList();
       
       debugPrint('✅ Generated ${morePhraseModels.length} MORE phrases');
       debugPrint('📊 Total AI phrases now: ${allAiPhrases.length}');
       
+      // Calculate the actual number of new phrases added
+      final actualNewPhrasesCount = allAiPhrases.length - _generatedPhrases.length;
+      
       setState(() {
         _generatedPhrases = allAiPhrases;
         _isGeneratingMore = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Added ${morePhraseModels.length} more phrases! Total: ${allAiPhrases.length} 🚀'),
-          backgroundColor: Theme.of(context).colorScheme.primary,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(actualNewPhrasesCount > 0
+              ? 'Added $actualNewPhrasesCount new phrases! Total: ${allAiPhrases.length} 🚀'
+              : 'Generated ${morePhraseModels.length} phrases (some may be similar) 🔄'),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
 
     } catch (e) {
       debugPrint('❌ Error generating more phrases: $e');
@@ -239,6 +245,16 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
         _errorMessage = e.toString().replaceAll('Exception: ', '');
         _isGeneratingMore = false;
       });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to generate more phrases: ${e.toString().replaceAll('Exception: ', '')}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     }
   }
 
@@ -615,7 +631,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                       )
                     : const Icon(Icons.refresh_rounded),
                   label: Text(_isGeneratingMore 
-                    ? 'Generating...' 
+                    ? 'Generating More...' 
                     : 'Generate More Phrases'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Theme.of(context).colorScheme.primary,
@@ -665,7 +681,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
       ),
       child: Column(
         children: [
-          // Header with AI badge and favorite button - FIXED COLORS
+          // Header with AI badge and favorite button
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
