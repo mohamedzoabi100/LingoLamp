@@ -1,4 +1,4 @@
-//lib/screens/ai_suggestions_screen.dart - HIDE MORE BUTTON VERSION
+//lib/screens/ai_suggestions_screen.dart - UPDATED WITH SIDE-BY-SIDE LAYOUT
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../services/ai_phrase_service.dart';
@@ -211,7 +211,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // IMPROVED: Compact header when phrases are shown
+            // UNCHANGED: Keep search bar exactly as it is
             if (_generatedPhrases.isEmpty) ...[
               Container(
                 padding: const EdgeInsets.all(20),
@@ -354,7 +354,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                 ),
               ),
             ] else ...[
-              // MODIFIED: Header without the More button
+              // UNCHANGED: Keep compact header exactly as it is
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                 decoration: BoxDecoration(
@@ -431,7 +431,6 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                             ],
                           ),
                         ),
-                        // REMOVED: The "+ More" button is completely removed from here
                       ],
                     ),
                   ],
@@ -575,21 +574,21 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
       );
     }
 
-    // IMPROVED: Better phrase cards layout
+    // NEW: Use side-by-side layout from the second image
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       itemCount: _generatedPhrases.length,
       itemBuilder: (context, index) {
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
-          child: _buildImprovedPhraseCard(_generatedPhrases[index], index),
+          child: _buildSideBySidePhraseCard(_generatedPhrases[index], index),
         );
       },
     );
   }
 
-  // IMPROVED: Better phrase card design
-  Widget _buildImprovedPhraseCard(PhraseModel phrase, int index) {
+  // NEW: Side-by-side layout matching the second image
+  Widget _buildSideBySidePhraseCard(PhraseModel phrase, int index) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -605,7 +604,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
       ),
       child: Column(
         children: [
-          // IMPROVED: Cleaner header
+          // Header with AI badge and favorite button
           Container(
             padding: const EdgeInsets.fromLTRB(16, 12, 12, 8),
             child: Row(
@@ -680,126 +679,115 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
             ),
           ),
           
-          // IMPROVED: Side-by-side language layout
+          // NEW: Side-by-side English and Spanish layout
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Column(
               children: [
-                // English side
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => _speakEnglish(phrase.english),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.blue.withOpacity(0.1),
-                          width: 1,
-                        ),
+                // English phrase
+                GestureDetector(
+                  onTap: () => _speakEnglish(phrase.english),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.grey[200]!,
+                        width: 1,
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  'EN',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.blue[700],
-                                  ),
-                                ),
-                              ),
-                              const Spacer(),
-                              Icon(
-                                Icons.volume_up_rounded,
-                                size: 16,
-                                color: Colors.blue[600],
-                              ),
-                            ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
+                          child: Text(
+                            'EN',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue[700],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
                             phrase.english,
                             style: const TextStyle(
-                              fontSize: 14,
+                              fontSize: 15,
                               fontWeight: FontWeight.w500,
                               color: Colors.black87,
                               height: 1.3,
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                        Icon(
+                          Icons.volume_up_rounded,
+                          size: 18,
+                          color: Colors.blue[600],
+                        ),
+                      ],
                     ),
                   ),
                 ),
                 
-                const SizedBox(width: 8),
+                const SizedBox(height: 8),
                 
-                // Spanish side
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => _speakSpanish(phrase.spanish),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.red.withOpacity(0.1),
-                          width: 1,
-                        ),
+                // Spanish phrase
+                GestureDetector(
+                  onTap: () => _speakSpanish(phrase.spanish),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.grey[200]!,
+                        width: 1,
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.red.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  'ES',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.red[700],
-                                  ),
-                                ),
-                              ),
-                              const Spacer(),
-                              Icon(
-                                Icons.volume_up_rounded,
-                                size: 16,
-                                color: Colors.red[600],
-                              ),
-                            ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
+                          child: Text(
+                            'ES',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red[700],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
                             phrase.spanish,
                             style: const TextStyle(
-                              fontSize: 14,
+                              fontSize: 15,
                               fontWeight: FontWeight.w500,
                               color: Colors.black87,
                               height: 1.3,
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                        Icon(
+                          Icons.volume_up_rounded,
+                          size: 18,
+                          color: Colors.red[600],
+                        ),
+                      ],
                     ),
                   ),
                 ),
