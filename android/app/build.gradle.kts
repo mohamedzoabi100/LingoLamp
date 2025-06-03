@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.technion.android.lingo_lamp"
+    namespace = "com.technion.lingo_lamp"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"  // CHANGE THIS LINE
 
@@ -22,7 +22,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.technion.android.lingo_lamp"
+        applicationId = "com.technion.lingo_lamp"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
