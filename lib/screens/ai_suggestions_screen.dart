@@ -535,41 +535,48 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
       );
     }
 
+
     if (_generatedPhrases.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(
+                  Icons.psychology_outlined,
+                  size: 64,
+                  color: Colors.grey[400],
+                ),
               ),
-              child: Icon(
-                Icons.psychology_outlined,
-                size: 64,
-                color: Colors.grey[400],
+              const SizedBox(height: 20),
+              Text(
+                'Enter a topic to get AI-generated phrases!',
+                style: TextStyle(
+                  fontSize: 18,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
               ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Enter a topic to get AI-generated phrases!',
-              style: TextStyle(
-                fontSize: 18,
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w600,
+              const SizedBox(height: 8),
+              Text(
+                'Try topics like "golf", "business", "travel"...',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[500],
+                ),
+                textAlign: TextAlign.center,
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Try topics like "golf", "business", "travel"...',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     }
