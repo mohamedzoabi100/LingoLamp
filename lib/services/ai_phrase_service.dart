@@ -1,5 +1,6 @@
-// lib/services/ai_phrase_service.dart - ENHANCED FIX for Generate More
+// lib/services/ai_phrase_service.dart - COMPLETE WITH GENERATE MORE FUNCTIONALITY
 import 'dart:convert';
+import 'dart:math';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import '../services/phrase_service.dart';
@@ -34,13 +35,14 @@ class AiGeneratedPhrase {
 
   PhraseModel toPhraseModel() {
     return PhraseModel(
-      id: 'ai_${english.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}_${DateTime.now().millisecondsSinceEpoch}',
+      id: 'ai_${english.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(1000)}',
       english: english,
       spanish: spanish,
       category: category,
       difficulty: difficulty,
       createdAt: createdAt,
       isFavorite: false,
+      isAiGenerated: true,
     );
   }
 }
@@ -54,19 +56,28 @@ class AiPhraseService {
   
   // Cache for generated phrases
   final Map<String, List<AiGeneratedPhrase>> _cache = {};
+  
+  // Track generation counts per topic
+  final Map<String, int> _generationCounts = {};
 
   /// Generate phrases for a given topic using AI
-  /// ENHANCED: Better handling for generating more phrases
   Future<List<AiGeneratedPhrase>> generatePhrasesForTopic(
     String topic, {
     bool forceNew = false,
-    List<String>? existingPhrases, // NEW: Pass existing phrases to avoid duplicates
+    List<String>? existingPhrases,
+    bool isMoreGeneration = false,
   }) async {
     try {
-      debugPrint('🤖 Generating AI phrases for topic: $topic (forceNew: $forceNew)');
+      debugPrint('🤖 Generating AI phrases for topic: $topic (forceNew: $forceNew, isMore: $isMoreGeneration)');
       
-      // Skip cache check if forceNew is true
-      if (!forceNew) {
+      // Increment generation count
+      _generationCounts[topic] = (_generationCounts[topic] ?? 0) + 1;
+      final generationNumber = _generationCounts[topic]!;
+      
+      debugPrint('📊 This is generation #$generationNumber for topic: $topic');
+      
+      // Skip cache check if forceNew is true or it's a "generate more" request
+      if (!forceNew && !isMoreGeneration) {
         final cachedPhrases = _getCachedPhrases(topic);
         if (cachedPhrases.isNotEmpty) {
           debugPrint('📱 Found ${cachedPhrases.length} cached phrases for $topic');
@@ -74,8 +85,8 @@ class AiPhraseService {
         }
       }
 
-      // Skip Firebase cache check if forceNew is true
-      if (!forceNew) {
+      // Skip Firebase cache check if forceNew is true or it's a "generate more" request
+      if (!forceNew && !isMoreGeneration) {
         try {
           debugPrint('☁️ Checking Firebase cache for: $topic');
           final cachedResult = await _functions
@@ -97,18 +108,22 @@ class AiPhraseService {
         }
       }
 
-      // ENHANCED: Prepare request data with context for "Generate More"
+      // Prepare request data with enhanced context
       final requestData = {
         'topic': topic,
         'forceNew': forceNew,
         'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'generationNumber': generationNumber,
+        'isMoreGeneration': isMoreGeneration,
       };
 
-      // NEW: If we have existing phrases, send them to AI for context
+      // Send existing phrases to AI for context if available
       if (existingPhrases != null && existingPhrases.isNotEmpty) {
         requestData['existingPhrases'] = existingPhrases;
-        requestData['requestType'] = 'generateMore'; // Tell Firebase this is a "generate more" request
+        requestData['requestType'] = 'generateMore';
         debugPrint('🔄 Sending ${existingPhrases.length} existing phrases to avoid duplicates');
+      } else {
+        requestData['requestType'] = 'initial';
       }
 
       // Generate new phrases
@@ -134,12 +149,12 @@ class AiPhraseService {
         throw Exception('No phrases were generated for "$topic". Please try a different topic.');
       }
       
-      // Cache locally only if not forceNew (to allow fresh generation next time)
-      if (!forceNew) {
+      // Cache locally only for initial generation (not for "generate more")
+      if (!forceNew && !isMoreGeneration) {
         _cache[topic.toLowerCase()] = phrases;
       }
       
-      debugPrint('✅ Generated ${phrases.length} ${forceNew ? "NEW" : ""} AI phrases for $topic');
+      debugPrint('✅ Generated ${phrases.length} ${isMoreGeneration ? "ADDITIONAL" : ""} AI phrases for $topic');
       return phrases;
 
     } on FirebaseFunctionsException catch (e) {
@@ -175,7 +190,7 @@ class AiPhraseService {
     }
   }
 
-  /// NEW: Generate more phrases with better context
+  /// Generate more phrases with better context
   Future<List<AiGeneratedPhrase>> generateMorePhrasesForTopic(
     String topic,
     List<PhraseModel> existingPhrases,
@@ -192,6 +207,7 @@ class AiPhraseService {
       topic,
       forceNew: true,
       existingPhrases: existingEnglishPhrases,
+      isMoreGeneration: true,
     );
   }
 
@@ -272,11 +288,23 @@ class AiPhraseService {
     return _cache[topic.toLowerCase()] ?? [];
   }
 
-  /// Clear cache for a specific topic
-  void clearCacheForTopic(String topic) {
-    _cache.remove(topic.toLowerCase());
-    debugPrint('🗑️ Cleared cache for topic: $topic');
+  /// Get generation count for a topic
+  int getGenerationCount(String topic) {
+    return _generationCounts[topic] ?? 0;
   }
+
+  /// Reset generation count for a topic
+  void resetGenerationCount(String topic) {
+    _generationCounts.remove(topic);
+    debugPrint('🔄 Reset generation count for topic: $topic');
+  }
+
+  /// Clear cache for a specific topic
+ void clearCacheForTopic(String topic) {
+  _cache.remove(topic.toLowerCase());
+  _generationCounts.remove(topic);
+  debugPrint('🗑️ Cleared cache and generation count for topic: $topic');
+}
 
   /// Clear all cache
   void clearAllCache() {
@@ -303,18 +331,22 @@ class AiPhraseService {
   /// Get suggestions for popular topics
   List<String> getPopularTopics() {
     return [
-      'Airport',
-      'Hotel',
-      'Restaurant', 
-      'Shopping',
-      'Taxi',
-      'Medical',
-      'Business',
-      'Beach',
-      'Nightlife',
-      'Sports',
-      'Weather',
-      'Family'
+      'airport',
+      'hotel', 
+      'restaurant',
+      'shopping',
+      'taxi',
+      'pharmacy',
+      'hospital',
+      'business meeting',
+      'golf',
+      'beach',
+      'gym',
+      'bank',
+      'post office',
+      'gas station',
+      'train station',
+      'grocery store',
     ];
   }
 }

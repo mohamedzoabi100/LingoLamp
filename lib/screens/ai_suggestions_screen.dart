@@ -1,4 +1,4 @@
-//lib/screens/ai_suggestions_screen.dart - UPDATED WITH SIDE-BY-SIDE LAYOUT
+//lib/screens/ai_suggestions_screen.dart - COMPLETE WITH GENERATE MORE FUNCTIONALITY
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../services/ai_phrase_service.dart';
@@ -96,6 +96,74 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
         _errorMessage = e.toString().replaceAll('Exception: ', '');
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _generateMorePhrases() async {
+    if (_currentTopic.isEmpty || _isGeneratingMore || _isLoading) return;
+
+    setState(() {
+      _isGeneratingMore = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final stopwatch = Stopwatch()..start();
+      
+      debugPrint('🔄 Generating MORE phrases for topic: $_currentTopic');
+      debugPrint('🔄 Current phrases count: ${_generatedPhrases.length}');
+      
+      // Generate MORE phrases using the enhanced service method
+      final moreAiPhrases = await _aiPhraseService.generateMorePhrasesForTopic(
+        _currentTopic,
+        _generatedPhrases,
+      );
+      
+      final morePhraseModels = _aiPhraseService.aiPhrasesToPhraseModels(moreAiPhrases);
+      
+      // Add the new phrases to the database
+      await _phraseService.addAiPhrases(morePhraseModels);
+      
+      // Get ALL phrases for this category (including the new ones)
+      final allCategoryPhrases = await _phraseService.getPhrasesForCategory(_currentTopic);
+      final allAiPhrases = allCategoryPhrases.where((p) => p.isAiGenerated).toList();
+      
+      stopwatch.stop();
+      debugPrint('⏱️ MORE phrase generation took: ${stopwatch.elapsedMilliseconds}ms');
+      debugPrint('📊 Added ${moreAiPhrases.length} new phrases. Total: ${allAiPhrases.length} AI phrases for $_currentTopic');
+      
+      setState(() {
+        _generatedPhrases = allAiPhrases;
+        _isGeneratingMore = false;
+      });
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✨ Generated ${moreAiPhrases.length} more phrases!'),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _isGeneratingMore = false;
+      });
+      
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to generate more phrases: ${_errorMessage}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
@@ -354,7 +422,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                 ),
               ),
             ] else ...[
-              // UNCHANGED: Keep compact header exactly as it is
+              // UPDATED: Header with "Generate More" button
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                 decoration: BoxDecoration(
@@ -397,7 +465,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                     
                     const SizedBox(height: 12),
                     
-                    // Results header WITHOUT the More button
+                    // Results header WITH the "Generate More" button
                     Row(
                       children: [
                         Container(
@@ -431,6 +499,54 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                             ],
                           ),
                         ),
+                        // "Generate More" button
+                        if (_generatedPhrases.isNotEmpty && !_isGeneratingMore)
+                          GestureDetector(
+                            onTap: _generateMorePhrases,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: primaryColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: primaryColor.withOpacity(0.3),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.add,
+                                    size: 14,
+                                    color: primaryColor,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'More',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: primaryColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        // Loading indicator for "generating more"
+                        if (_isGeneratingMore)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            child: SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ],
@@ -535,7 +651,6 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
       );
     }
 
-
     if (_generatedPhrases.isEmpty) {
       return Center(
         child: Padding(
@@ -581,7 +696,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
       );
     }
 
-    // NEW: Use side-by-side layout from the second image
+    // Side-by-side layout with phrases
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       itemCount: _generatedPhrases.length,
@@ -594,7 +709,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
     );
   }
 
-  // NEW: Side-by-side layout matching the second image
+  // Side-by-side layout matching the design
   Widget _buildSideBySidePhraseCard(PhraseModel phrase, int index) {
     return Container(
       decoration: BoxDecoration(
@@ -686,7 +801,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
             ),
           ),
           
-          // NEW: Side-by-side English and Spanish layout
+          // Side-by-side English and Spanish layout
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Column(
