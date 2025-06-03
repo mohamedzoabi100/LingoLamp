@@ -1,10 +1,17 @@
 //lib/main.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // ADD THIS IMPORT
 import 'package:firebase_core/firebase_core.dart';
 import 'screens/guest_home_page.dart'; 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // ADD THIS: Lock orientation to portrait only
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
   
   try {
     await Firebase.initializeApp();
@@ -16,6 +23,7 @@ void main() async {
   runApp(const MyApp());
 }
 
+// Rest of your code remains exactly the same...
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -27,8 +35,8 @@ class MyApp extends StatelessWidget {
       title: 'LingoLamp',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.teal, //Base for some Material components
-        scaffoldBackgroundColor: primaryTeal, //Default for InitialPage 
+        primarySwatch: Colors.teal,
+        scaffoldBackgroundColor: primaryTeal,
 
         colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.teal).copyWith(
           surface: const Color.fromARGB(255, 255, 255, 255), 
@@ -38,12 +46,12 @@ class MyApp extends StatelessWidget {
         ),
 
         textTheme: const TextTheme(
-          headlineSmall: TextStyle( //For "Hi there!"
+          headlineSmall: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 45, 
             color: primaryTeal,
           ),
-          titleLarge: TextStyle( //For prominent button text
+          titleLarge: TextStyle(
             fontSize: 16, 
             fontWeight: FontWeight.w600, 
             color: Colors.black87,
@@ -56,7 +64,6 @@ class MyApp extends StatelessWidget {
           ),
         ),
 
-        
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color.fromARGB(255, 255, 255, 255),
@@ -91,7 +98,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-//--- InitialPage and LoginScreenPlaceholder from main.dart ---
+//--- InitialPage and LoginScreenPlaceholder remain exactly the same ---
 class InitialPage extends StatelessWidget {
   const InitialPage({super.key});
 
