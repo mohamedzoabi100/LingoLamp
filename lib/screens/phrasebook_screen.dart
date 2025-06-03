@@ -62,6 +62,7 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).colorScheme.primary;
+    final screenWidth = MediaQuery.of(context).size.width;
     
     return Scaffold(
       appBar: AppBar(
@@ -140,20 +141,44 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
             ),
           ),
           
-          // Themes grid
+          // FIXED: Responsive Themes grid
           Expanded(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 0.9,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                ),
-                itemCount: _themes.length,
-                itemBuilder: (context, index) {
-                  return _buildThemeCard(_themes[index]);
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // Calculate responsive grid parameters
+                  final availableWidth = constraints.maxWidth;
+                  int crossAxisCount = 2;
+                  double childAspectRatio = 1.0;
+                  
+                  // Adjust for different screen sizes
+                  if (availableWidth > 600) {
+                    // Tablet/Large screens - 3 columns
+                    crossAxisCount = 3;
+                    childAspectRatio = 0.85;
+                  } else if (availableWidth > 400) {
+                    // Medium screens - 2 columns with better ratio
+                    crossAxisCount = 2;
+                    childAspectRatio = 0.95;
+                  } else {
+                    // Small screens - 2 columns with taller cards
+                    crossAxisCount = 2;
+                    childAspectRatio = 0.85;
+                  }
+                  
+                  return GridView.builder(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: crossAxisCount,
+                      childAspectRatio: childAspectRatio,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                    ),
+                    itemCount: _themes.length,
+                    itemBuilder: (context, index) {
+                      return _buildThemeCard(_themes[index], availableWidth);
+                    },
+                  );
                 },
               ),
             ),
@@ -316,7 +341,14 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
     );
   }
   
-  Widget _buildThemeCard(PhrasebookTheme theme) {
+  // FIXED: Made theme cards responsive with better text handling
+  Widget _buildThemeCard(PhrasebookTheme theme, double availableWidth) {
+    // Calculate responsive font sizes based on screen width
+    double titleFontSize = availableWidth > 400 ? 16 : 15;
+    double descriptionFontSize = availableWidth > 400 ? 12 : 11;
+    double iconSize = availableWidth > 400 ? 26 : 24;
+    double containerPadding = availableWidth > 400 ? 14.0 : 12.0;
+    
     return GestureDetector(
       onTap: () {
         // Navigate to category phrases screen
@@ -349,56 +381,63 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: EdgeInsets.all(containerPadding),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Icon
+              // Icon section
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: theme.color.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      theme.icon,
-                      color: theme.color,
-                      size: 28,
+                  Flexible(
+                    child: Container(
+                      padding: EdgeInsets.all(containerPadding * 0.8),
+                      decoration: BoxDecoration(
+                        color: theme.color.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        theme.icon,
+                        color: theme.color,
+                        size: iconSize,
+                      ),
                     ),
                   ),
                 ],
               ),
               
-              // Title and description
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    theme.title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+              // Title and description section - with flexible layout
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      theme.title,
+                      style: TextStyle(
+                        fontSize: titleFontSize,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    theme.description,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[600],
-                      height: 1.3,
+                    SizedBox(height: containerPadding * 0.4),
+                    Expanded(
+                      child: Text(
+                        theme.description,
+                        style: TextStyle(
+                          fontSize: descriptionFontSize,
+                          color: Colors.grey[600],
+                          height: 1.3,
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                  ],
+                ),
               ),
               
               // Arrow indicator
@@ -406,7 +445,7 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
                 alignment: Alignment.centerRight,
                 child: Icon(
                   Icons.arrow_forward_ios,
-                  size: 16,
+                  size: 14,
                   color: theme.color.withOpacity(0.7),
                 ),
               ),
