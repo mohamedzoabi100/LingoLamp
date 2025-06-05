@@ -12,7 +12,20 @@
           "package_name": "com.technion.lingo_lamp"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "65099514942-um5btq31t0hh7reqrbelekiuds0og08m.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.technion.lingo_lamp",
+            "certificate_hash": "c362a5105f1acc72c3c92fa9bc27991102fc0d29"
+          }
+        },
+        {
+          "client_id": "65099514942-knb1nnu57oov6oalt5qt06ig7squr527.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDwfhHspex6gpfgnZprXmK-6w2iBH-0j5M"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "65099514942-knb1nnu57oov6oalt5qt06ig7squr527.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

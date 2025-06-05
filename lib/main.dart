@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // ADD THIS IMPORT
 import 'package:firebase_core/firebase_core.dart';
 import 'screens/guest_home_page.dart'; 
+import 'screens/auth/sign_in_screen.dart'; // Add this import
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -120,7 +121,7 @@ class InitialPage extends StatelessWidget {
                 const Text('LingoLamp', textAlign: TextAlign.center, style: TextStyle(fontSize: 36.0, fontWeight: FontWeight.bold, color: Color.fromARGB(255, 255, 255, 255))),
                 const SizedBox(height: 60.0),
                 OutlinedButton(
-                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const LoginScreenPlaceholder())),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const SignInScreen())),
                   child: const Text('Log in'),
                 ),
                 const SizedBox(height: 20.0),

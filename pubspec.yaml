@@ -33,6 +33,8 @@ dependencies:
     sdk: flutter
   cloud_functions: ^4.6.0
   firebase_core: ^2.24.2
+  firebase_auth: ^4.16.0
+  google_sign_in: ^6.2.1
   # UI Icons
   cupertino_icons: ^1.0.8
 
@@ -52,7 +54,7 @@ dependencies:
 
   # ===== FIREBASE REMOVED =====
   # firebase_core: ^3.6.0          
-  # cloud_firestore: ^5.4.4        
+  cloud_firestore: ^4.15.5        
 
 
 dev_dependencies:
