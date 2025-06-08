@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -318,6 +319,60 @@ class UserDataService {
     }
   }
 
+  // === CHAT HISTORY SYNC ===
+
+  // Sync chat conversations to cloud
+  Future<void> syncChatHistoryToCloud() async {
+    if (!isAuthenticated) return;
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final conversationsString = prefs.getString('conversations');
+      
+      if (conversationsString != null) {
+        final conversationsData = json.decode(conversationsString);
+        
+        await _firestore
+            .collection('users')
+            .doc(userId)
+            .set({
+          'chatHistory': conversationsData,
+          'lastChatSync': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        
+        print('Successfully synced chat history to cloud');
+      }
+    } catch (e) {
+      print('Error syncing chat history to cloud: $e');
+      // Don't rethrow - continue even if sync fails
+    }
+  }
+
+  // Load chat history from cloud
+  Future<void> syncChatHistoryFromCloud() async {
+    if (!isAuthenticated) return;
+    
+    try {
+      final doc = await _firestore
+          .collection('users')
+          .doc(userId)
+          .get();
+      
+      if (doc.exists && doc.data()!.containsKey('chatHistory')) {
+        final cloudChatHistory = doc.data()!['chatHistory'];
+        
+        if (cloudChatHistory != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('conversations', json.encode(cloudChatHistory));
+          print('Successfully synced chat history from cloud');
+        }
+      }
+    } catch (e) {
+      print('Error syncing chat history from cloud: $e');
+      // Don't rethrow - continue even if sync fails
+    }
+  }
+
   // === COMPREHENSIVE SYNC ===
 
   // Perform full sync when user logs in
@@ -327,39 +382,56 @@ class UserDataService {
     try {
       print('Starting full user data sync...');
       
-      // Update user profile with login timestamp
-      await saveUserProfile();
-      
-      // Sync data in parallel for better performance
+      // Add timeout to prevent hanging
       await Future.wait([
+        saveUserProfile(),
         syncFlashcardsFromCloud(),
         syncFavoritesFromCloud(),
-      ]);
+        syncChatHistoryFromCloud(),
+      ]).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          print('Sync from cloud timed out after 15 seconds, continuing...');
+          return <void>[];
+        },
+      );
       
-      // Then push any local changes to cloud
+      // Then push any local changes to cloud (also with timeout)
       await Future.wait([
         syncFlashcardsToCloud(),
         syncFavoritesToCloud(),
-      ]);
+        syncChatHistoryToCloud(),
+      ]).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          print('Sync to cloud timed out after 15 seconds, continuing...');
+          return <void>[];
+        },
+      );
       
       print('Full user data sync completed successfully');
     } catch (e) {
       print('Error during full sync: $e');
-      rethrow;
+      // Don't rethrow - we want the app to continue even if sync fails
+      print('Continuing with app load despite sync error');
     }
   }
 
   // Clear local data when user logs out
   Future<void> clearLocalData() async {
     try {
-      // Clear shared preferences
+      // Clear shared preferences (but preserve guest data)
       final prefs = await SharedPreferences.getInstance();
+      
+      // Clear user-specific data only
       await prefs.remove('favorite_phrases');
+      // Note: We keep conversations as they might contain guest conversations
+      // await prefs.remove('conversations'); 
       
       // Note: We don't clear the local database completely as it might contain
       // data from when the user was using the app as a guest
       
-      print('Local user data cleared');
+      print('Local user data cleared (preserving guest data)');
     } catch (e) {
       print('Error clearing local data: $e');
     }
@@ -378,5 +450,94 @@ class UserDataService {
         await clearLocalData();
       }
     });
+  }
+
+  // === USER STATISTICS ===
+
+  // Get user statistics
+  Future<Map<String, dynamic>> getUserStats() async {
+    try {
+      final stats = <String, dynamic>{
+        'currentStreak': 0,
+        'longestStreak': 0,
+        'flashcardsCount': 0,
+        'favoritesCount': 0,
+        'chatsCount': 0,
+      };
+
+      // Get flashcards count
+      final flashcards = await _dbHelper.getAllFlashcards();
+      stats['flashcardsCount'] = flashcards.length;
+
+      // Get favorites count
+      final prefs = await SharedPreferences.getInstance();
+      final favoritesList = prefs.getStringList('favorite_phrases') ?? [];
+      stats['favoritesCount'] = favoritesList.length;
+
+      // Get chats count (conversations in local storage)
+      final conversationsString = prefs.getString('conversations');
+      if (conversationsString != null) {
+        try {
+          // Parse conversations to count them
+          final conversationsData = json.decode(conversationsString);
+          if (conversationsData is Map) {
+            stats['chatsCount'] = conversationsData.length;
+          }
+        } catch (e) {
+          print('Error parsing conversations: $e');
+          stats['chatsCount'] = 0;
+        }
+      }
+
+      // Get streak data from cloud if authenticated
+      if (isAuthenticated) {
+        try {
+          final doc = await _firestore
+              .collection('users')
+              .doc(userId)
+              .get();
+          
+          if (doc.exists) {
+            final data = doc.data()!;
+            stats['currentStreak'] = data['currentStreak'] ?? 0;
+            stats['longestStreak'] = data['longestStreak'] ?? 0;
+          }
+        } catch (e) {
+          print('Error fetching streak data: $e');
+          // Use default values on error
+        }
+      }
+
+      return stats;
+    } catch (e) {
+      print('Error getting user stats: $e');
+      return {
+        'currentStreak': 0,
+        'longestStreak': 0,
+        'flashcardsCount': 0,
+        'favoritesCount': 0,
+        'chatsCount': 0,
+      };
+    }
+  }
+
+  // Update user streak
+  Future<void> updateStreak({required int currentStreak, required int longestStreak}) async {
+    if (!isAuthenticated) return;
+    
+    try {
+      await _firestore
+          .collection('users')
+          .doc(userId)
+          .set({
+        'currentStreak': currentStreak,
+        'longestStreak': longestStreak,
+        'lastStreakUpdate': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      
+      print('Streak updated: current=$currentStreak, longest=$longestStreak');
+    } catch (e) {
+      print('Error updating streak: $e');
+    }
   }
 } 

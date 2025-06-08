@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../models/flashcard_model.dart';
 import '../utils/database_helper.dart';
+import '../services/user_data_service.dart';
 
 class FlashcardsScreen extends StatefulWidget {
   const FlashcardsScreen({super.key});
@@ -13,6 +14,7 @@ class FlashcardsScreen extends StatefulWidget {
 
 class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerProviderStateMixin {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+  final UserDataService _userDataService = UserDataService();
   List<Flashcard> _flashcards = [];
   List<Flashcard> _filteredFlashcards = [];
   bool _isLoading = true;
@@ -88,18 +90,18 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
 
   Future<void> _toggleFavorite(Flashcard flashcard) async {
     final updatedFlashcard = flashcard.copyWith(isFavorite: !flashcard.isFavorite);
-    await _dbHelper.updateFlashcard(updatedFlashcard);
+    await _userDataService.updateFlashcard(updatedFlashcard);
     _loadFlashcards();
   }
 
   Future<void> _updateDifficulty(Flashcard flashcard, int newDifficulty) async {
     final updatedFlashcard = flashcard.copyWith(difficulty: newDifficulty);
-    await _dbHelper.updateFlashcard(updatedFlashcard);
+    await _userDataService.updateFlashcard(updatedFlashcard);
     _loadFlashcards();
   }
 
   Future<void> _deleteFlashcard(Flashcard flashcard) async {
-    await _dbHelper.deleteFlashcard(flashcard.id!);
+    await _userDataService.deleteFlashcard(flashcard);
     _loadFlashcards();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -113,7 +115,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
       lastStudied: DateTime.now(),
       timesStudied: flashcard.timesStudied + 1,
     );
-    await _dbHelper.updateFlashcard(updatedFlashcard);
+    await _userDataService.updateFlashcard(updatedFlashcard);
   }
 
   void _startStudyMode() {

@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_translation/google_mlkit_translation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
+// import 'package:speech_to_text/speech_to_text.dart' as stt; // Temporarily disabled
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
 
@@ -31,7 +31,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final ScrollController _scrollController = ScrollController();
   late OnDeviceTranslator _translator;
   late FlutterTts _tts;
-  late stt.SpeechToText _stt;
+  // late stt.SpeechToText _stt; // Temporarily disabled
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
   bool _sttReady = false;
   bool _listening = false;
@@ -109,22 +109,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     await _tts.setLanguage(targetLang.bcpCode);
     await _tts.setSpeechRate(_speechRate);
 
-    _stt = stt.SpeechToText();
-    _sttReady = await _stt.initialize(
-      onStatus: (s) {
-        if (s == 'done' || s == 'notListening') {
-          if(mounted) setState(() => _listening = false);
-        }
-      },
-      onError: (e) {
-        if(mounted) {
-          setState(() {
-            _listening = false;
-            _currentSttError = "STT Error: ${e.errorMsg}";
-          });
-        }
-      },
-    );
+    // _stt = stt.SpeechToText();
+    _sttReady = false; // Temporarily disabled
     if (mounted) setState(() => _modelsReady = true);
   }
 
@@ -211,8 +197,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (_modelsReady) { //Only close if initialized
         _translator.close();
         _tts.stop();
-        _stt.stop();
-        _stt.cancel();
+        // _stt.stop();
+        // _stt.cancel();
     }
     _inputController.dispose();
     _scrollController.dispose();
@@ -286,22 +272,22 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Future<void> _startListening() async {
     if (!_sttReady || _listening) return;
     if (mounted) setState(() { _listening = true; _currentSttError = ''; });
-    await _stt.listen(
-      localeId: sourceLang.bcpCode,
-      onResult: (r) {
-        if (r.finalResult) {
-          _inputController.text = r.recognizedWords;
-          _handleSubmittedText();
-        }
-      },
-      listenFor: const Duration(seconds: 10),
-      pauseFor: const Duration(seconds: 3),
-    );
+    // await _stt.listen(
+    //   localeId: sourceLang.bcpCode,
+    //   onResult: (r) {
+    //     if (r.finalResult) {
+    //       _inputController.text = r.recognizedWords;
+    //       _handleSubmittedText();
+    //     }
+    //   },
+    //   listenFor: const Duration(seconds: 10),
+    //   pauseFor: const Duration(seconds: 3),
+    // );
   }
 
   Future<void> _stopListening() async {
     if (!_sttReady || !_listening) return; //Added check for _sttReady
-    await _stt.stop();
+    // await _stt.stop();
     if (mounted) setState(() => _listening = false);
   }
 

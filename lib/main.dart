@@ -2,8 +2,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // ADD THIS IMPORT
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'screens/guest_home_page.dart'; 
+import 'screens/main_app_page.dart';
 import 'screens/auth/sign_in_screen.dart'; // Add this import
+import 'services/user_data_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +20,9 @@ void main() async {
   try {
     await Firebase.initializeApp();
     print("✅ Firebase initialized successfully");
+    
+    // Initialize user data service auth listener
+    UserDataService().setupAuthListener();
   } catch (e) {
     print("❌ Firebase initialization failed: $e");
   }
@@ -94,7 +100,62 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const InitialPage(), 
+      home: const AuthStateWrapper(), 
+    );
+  }
+}
+
+// New authentication state wrapper
+class AuthStateWrapper extends StatelessWidget {
+  const AuthStateWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        print('🔄 AuthStateWrapper: Connection state: ${snapshot.connectionState}');
+        print('🔄 AuthStateWrapper: Has data: ${snapshot.hasData}');
+        print('🔄 AuthStateWrapper: Has error: ${snapshot.hasError}');
+        print('🔄 AuthStateWrapper: User: ${snapshot.data?.email}');
+        print('🔄 AuthStateWrapper: User ID: ${snapshot.data?.uid}');
+        
+        // Show loading while checking auth state
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          print('⏳ AuthStateWrapper: Showing loading screen');
+          return const Scaffold(
+            backgroundColor: Color(0xFF0E7A71),
+            body: Center(
+              child: CircularProgressIndicator(color: Colors.white),
+            ),
+          );
+        }
+        
+        // Handle errors
+        if (snapshot.hasError) {
+          print('❌ AuthStateWrapper: Error: ${snapshot.error}');
+          return const Scaffold(
+            backgroundColor: Color(0xFF0E7A71),
+            body: Center(
+              child: Text(
+                'Authentication Error',
+                style: TextStyle(color: Colors.white, fontSize: 18),
+              ),
+            ),
+          );
+        }
+        
+        // If user is logged in, go to main app
+        if (snapshot.hasData && snapshot.data != null) {
+          print('✅ AuthStateWrapper: User is logged in, showing MainAppPage');
+          print('✅ User details: ${snapshot.data!.email} (${snapshot.data!.uid})');
+          return const MainAppPage();
+        }
+        
+        // If user is not logged in, show initial page
+        print('❌ AuthStateWrapper: No user, showing InitialPage');
+        return const InitialPage();
+      },
     );
   }
 }

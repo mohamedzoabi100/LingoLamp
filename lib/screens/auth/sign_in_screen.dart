@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/auth_service.dart';
-import '../guest_home_page.dart';
 import 'sign_up_screen.dart';
 
 class SignInScreen extends StatefulWidget {
@@ -22,11 +21,10 @@ class _SignInScreenState extends State<SignInScreen> {
       final result = await _authService.signInWithGoogle();
       
       if (result != null && mounted) {
-        // Success - navigate to home page
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const GuestHomePage()),
-        );
+        // Success - AuthStateWrapper will automatically navigate to MainAppPage
+        print('Sign-in successful! AuthStateWrapper will handle navigation.');
+        // Pop the sign-in screen so AuthStateWrapper can properly show MainAppPage
+        Navigator.of(context).pop();
       } else {
         // User cancelled sign-in - just stay on this screen
         print('Google Sign-In was cancelled by user');
@@ -114,8 +112,17 @@ class _SignInScreenState extends State<SignInScreen> {
               // Google Sign In button
               ElevatedButton.icon(
                 onPressed: _isLoading ? null : _signInWithGoogle,
-                icon: const Icon(Icons.g_mobiledata, color: Colors.red),
-                label: const Text('Sign in with Google'),
+                icon: _isLoading 
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+                        ),
+                      )
+                    : const Icon(Icons.g_mobiledata, color: Colors.red),
+                label: Text(_isLoading ? 'Signing in...' : 'Sign in with Google'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: Colors.black87,

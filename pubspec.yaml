@@ -31,9 +31,9 @@ dependencies:
   # Core Flutter
   flutter:
     sdk: flutter
-  cloud_functions: ^4.6.0
-  firebase_core: ^2.24.2
-  firebase_auth: ^4.16.0
+  cloud_functions: ^4.7.6
+  firebase_core: ^2.32.0
+  firebase_auth: ^4.20.0
   google_sign_in: ^6.2.1
   # UI Icons
   cupertino_icons: ^1.0.8
@@ -41,7 +41,7 @@ dependencies:
   # ===== OFFLINE LANGUAGE FEATURES =====
   google_mlkit_translation: ^0.13.0  # Offline translation (English ↔ Spanish)
   flutter_tts: ^4.2.2                # Text-to-speech (works offline)
-  speech_to_text: ^7.0.0             # Speech recognition (works offline)
+  # speech_to_text: ^6.6.0             # Speech recognition (works offline) - Temporarily disabled due to build issues
   permission_handler: ^11.3.0        # Microphone permission for STT
 
   # ===== LOCAL DATA STORAGE =====
@@ -54,7 +54,7 @@ dependencies:
 
   # ===== FIREBASE REMOVED =====
   # firebase_core: ^3.6.0          
-  cloud_firestore: ^4.15.5        
+  cloud_firestore: ^4.17.5        
 
 
 dev_dependencies:
