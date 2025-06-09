@@ -53,7 +53,11 @@ dependencies:
 
   # ===== FIREBASE REMOVED =====
   # firebase_core: ^3.6.0          
-  cloud_firestore: ^4.17.5        
+  cloud_firestore: ^4.17.5  
+
+  google_generative_ai: ^0.4.0
+  http: ^1.2.1    
+  flutter_markdown: ^0.7.1  
 
 
 dev_dependencies:

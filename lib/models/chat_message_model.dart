@@ -1,11 +1,15 @@
-//lib/models/chat_message_model.dart
+// lib/models/chat_message_model.dart
+// ** MODIFIED FILE **
+
 class ChatMessage {
   final int? id;
   final int conversationId;
   final String text;
   final bool isUserMessage;
   final DateTime timestamp;
-  final String? translatedText; 
+  // MODIFIED: Renamed 'translatedText' to 'originalQuery' for better clarity.
+  // This field will store the user's original text that the AI is responding to.
+  final String? originalQuery;
 
   ChatMessage({
     this.id,
@@ -13,7 +17,7 @@ class ChatMessage {
     required this.text,
     required this.isUserMessage,
     required this.timestamp,
-    this.translatedText,
+    this.originalQuery,
   });
 
   Map<String, dynamic> toMap() {
@@ -23,7 +27,7 @@ class ChatMessage {
       'text': text,
       'is_user_message': isUserMessage ? 1 : 0,
       'timestamp': timestamp.toIso8601String(),
-      'translated_text': translatedText,
+      'original_query': originalQuery, // MODIFIED
     };
   }
 
@@ -34,7 +38,7 @@ class ChatMessage {
       text: map['text'] as String,
       isUserMessage: (map['is_user_message'] as int) == 1,
       timestamp: DateTime.parse(map['timestamp'] as String),
-      translatedText: map['translated_text'] as String?,
+      originalQuery: map['original_query'] as String?, // MODIFIED
     );
   }
 }
