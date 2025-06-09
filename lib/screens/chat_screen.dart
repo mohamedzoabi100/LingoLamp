@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_translation/google_mlkit_translation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-// import 'package:speech_to_text/speech_to_text.dart' as stt; // Temporarily disabled
+// import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
 
@@ -31,10 +31,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final ScrollController _scrollController = ScrollController();
   late OnDeviceTranslator _translator;
   late FlutterTts _tts;
-  // late stt.SpeechToText _stt; // Temporarily disabled
+  // late stt.SpeechToText _stt;
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
-  bool _sttReady = false;
-  bool _listening = false;
+  // bool _sttReady = false;
+  // bool _listening = false;
   bool _modelsReady = false;
   double _speechRate = 0.5;
   String _currentSttError = '';
@@ -62,21 +62,21 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _requestPermissionsAndInitEngines() async {
-    var status = await Permission.microphone.status;
-    if (!status.isGranted) {
-      status = await Permission.microphone.request();
-    }
+    // var status = await Permission.microphone.status;
+    // if (!status.isGranted) {
+    //   status = await Permission.microphone.request();
+    // }
 
-    if (status.isGranted) {
+    // if (status.isGranted) {
       _initEngines();
-    } else {
-      if (mounted) {
-        setState(() {
-          _modelsReady = false; 
-          _currentSttError = "Microphone permission denied. Please enable it in settings.";
-        });
-      }
-    }
+    // } else {
+    //   if (mounted) {
+    //     setState(() {
+    //       _modelsReady = false; 
+    //       _currentSttError = "Microphone permission denied. Please enable it in settings.";
+    //     });
+    //   }
+    // }
   }
 
 
@@ -110,7 +110,21 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     await _tts.setSpeechRate(_speechRate);
 
     // _stt = stt.SpeechToText();
-    _sttReady = false; // Temporarily disabled
+    // _sttReady = await _stt.initialize(
+    //   onStatus: (s) {
+    //     if (s == 'done' || s == 'notListening') {
+    //       if(mounted) setState(() => _listening = false);
+    //     }
+    //   },
+    //   onError: (e) {
+    //     if(mounted) {
+    //       setState(() {
+    //         _listening = false;
+    //         _currentSttError = "STT Error: ${e.errorMsg}";
+    //       });
+    //     }
+    //   },
+    // );
     if (mounted) setState(() => _modelsReady = true);
   }
 
@@ -270,8 +284,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _startListening() async {
-    if (!_sttReady || _listening) return;
-    if (mounted) setState(() { _listening = true; _currentSttError = ''; });
+    // if (!_sttReady || _listening) return;
+    if (mounted) setState(() { _currentSttError = ''; });
     // await _stt.listen(
     //   localeId: sourceLang.bcpCode,
     //   onResult: (r) {
@@ -286,9 +300,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _stopListening() async {
-    if (!_sttReady || !_listening) return; //Added check for _sttReady
+    // if (!_sttReady || !_listening) return; //Added check for _sttReady
     // await _stt.stop();
-    if (mounted) setState(() => _listening = false);
+    if (mounted) setState(() => _currentSttError = '');
   }
 
   Future<void> _addToFlashcards(String originalText, String translatedText) async {
@@ -473,7 +487,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         ),
         const SizedBox(width: 8),
         Material(color: Colors.transparent, child: IconButton(onPressed: !_modelsReady ? null : _handleSubmittedText, icon: Icon(Icons.send_rounded, color: primaryColor), tooltip: 'Send')),
-        Material(color: Colors.transparent, child: IconButton(icon: Icon(_listening ? Icons.mic_off_rounded : Icons.mic_rounded, color: _listening ? Colors.redAccent : primaryColor), onPressed: !_modelsReady || !_sttReady ? null : (_listening ? _stopListening : _startListening), tooltip: _listening ? 'Stop listening' : 'Start listening')),
+        Material(color: Colors.transparent, child: IconButton(icon: Icon(_currentSttError.isNotEmpty ? Icons.mic_off_rounded : Icons.mic_rounded, color: _currentSttError.isNotEmpty ? Colors.redAccent : primaryColor), onPressed: !_modelsReady ? null : _startListening, tooltip: _currentSttError.isNotEmpty ? 'Stop listening' : 'Start listening')),
       ]),
     );
   }

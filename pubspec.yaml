@@ -40,8 +40,7 @@ dependencies:
 
   # ===== OFFLINE LANGUAGE FEATURES =====
   google_mlkit_translation: ^0.13.0  # Offline translation (English ↔ Spanish)
-  flutter_tts: ^4.2.2                # Text-to-speech (works offline)
-  # speech_to_text: ^6.6.0             # Speech recognition (works offline) - Temporarily disabled due to build issues
+  flutter_tts: ^3.8.5                # Text-to-speech (works offline)
   permission_handler: ^11.3.0        # Microphone permission for STT
 
   # ===== LOCAL DATA STORAGE =====
@@ -82,4 +81,5 @@ flutter:
   assets:
     - assets/images/              # App logo and UI images
     - assets/data/                # CSV file with phrases (CRITICAL for offline)
+
     
