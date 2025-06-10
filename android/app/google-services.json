@@ -14,6 +14,22 @@
       },
       "oauth_client": [
         {
+          "client_id": "65099514942-6sa896io77a95mf1sskgnn0jp91mnmj4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.technion.lingo_lamp",
+            "certificate_hash": "a740a8fc4b03d71186f54f9c2a1689196a063212"
+          }
+        },
+        {
+          "client_id": "65099514942-e0eg8qs9ra0l571lundm4j102fquhhn9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.technion.lingo_lamp",
+            "certificate_hash": "89705286e538faefa22ac70caf73e75ea7c9707a"
+          }
+        },
+        {
           "client_id": "65099514942-hs0q0v38i969v67egl3k6um7fr66koei.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
