@@ -6,9 +6,9 @@ import '../services/user_data_service.dart';
 import 'chat_screen.dart'; 
 import 'phrasebook_screen.dart';
 import 'flashcards_screen.dart';
-import 'favorites_screen.dart';
-import 'chat_history_screen.dart';
-import 'settings_screen.dart';
+// Removed: import 'favorites_screen.dart';
+// Removed: import 'chat_history_screen.dart';
+import 'loggedin_settings_screen.dart';
 import 'auth/sign_in_screen.dart';
 
 class MainAppPage extends StatefulWidget {
@@ -27,7 +27,7 @@ class _MainAppPageState extends State<MainAppPage> {
     'currentStreak': 0,
     'longestStreak': 0,
     'flashcardsCount': 0,
-    'favoritesCount': 0,
+    // Removed: 'favoritesCount': 0,
     'chatsCount': 0,
   };
 
@@ -118,41 +118,17 @@ class _MainAppPageState extends State<MainAppPage> {
           ),
         ],
       ),
-      child: Stack(
-        children: [
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: <Widget>[
-              Icon(icon, size: 65.0, color: iconColor),
-              const SizedBox(height: 3.0),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 18),
-              ),
-            ],
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: <Widget>[
+          Icon(icon, size: 65.0, color: iconColor),
+          const SizedBox(height: 3.0),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 18),
           ),
-          if (badge != null)
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.red,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  badge,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
     );
@@ -207,8 +183,8 @@ class _MainAppPageState extends State<MainAppPage> {
   }
 
   Widget _buildDailyTaskPanel(BuildContext context) {
-    String taskTitle = "Practice 5 flashcards";
-    String taskDescription = "Review your saved flashcards to improve retention.";
+    String taskTitle = "Learn 10 new vocabulary words";
+    String taskDescription = "Focus on common verbs and nouns related to travel.";
     bool isTaskCompleted = false;
     return Container(
       margin: const EdgeInsets.only(top: 25.0, bottom: 15.0),
@@ -270,7 +246,7 @@ class _MainAppPageState extends State<MainAppPage> {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const FlashcardsScreen()),
+                      MaterialPageRoute(builder: (context) => const PhrasebookScreen()),
                     );
                   },
                   style: TextButton.styleFrom(
@@ -341,15 +317,7 @@ class _MainAppPageState extends State<MainAppPage> {
                 ),
                 Row(
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.history, size: 28.0, color: Colors.white),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const ChatHistoryScreen()),
-                        );
-                      },
-                    ),
+                    // REMOVED: History IconButton
                     PopupMenuButton<String>(
                       icon: const Icon(Icons.account_circle, size: 32.0, color: Colors.white),
                       onSelected: (value) {
@@ -400,9 +368,10 @@ class _MainAppPageState extends State<MainAppPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    //Feature Buttons
+                    //Feature Buttons - Updated Layout: Only 3 buttons like guest mode
                     Column(
                       children: [
+                        // First Row: Chat and Phrasebook
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: <Widget>[
@@ -415,7 +384,7 @@ class _MainAppPageState extends State<MainAppPage> {
                               width: buttonWidth, 
                               height: buttonHeight,
                               badge: _userStats['chatsCount'] > 0 ? '${_userStats['chatsCount']}' : null,
-                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ChatScreen())),
+                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChatScreen())),
                             ),
                             const SizedBox(width: 12),
                             _buildFeatureButton(
@@ -431,8 +400,10 @@ class _MainAppPageState extends State<MainAppPage> {
                           ],
                         ),
                         SizedBox(height: MediaQuery.of(context).size.height * 0.03),
+                        
+                        // Second Row: Only Flashcards (centered) - Match guest mode exactly
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: <Widget>[
                             _buildFeatureButton(
                               context: context, 
@@ -444,18 +415,6 @@ class _MainAppPageState extends State<MainAppPage> {
                               height: buttonHeight,
                               badge: _userStats['flashcardsCount'] > 0 ? '${_userStats['flashcardsCount']}' : null,
                               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const FlashcardsScreen())),
-                            ),
-                            const SizedBox(width: 12),
-                            _buildFeatureButton(
-                              context: context, 
-                              icon: Icons.favorite, 
-                              label: 'Favorites', 
-                              iconColor: primaryTeal, 
-                              borderColor: primaryTeal, 
-                              width: buttonWidth, 
-                              height: buttonHeight,
-                              badge: _userStats['favoritesCount'] > 0 ? '${_userStats['favoritesCount']}' : null,
-                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const FavoritesScreen())),
                             ),
                           ],
                         ),

@@ -3,7 +3,7 @@
 
 class ChatMessage {
   final int? id;
-  final int conversationId;
+  int conversationId;
   final String text;
   final bool isUserMessage;
   final DateTime timestamp;

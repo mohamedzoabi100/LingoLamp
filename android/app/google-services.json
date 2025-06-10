@@ -14,11 +14,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "65099514942-um5btq31t0hh7reqrbelekiuds0og08m.apps.googleusercontent.com",
+          "client_id": "65099514942-hs0q0v38i969v67egl3k6um7fr66koei.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.technion.lingo_lamp",
-            "certificate_hash": "c362a5105f1acc72c3c92fa9bc27991102fc0d29"
+            "certificate_hash": "505015382560f9f505116fd4137402fc8b2173e7"
           }
         },
         {

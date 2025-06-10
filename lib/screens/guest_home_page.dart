@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'chat_screen.dart'; 
 import 'phrasebook_screen.dart';
 import 'flashcards_screen.dart';
-import 'settings_screen.dart'; 
+import 'guest_settings_screen.dart';
 
 class GuestHomePage extends StatelessWidget {
   const GuestHomePage({super.key});
@@ -209,10 +209,11 @@ class GuestHomePage extends StatelessWidget {
                   icon: const Icon(Icons.settings_outlined, size: 30.0, color: Colors.white),
                   onPressed: () {
                     print('Settings button pressed');
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const SettingsScreen()),
-                    );
+                     // if user is NOT logged-in, show guest settings
+                     Navigator.push(
+                       context,
+                       MaterialPageRoute(builder: (context) => const GuestSettingsScreen()),
+                     );
                   },
                 ),
               ],

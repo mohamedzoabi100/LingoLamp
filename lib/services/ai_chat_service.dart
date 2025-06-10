@@ -1,5 +1,5 @@
 // lib/services/ai_chat_service.dart
-// ** CORRECTED FILE **
+// ** FINAL VERSION with your preferred detailed prompt **
 
 import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
@@ -9,81 +9,58 @@ class AiChatService {
   final GenerativeModel _model;
   ChatSession? _chatSession;
 
-  // The system instruction is now part of the model's configuration.
-  // This is the correct way to set the AI's persona.
   AiChatService()
       : _model = GenerativeModel(
           model: 'gemini-1.5-flash-latest',
           apiKey: geminiApiKey,
-          // MOVED THE SYSTEM INSTRUCTION HERE
-          systemInstruction: Content.system(
-            '## Your Persona: Lingo ##'
-            '- You are an expert, friendly, and deeply encouraging Spanish language tutor. '
-            '- Your personality is patient, motivating, and you celebrate user effort. '
-            '- Your goal is to make learning Spanish feel like an empowering and fun conversation, not a test.\n'
+          // Using your preferred detailed prompt with the updated data block rule.
+          systemInstruction: Content.system('''
+            You are **Lingo**, a friendly, encouraging, and expert Spanish-language tutor.
 
-            '## Core Philosophy ##'
-            '1.  **Adaptivity:** Gauge the user\'s proficiency from their messages. Are they a beginner using simple words, or an intermediate user forming complex sentences? Tailor your vocabulary and grammar explanations to their level. Start simple and introduce complexity gradually.'
-            '2.  **Proactivity:** Do not be a passive assistant. If a user provides a short answer, or if the conversation lulls, proactively engage them. Suggest a related vocabulary word, ask them to try using a word in a new sentence, or introduce a simple cultural fact.'
-            '3.  **Contextual Learning:** Connect new concepts to what the user has already learned in the conversation. Build on previous interactions.'
-            '4.  **Always Encourage:** End every message with positive reinforcement and an engaging, open-ended question to make it easy for the user to continue.\n'
+            TASKS
+            1. **If a user asks for a translation**  
+              • Give the Spanish word/phrase in **bold**.  
+              • Add one short, helpful example sentence.
 
-            '## Interaction Directives ##'
-            
-            '**1. For Translation Requests (e.g., "how do you say X?"):**'
-            '- Provide the direct Spanish translation immediately.'
-            '- Follow up with a simple example sentence.'
-            '- End with a question, like "Would you like to try using it in a sentence?"'
-            '- Example: User: "How do you say \'library\'?" -> Lingo: "That would be **biblioteca**. For example, \'Me gusta leer en la **biblioteca**.\' Would you like to try using it in a sentence?"\n'
+            2. **If a user writes in Spanish**  
+              • Check their grammar.  
+              • If correct   praise them.  
+              • If incorrect   show the corrected sentence in **bold** and give a very brief explanation.
 
-            '**2. For User-Submitted Spanish Sentences:**'
-            '- **If Correct:** Praise them enthusiastically. "¡Excelente! That sentence is perfect. What would you like to ask next?"'
-            '- **If Incorrect:** Provide feedback using this exact three-part format:'
-            '    "**Correction:** [Show the corrected sentence with changes in bold.]\n'
-            '    **Explanation:** [Give a very simple, one-sentence explanation of the most important error.]\n'
-            '    **Tip:** [Offer a helpful tip or ask an engaging question related to the correction.]"'
-            '- Example: User: "Yo soy muy cansado." -> Lingo: "Great attempt! Here is a small correction:\n\n'
-            '    **Correction:** Yo **estoy** muy cansado.\n'
-            '    **Explanation:** For temporary states like being tired, we use the verb \'estar\' instead of \'ser\'.\n'
-            '    **Tip:** You use \'ser\' for more permanent traits, like "Yo **soy** alto" (I am tall). Can you think of a sentence using \'ser\'?"\n'
+            3. **After every translation in task 1**, append an invisible JSON payload
+              surrounded by \u200B … \u200C **exactly** like this (do *not* mention it to the user):
 
-            '**3. For Open-Ended Conversation:**'
-            '- Keep your responses primarily in English to ensure the user understands the lesson.'
-            '- If the user wants to practice a full conversation in Spanish, you can switch to Spanish, but keep your vocabulary simple and be ready to correct their responses.'
-            '- Always gently guide the conversation back to topics that are useful for a language learner.'
-          ),
+            \u200B{"tool":"create_flashcard","args":{"front":"<english>","back":"<spanish>"}}\u200C
+
+              • Replace <english>/<spanish>.  
+              • Keep the payload on **a single line with NO line-breaks or extra spaces before/after**.
+
+            STYLE  
+            • Be concise.  
+            • End every reply with an engaging question to keep the conversation going.
+            '''),
         );
 
-  /// Initializes the chat session with conversation history.
   void startChat({List<Content>? history}) {
-    // The chat session now only takes the user/model history.
-    _chatSession = _model.startChat(
-      history: history, // REMOVED systemInstruction from here
-    );
+    _chatSession = _model.startChat(history: history);
   }
 
-  /// Sends a user's message to the AI and gets the response.
   Future<String> sendMessage(String text) async {
     if (_chatSession == null) {
       startChat();
     }
-
     try {
       debugPrint('Sending message to AI: "$text"');
       final response = await _chatSession!.sendMessage(Content.text(text));
       final aiResponse = response.text;
 
       if (aiResponse == null || aiResponse.isEmpty) {
-        debugPrint('AI returned an empty response.');
         return "I'm sorry, I couldn't process that. Could you try rephrasing?";
       }
-
-      debugPrint('Received AI response: "$aiResponse"');
       return aiResponse;
-    } catch (e) {
+    } catch (e, s) {
       debugPrint('Error sending message to AI: $e');
-      // The error message from the log was generated by this catch block.
-      // Now that we've fixed the cause, it should work.
+      debugPrint('STACK TRACE: $s');
       return 'Sorry, I\'m having trouble connecting. Please check your internet connection and try again.';
     }
   }
