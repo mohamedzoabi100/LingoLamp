@@ -214,7 +214,10 @@ class _ChatScreenState extends State<ChatScreen> {
       sourceLanguage: 'en-US',
       targetLanguage: 'es-ES',
       createdAt: DateTime.now(),
-      lastStudied: DateTime.now(),
+      lastStudied: DateTime.now(),  // ← Add this line
+      timesStudied: 0,              // ← Add this line
+      difficulty: 2,                // ← Add this line  
+      isFavorite: false,            // ← Add this line
     );
     await _dbHelper.insertFlashcard(flashcard);
     if (mounted) {

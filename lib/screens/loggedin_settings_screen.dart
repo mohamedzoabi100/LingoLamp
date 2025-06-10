@@ -176,6 +176,37 @@ class SettingsScreen extends StatelessWidget {
           ),
           
           const Divider(height: 32),
+
+                    // About Section
+          ListTile(
+            leading: const Icon(Icons.info_outline, color: Color(0xFF0E7A71)),
+            title: const Text(
+              'About',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: 16,
+              ),
+            ),
+            subtitle: const Text(
+              'App info and open source licenses',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 14,
+              ),
+            ),
+            onTap: () {
+              showAboutDialog(
+                context: context,
+                applicationName: 'LingoLamp',
+                applicationVersion: '1.0.0',
+                applicationIcon: Image.asset('assets/images/Logo.png', height: 48),
+                applicationLegalese: '© 2025 LingoLamp\nAll media is original.\nOpen source licenses are included.',
+              );
+            },
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+          ),
+
+          const Divider(height: 32),
           
           // Sign Out Section
           ListTile(

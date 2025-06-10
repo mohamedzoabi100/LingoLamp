@@ -1,5 +1,5 @@
 // lib/utils/database_helper.dart
-// ** MODIFIED FILE **
+// ** UPDATED FILE WITH ADDITIONAL METHODS **
 
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
@@ -13,9 +13,9 @@ class DatabaseHelper {
 
   DatabaseHelper._privateConstructor();
 
-  // MODIFIED: Database version incremented to handle schema change
+  // Database version incremented to handle schema change
   static const String _dbName = 'lingolamp_chat.db';
-  static const int _dbVersion = 3; // <-- UPDATED from 2 to 3
+  static const int _dbVersion = 3;
 
   static const String tableConversations = 'conversations';
   static const String colConversationId = 'id';
@@ -29,10 +29,9 @@ class DatabaseHelper {
   static const String colMessageText = 'text';
   static const String colMessageIsUser = 'is_user_message';
   static const String colMessageTimestamp = 'timestamp';
-  // MODIFIED: Renamed column to match the model
   static const String colMessageOriginalQuery = 'original_query';
 
-  // Flashcards table constants (unchanged)
+  // Flashcards table constants
   static const String tableFlashcards = 'flashcards';
   static const String colFlashcardId = 'id';
   static const String colFlashcardOriginalText = 'original_text';
@@ -103,13 +102,14 @@ class DatabaseHelper {
     if (oldVersion < 2) {
       await _onCreate(db, newVersion); // Re-create if starting from a very old version
     }
-    // MODIFIED: Handles the upgrade from version 2 to 3 by renaming the column
+    // Handles the upgrade from version 2 to 3 by adding the new column
     if (oldVersion == 2) {
       await db.execute('ALTER TABLE $tableMessages ADD COLUMN $colMessageOriginalQuery TEXT');
     }
   }
 
-  // --- Conversation Methods (Unchanged) ---
+  // === CONVERSATION METHODS ===
+  
   Future<int> insertConversation(Conversation conversation) async {
     Database db = await instance.database;
     return await db.insert(tableConversations, conversation.toMap());
@@ -150,7 +150,17 @@ class DatabaseHelper {
     return null;
   }
 
-  //--- Chat Message Methods (insertMessage is slightly modified) ---
+  Future<int> deleteConversation(int id) async {
+    Database db = await instance.database;
+    return await db.delete(
+      tableConversations,
+      where: '$colConversationId = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // === CHAT MESSAGE METHODS ===
+  
   Future<int> insertMessage(ChatMessage message) async {
     Database db = await instance.database;
     int messageId = await db.insert(tableMessages, message.toMap());
@@ -178,16 +188,8 @@ class DatabaseHelper {
     });
   }
 
-  Future<int> deleteConversation(int id) async {
-    Database db = await instance.database;
-    return await db.delete(
-      tableConversations,
-      where: '$colConversationId = ?',
-      whereArgs: [id],
-    );
-  }
-
-  // --- Flashcard Methods (Unchanged) ---
+  // === FLASHCARD METHODS ===
+  
   Future<int> insertFlashcard(Flashcard flashcard) async {
     Database db = await instance.database;
     return await db.insert(tableFlashcards, flashcard.toMap());
@@ -214,13 +216,30 @@ class DatabaseHelper {
     );
   }
 
-  Future<int> deleteFlashcard(int id) async {
+  // Original method - delete flashcard by ID
+  Future<int> deleteFlashcardById(int id) async {
     Database db = await instance.database;
     return await db.delete(
       tableFlashcards,
       where: '$colFlashcardId = ?',
       whereArgs: [id],
     );
+  }
+
+  // NEW METHOD - Delete flashcard by text content (for syncing purposes)
+  Future<int> deleteFlashcard(String originalText, String translatedText) async {
+    Database db = await instance.database;
+    return await db.delete(
+      tableFlashcards,
+      where: '$colFlashcardOriginalText = ? AND $colFlashcardTranslatedText = ?',
+      whereArgs: [originalText, translatedText],
+    );
+  }
+
+  // NEW METHOD - Clear all flashcards (for guest/user data separation)
+  Future<int> clearAllFlashcards() async {
+    Database db = await instance.database;
+    return await db.delete(tableFlashcards);
   }
 
   Future<bool> flashcardExists(String originalText, String translatedText) async {
