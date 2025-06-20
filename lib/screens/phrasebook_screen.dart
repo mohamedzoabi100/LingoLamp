@@ -6,7 +6,9 @@ import 'favorites_screen.dart';
 import 'ai_suggestions_screen.dart'; // NEW IMPORT
 
 class PhrasebookScreen extends StatefulWidget {
-  const PhrasebookScreen({super.key});
+
+  final VoidCallback? onBackToHome;             // ★ add
+  const PhrasebookScreen({Key? key, this.onBackToHome}) : super(key: key);
 
   @override
   State<PhrasebookScreen> createState() => _PhrasebookScreenState();
@@ -66,6 +68,16 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
     
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(                           // ★ new
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (widget.onBackToHome != null) {
+              widget.onBackToHome!();
+            } else {
+              Navigator.pop(context);
+            }
+          },
+        ),
         title: const Text('Phrasebook'),
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,

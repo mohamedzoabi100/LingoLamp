@@ -19,8 +19,12 @@ import 'chat_history_screen.dart';
 const targetLangCode = 'es-ES';
 
 class ChatScreen extends StatefulWidget {
+  final VoidCallback? onBackToHome;
+
   final int? conversationId;
-  const ChatScreen({super.key, this.conversationId});
+  const ChatScreen({Key? key, this.conversationId, this.onBackToHome})
+      : super(key: key);
+
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -242,7 +246,22 @@ class _ChatScreenState extends State<ChatScreen> {
     final primaryColor = Theme.of(context).colorScheme.primary;
     String appBarTitle = _currentConversation?.title ?? 'AI Language Tutor';
     return Scaffold(
-      appBar: AppBar(title: Text(appBarTitle, overflow: TextOverflow.ellipsis), backgroundColor: primaryColor, foregroundColor: Colors.white, actions: [
+      appBar: AppBar( 
+                      leading: IconButton(                           // ★ new
+                      icon: const Icon(Icons.arrow_back),
+                      onPressed: () {
+                        if (widget.onBackToHome != null) {
+                          widget.onBackToHome!();                  // jump to home tab
+                        } else {
+                          Navigator.pop(context);                  // normal pop
+                        }
+                      },
+                    ),
+                    title: Text(appBarTitle, 
+                     overflow: TextOverflow.ellipsis), 
+                     backgroundColor: primaryColor, 
+                     foregroundColor: Colors.white, 
+                     actions: [
         IconButton(
           icon: const Icon(Icons.history),
           tooltip: 'Chat History',

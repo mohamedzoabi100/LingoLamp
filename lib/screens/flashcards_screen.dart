@@ -6,7 +6,9 @@ import '../utils/database_helper.dart';
 import '../services/user_data_service.dart';
 
 class FlashcardsScreen extends StatefulWidget {
-  const FlashcardsScreen({super.key});
+
+  final VoidCallback? onBackToHome;             // ★ add
+  const FlashcardsScreen({Key? key, this.onBackToHome}) : super(key: key);
 
   @override
   State<FlashcardsScreen> createState() => _FlashcardsScreenState();
@@ -403,6 +405,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
 
     return Scaffold(
       appBar: AppBar(
+        
         title: Text('Study Mode (${_currentStudyIndex + 1}/${_filteredFlashcards.length})'),
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
@@ -556,6 +559,16 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
 
     return Scaffold(
       appBar: AppBar(
+          leading: IconButton(               // ← add this block
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              if (widget.onBackToHome != null) {
+                widget.onBackToHome!();      // jump back to daily-task home
+              } else {
+                Navigator.pop(context);      // normal push-stack use
+              }
+            },
+        ),
         title: const Text('Flashcards'),
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
