@@ -1,7 +1,8 @@
-//lib/screens/category_phrases_screen.dart
+//lib/screens/category_phrases_screen.dart - FIXED TO USE USER DATA SERVICE
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../services/phrase_service.dart';
+import '../services/user_data_service.dart'; // ADD THIS IMPORT
 
 class CategoryPhrasesScreen extends StatefulWidget {
   final String categoryTitle;
@@ -23,6 +24,7 @@ class _CategoryPhrasesScreenState extends State<CategoryPhrasesScreen> {
   late FlutterTts _tts;
   bool _ttsReady = false;
   final PhraseService _phraseService = PhraseService();
+  final UserDataService _userDataService = UserDataService(); // ADD THIS
 
   @override
   void initState() {
@@ -135,32 +137,42 @@ class _CategoryPhrasesScreenState extends State<CategoryPhrasesScreen> {
     }
   }
 
+  // FIXED: Use UserDataService instead of PhraseService
   Future<void> _toggleFavorite(PhraseModel phrase) async {
-    // First toggle the favorite status
-    await _phraseService.toggleFavorite(phrase.id);
+    print('🔄 === TOGGLE FAVORITE (CATEGORY SCREEN) ===');
+    print('🔄 Phrase: "${phrase.english}" -> "${phrase.spanish}"');
+    print('🔄 Category: "${phrase.category}"');
+    print('🔄 Current state: ${phrase.isFavorite ? "IS favorite" : "NOT favorite"}');
+    print('🔄 Phrase ID: ${phrase.id}');
+    print('🔄 Using UserDataService.toggleFavorite()');
+    
+    // Store the old state to show correct message
+    final wasInFavorites = phrase.isFavorite;
+    
+    // CHANGED: Use UserDataService instead of PhraseService
+    await _userDataService.toggleFavorite(phrase.id);
     
     // Update the phrase object immediately for UI responsiveness
-    phrase.isFavorite = !phrase.isFavorite;
+    phrase.isFavorite = !wasInFavorites;
     
-    // Show a snackbar to give user feedback
+    // Show snackbar feedback with CORRECT message
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            phrase.isFavorite 
+            !wasInFavorites  // Use the OLD state to determine message
               ? '💚 Added to favorites' 
               : 'Removed from favorites',
           ),
           duration: const Duration(seconds: 2),
-          backgroundColor: phrase.isFavorite 
+          backgroundColor: !wasInFavorites 
             ? Theme.of(context).colorScheme.primary
             : Colors.grey[600],
         ),
       );
-      
-      // NO setState() call - let the StreamBuilder handle updates naturally
-      // The phrase object is already updated above, so the UI will reflect the change
     }
+    
+    print('✅ === TOGGLE FAVORITE COMPLETE ===');
   }
 
   @override
@@ -291,39 +303,11 @@ class _CategoryPhrasesScreenState extends State<CategoryPhrasesScreen> {
                   children: [
                     GestureDetector(
                       onTap: () async {
-                        // Store the old state to show correct message
-                        final wasInFavorites = phrase.isFavorite;
-                        
-                        print('Before toggle: ${phrase.id} isFavorite = ${phrase.isFavorite}');
-                        
-                        // Toggle favorite status in service
-                        await _phraseService.toggleFavorite(phrase.id);
-                        
-                        // Get the updated status from service to ensure sync
-                        final updatedIsFavorite = await _phraseService.isFavorite(phrase.id);
-                        phrase.isFavorite = updatedIsFavorite;
-                        
-                        print('After toggle: ${phrase.id} isFavorite = ${phrase.isFavorite}');
+                        // FIXED: Use our new _toggleFavorite method that uses UserDataService
+                        await _toggleFavorite(phrase);
                         
                         // Update only this card's state (no page reload!)
                         setCardState(() {});
-                        
-                        // Show snackbar feedback with CORRECT message
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                !wasInFavorites  // Use the OLD state to determine message
-                                  ? '💚 Added to favorites' 
-                                  : 'Removed from favorites',
-                              ),
-                              duration: const Duration(seconds: 2),
-                              backgroundColor: !wasInFavorites 
-                                ? Theme.of(context).colorScheme.primary
-                                : Colors.grey[600],
-                            ),
-                          );
-                        }
                       },
                       child: Container(
                         padding: const EdgeInsets.all(6),

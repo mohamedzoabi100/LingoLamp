@@ -1,6 +1,6 @@
-// lib/services/ai_phrase_service.dart - COMPLETE WITH GENERATE MORE FUNCTIONALITY
+// lib/services/ai_phrase_service.dart - ENHANCED WITH TOPIC SIMILARITY HANDLING
 import 'dart:convert';
-import 'dart:math';
+import 'dart:math' as math;
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import '../services/phrase_service.dart';
@@ -35,7 +35,7 @@ class AiGeneratedPhrase {
 
   PhraseModel toPhraseModel() {
     return PhraseModel(
-      id: 'ai_${english.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(1000)}',
+      id: 'ai_${english.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}_${DateTime.now().millisecondsSinceEpoch}_${math.Random().nextInt(1000)}',
       english: english,
       spanish: spanish,
       category: category,
@@ -60,6 +60,169 @@ class AiPhraseService {
   // Track generation counts per topic
   final Map<String, int> _generationCounts = {};
 
+  /// ENHANCED: Topic similarity mapping to handle typos and variations
+  final Map<String, String> _topicSimilarityMap = {
+    // Airport variations
+    'airpot': 'Airport',
+    'aiport': 'Airport',
+    'airpport': 'Airport',
+    'airport': 'Airport',
+    
+    // Hotel variations
+    'hotell': 'Hotel',
+    'hotl': 'Hotel',
+    'hotel': 'Hotel',
+    
+    // Restaurant variations
+    'resturant': 'Restaurant',
+    'restraunt': 'Restaurant',
+    'restaurnt': 'Restaurant',
+    'restaurant': 'Restaurant',
+    
+    // Shopping variations
+    'shoping': 'Shopping',
+    'shooping': 'Shopping',
+    'shopping': 'Shopping',
+    
+    // Taxi variations
+    'taksi': 'Taxi',
+    'taxie': 'Taxi',
+    'taxi': 'Taxi',
+    
+    // Pharmacy variations
+    'farmacy': 'Pharmacy',
+    'pharmcy': 'Pharmacy',
+    'pharmacy': 'Pharmacy',
+    
+    // Hospital variations
+    'hospitl': 'Hospital',
+    'hopital': 'Hospital',
+    'hospital': 'Hospital',
+    
+    // Business variations
+    'buisness': 'Business meeting',
+    'business': 'Business meeting',
+    'bussiness': 'Business meeting',
+    'meeting': 'Business meeting',
+    
+    // Common variations
+    'golf': 'Golf',
+    'beach': 'Beach',
+    'gym': 'Gym',
+    'bank': 'Bank',
+  };
+
+  /// SHARED NORMALIZATION METHOD - Must match phrase_service.dart exactly
+  String _normalizeCategory(String category) {
+    if (category.isEmpty) return category;
+    
+    // Split by spaces to handle multi-word categories
+    final words = category.toLowerCase().split(' ');
+    final normalizedWords = words.map((word) {
+      if (word.isEmpty) return word;
+      return word[0].toUpperCase() + word.substring(1);
+    }).toList();
+    
+    return normalizedWords.join(' ');
+  }
+
+  /// ENHANCED: Smart topic normalization with similarity handling
+  String _smartNormalizeTopic(String topic) {
+    if (topic.isEmpty) return topic;
+    
+    // First, clean the topic
+    final cleanTopic = topic.toLowerCase().trim();
+    
+    debugPrint('🔍 Smart normalizing topic: "$topic" -> cleaned: "$cleanTopic"');
+    
+    // Check for exact matches in similarity map
+    if (_topicSimilarityMap.containsKey(cleanTopic)) {
+      final mappedTopic = _topicSimilarityMap[cleanTopic]!;
+      debugPrint('🎯 Found exact match: "$cleanTopic" -> "$mappedTopic"');
+      return mappedTopic;
+    }
+    
+    // Check for partial matches (fuzzy matching)
+    for (final entry in _topicSimilarityMap.entries) {
+      final key = entry.key;
+      final value = entry.value;
+      
+      // Check if topics are similar (allowing for 1-2 character differences)
+      if (_areTopicsSimilar(cleanTopic, key)) {
+        debugPrint('🎯 Found similar match: "$cleanTopic" ≈ "$key" -> "$value"');
+        return value;
+      }
+    }
+    
+    // If no similarity found, use standard normalization
+    final normalized = _normalizeCategory(topic);
+    debugPrint('📝 No similarity match, using standard normalization: "$topic" -> "$normalized"');
+    return normalized;
+  }
+
+  /// Check if two topics are similar (allowing for typos)
+  bool _areTopicsSimilar(String topic1, String topic2) {
+    if (topic1 == topic2) return true;
+    
+    // Simple Levenshtein distance check for typos
+    final distance = _levenshteinDistance(topic1, topic2);
+    final maxLength = math.max(topic1.length, topic2.length);
+    
+    // Allow 1-2 character differences for shorter words, more for longer words
+    final threshold = maxLength <= 5 ? 1 : 2;
+    
+    return distance <= threshold;
+  }
+
+  /// Calculate Levenshtein distance (edit distance) between two strings
+  int _levenshteinDistance(String s1, String s2) {
+    if (s1 == s2) return 0;
+    if (s1.isEmpty) return s2.length;
+    if (s2.isEmpty) return s1.length;
+
+    List<List<int>> d = List.generate(
+      s1.length + 1,
+      (i) => List.generate(s2.length + 1, (j) => 0),
+    );
+
+    for (int i = 0; i <= s1.length; i++) {
+      d[i][0] = i;
+    }
+    for (int j = 0; j <= s2.length; j++) {
+      d[0][j] = j;
+    }
+
+    for (int i = 1; i <= s1.length; i++) {
+      for (int j = 1; j <= s2.length; j++) {
+        int cost = s1[i - 1] == s2[j - 1] ? 0 : 1;
+        d[i][j] = [
+          d[i - 1][j] + 1,     // deletion
+          d[i][j - 1] + 1,     // insertion
+          d[i - 1][j - 1] + cost, // substitution
+        ].reduce(math.min);
+      }
+    }
+
+    return d[s1.length][s2.length];
+  }
+
+  /// ENHANCED: Check if we already have phrases for this topic (considering similar topics)
+  Future<List<PhraseModel>> _checkExistingPhrases(String topic) async {
+    final normalizedTopic = _smartNormalizeTopic(topic);
+    
+    // Get phrase service instance and check for existing phrases
+    final phraseService = PhraseService();
+    await phraseService.initializeSampleData();
+    
+    final existingPhrases = await phraseService.getPhrasesForCategory(normalizedTopic);
+    final existingAiPhrases = existingPhrases.where((p) => p.isAiGenerated).toList();
+    
+    debugPrint('🔍 Checking existing phrases for topic: "$topic" -> normalized: "$normalizedTopic"');
+    debugPrint('🔍 Found ${existingAiPhrases.length} existing AI phrases');
+    
+    return existingAiPhrases;
+  }
+
   /// Generate phrases for a given topic using AI
   Future<List<AiGeneratedPhrase>> generatePhrasesForTopic(
     String topic, {
@@ -67,20 +230,44 @@ class AiPhraseService {
     List<String>? existingPhrases,
     bool isMoreGeneration = false,
   }) async {
+    // CRITICAL: Use smart normalization
+    final normalizedTopic = _smartNormalizeTopic(topic);
+    debugPrint('🔤 Original topic: "$topic" -> Smart normalized: "$normalizedTopic"');
+    
+    // Check if we already have phrases for this topic (unless forcing new)
+    if (!forceNew && !isMoreGeneration) {
+      final existingPhrases = await _checkExistingPhrases(topic);
+      if (existingPhrases.isNotEmpty) {
+        debugPrint('✅ Found ${existingPhrases.length} existing phrases for "$normalizedTopic", converting to AiGeneratedPhrase');
+        
+        // Convert existing PhraseModels to AiGeneratedPhrases for consistency
+        final aiPhrases = existingPhrases.map((pm) => AiGeneratedPhrase(
+          english: pm.english,
+          spanish: pm.spanish,
+          category: pm.category,
+          difficulty: pm.difficulty,
+          createdAt: pm.createdAt,
+          isAiGenerated: true,
+        )).toList();
+        
+        return aiPhrases;
+      }
+    }
+    
     try {
-      debugPrint('🤖 Generating AI phrases for topic: $topic (forceNew: $forceNew, isMore: $isMoreGeneration)');
+      debugPrint('🤖 Generating AI phrases for topic: $normalizedTopic (forceNew: $forceNew, isMore: $isMoreGeneration)');
       
-      // Increment generation count
-      _generationCounts[topic] = (_generationCounts[topic] ?? 0) + 1;
-      final generationNumber = _generationCounts[topic]!;
+      // Increment generation count using normalized topic
+      _generationCounts[normalizedTopic] = (_generationCounts[normalizedTopic] ?? 0) + 1;
+      final generationNumber = _generationCounts[normalizedTopic]!;
       
-      debugPrint('📊 This is generation #$generationNumber for topic: $topic');
+      debugPrint('📊 This is generation #$generationNumber for topic: $normalizedTopic');
       
       // Skip cache check if forceNew is true or it's a "generate more" request
       if (!forceNew && !isMoreGeneration) {
-        final cachedPhrases = _getCachedPhrases(topic);
+        final cachedPhrases = _getCachedPhrases(normalizedTopic);
         if (cachedPhrases.isNotEmpty) {
-          debugPrint('📱 Found ${cachedPhrases.length} cached phrases for $topic');
+          debugPrint('📱 Found ${cachedPhrases.length} cached phrases for $normalizedTopic');
           return cachedPhrases;
         }
       }
@@ -88,18 +275,18 @@ class AiPhraseService {
       // Skip Firebase cache check if forceNew is true or it's a "generate more" request
       if (!forceNew && !isMoreGeneration) {
         try {
-          debugPrint('☁️ Checking Firebase cache for: $topic');
+          debugPrint('☁️ Checking Firebase cache for: $normalizedTopic');
           final cachedResult = await _functions
               .httpsCallable('getCachedPhrases')
-              .call({'topic': topic});
+              .call({'topic': normalizedTopic});
 
           debugPrint('📡 Firebase cache response: ${cachedResult.data}');
 
           if (cachedResult.data['success'] == true) {
-            final phrases = _parsePhrases(cachedResult.data['phrases'], topic);
+            final phrases = _parsePhrases(cachedResult.data['phrases'], normalizedTopic);
             if (phrases.isNotEmpty) {
-              _cache[topic.toLowerCase()] = phrases;
-              debugPrint('☁️ Found ${phrases.length} Firebase cached phrases for $topic');
+              _cache[normalizedTopic.toLowerCase()] = phrases;
+              debugPrint('☁️ Found ${phrases.length} Firebase cached phrases for $normalizedTopic');
               return phrases;
             }
           }
@@ -110,7 +297,7 @@ class AiPhraseService {
 
       // Prepare request data with enhanced context
       final requestData = {
-        'topic': topic,
+        'topic': normalizedTopic, // Use normalized topic
         'forceNew': forceNew,
         'timestamp': DateTime.now().millisecondsSinceEpoch,
         'generationNumber': generationNumber,
@@ -143,18 +330,18 @@ class AiPhraseService {
         throw Exception('Failed to generate phrases: $errorMsg');
       }
 
-      final phrases = _parsePhrases(result.data['phrases'], topic);
+      final phrases = _parsePhrases(result.data['phrases'], normalizedTopic);
       
       if (phrases.isEmpty) {
-        throw Exception('No phrases were generated for "$topic". Please try a different topic.');
+        throw Exception('No phrases were generated for "$normalizedTopic". Please try a different topic.');
       }
       
       // Cache locally only for initial generation (not for "generate more")
       if (!forceNew && !isMoreGeneration) {
-        _cache[topic.toLowerCase()] = phrases;
+        _cache[normalizedTopic.toLowerCase()] = phrases;
       }
       
-      debugPrint('✅ Generated ${phrases.length} ${isMoreGeneration ? "ADDITIONAL" : ""} AI phrases for $topic');
+      debugPrint('✅ Generated ${phrases.length} ${isMoreGeneration ? "ADDITIONAL" : ""} AI phrases for $normalizedTopic');
       return phrases;
 
     } on FirebaseFunctionsException catch (e) {
@@ -186,7 +373,7 @@ class AiPhraseService {
         throw Exception('Network error. Please check your internet connection and try again.');
       }
       
-      throw Exception('Failed to generate phrases for "$topic". Please try again later.');
+      throw Exception('Failed to generate phrases for "$normalizedTopic". Please try again later.');
     }
   }
 
@@ -195,16 +382,19 @@ class AiPhraseService {
     String topic,
     List<PhraseModel> existingPhrases,
   ) async {
+    // CRITICAL: Use smart normalization
+    final normalizedTopic = _smartNormalizeTopic(topic);
+    
     // Extract English phrases to send as context
     final existingEnglishPhrases = existingPhrases
         .map((p) => p.english)
         .toList();
 
-    debugPrint('🔄 Generating MORE phrases for: $topic');
+    debugPrint('🔄 Generating MORE phrases for: $normalizedTopic');
     debugPrint('🔄 Avoiding duplicates of: ${existingEnglishPhrases.length} existing phrases');
 
     return await generatePhrasesForTopic(
-      topic,
+      normalizedTopic,
       forceNew: true,
       existingPhrases: existingEnglishPhrases,
       isMoreGeneration: true,
@@ -212,7 +402,7 @@ class AiPhraseService {
   }
 
   /// Parse phrases from Firebase response
-  List<AiGeneratedPhrase> _parsePhrases(dynamic phrasesData, String topic) {
+  List<AiGeneratedPhrase> _parsePhrases(dynamic phrasesData, String normalizedTopic) {
     if (phrasesData == null) {
       debugPrint('⚠️ No phrases data received');
       return [];
@@ -258,10 +448,10 @@ class AiPhraseService {
           continue;
         }
         
-        // Ensure category matches the requested topic
-        phraseMap['category'] = topic;
+        // CRITICAL: Ensure category is exactly the normalized topic
+        phraseMap['category'] = normalizedTopic;
         
-        debugPrint('🔍 Phrase map: $phraseMap');
+        debugPrint('🔍 Phrase map with normalized category: $phraseMap');
         
         final english = phraseMap['english']?.toString() ?? '';
         final spanish = phraseMap['spanish']?.toString() ?? '';
@@ -269,7 +459,7 @@ class AiPhraseService {
         if (english.isNotEmpty && spanish.isNotEmpty) {
           final phrase = AiGeneratedPhrase.fromJson(phraseMap);
           parsedPhrases.add(phrase);
-          debugPrint('✅ Parsed phrase: ${phrase.english} -> ${phrase.spanish}');
+          debugPrint('✅ Parsed phrase: ${phrase.english} -> ${phrase.spanish} (category: ${phrase.category})');
         } else {
           debugPrint('⚠️ Skipping phrase with missing fields: english="$english", spanish="$spanish"');
         }
@@ -279,32 +469,36 @@ class AiPhraseService {
       }
     }
     
-    debugPrint('✅ Successfully parsed ${parsedPhrases.length} phrases');
+    debugPrint('✅ Successfully parsed ${parsedPhrases.length} phrases with category: $normalizedTopic');
     return parsedPhrases;
   }
 
   /// Get cached phrases for a topic
   List<AiGeneratedPhrase> _getCachedPhrases(String topic) {
-    return _cache[topic.toLowerCase()] ?? [];
+    final normalizedTopic = _smartNormalizeTopic(topic);
+    return _cache[normalizedTopic.toLowerCase()] ?? [];
   }
 
   /// Get generation count for a topic
   int getGenerationCount(String topic) {
-    return _generationCounts[topic] ?? 0;
+    final normalizedTopic = _smartNormalizeTopic(topic);
+    return _generationCounts[normalizedTopic] ?? 0;
   }
 
   /// Reset generation count for a topic
   void resetGenerationCount(String topic) {
-    _generationCounts.remove(topic);
-    debugPrint('🔄 Reset generation count for topic: $topic');
+    final normalizedTopic = _smartNormalizeTopic(topic);
+    _generationCounts.remove(normalizedTopic);
+    debugPrint('🔄 Reset generation count for topic: $normalizedTopic');
   }
 
   /// Clear cache for a specific topic
- void clearCacheForTopic(String topic) {
-  _cache.remove(topic.toLowerCase());
-  _generationCounts.remove(topic);
-  debugPrint('🗑️ Cleared cache and generation count for topic: $topic');
-}
+  void clearCacheForTopic(String topic) {
+    final normalizedTopic = _smartNormalizeTopic(topic);
+    _cache.remove(normalizedTopic.toLowerCase());
+    _generationCounts.remove(normalizedTopic);
+    debugPrint('🗑️ Cleared cache and generation count for topic: $normalizedTopic');
+  }
 
   /// Clear all cache
   void clearAllCache() {
@@ -319,8 +513,9 @@ class AiPhraseService {
 
   /// Check if topic has cached phrases
   bool hasCachedPhrases(String topic) {
-    return _cache.containsKey(topic.toLowerCase()) && 
-           _cache[topic.toLowerCase()]!.isNotEmpty;
+    final normalizedTopic = _smartNormalizeTopic(topic);
+    return _cache.containsKey(normalizedTopic.toLowerCase()) && 
+           _cache[normalizedTopic.toLowerCase()]!.isNotEmpty;
   }
 
   /// Convert AI phrases to PhraseModel list (for UI compatibility)
@@ -328,25 +523,25 @@ class AiPhraseService {
     return aiPhrases.map((aiPhrase) => aiPhrase.toPhraseModel()).toList();
   }
 
-  /// Get suggestions for popular topics
+  /// Get suggestions for popular topics - UPDATED with correct spellings
   List<String> getPopularTopics() {
     return [
-      'airport',
-      'hotel', 
-      'restaurant',
-      'shopping',
-      'taxi',
-      'pharmacy',
-      'hospital',
-      'business meeting',
-      'golf',
-      'beach',
-      'gym',
-      'bank',
-      'post office',
-      'gas station',
-      'train station',
-      'grocery store',
+      'Airport',
+      'Hotel', 
+      'Restaurant',
+      'Shopping',
+      'Taxi',
+      'Pharmacy',
+      'Hospital',
+      'Business meeting',
+      'Golf',
+      'Beach',
+      'Gym',
+      'Bank',
+      'Post office',
+      'Gas station',
+      'Train station',
+      'Grocery store',
     ];
   }
 }

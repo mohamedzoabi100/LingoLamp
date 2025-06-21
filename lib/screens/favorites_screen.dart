@@ -1,7 +1,8 @@
-//lib/screens/favorites_screen.dart
+//lib/screens/favorites_screen.dart - FIXED TO USE USER DATA SERVICE
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../services/phrase_service.dart';
+import '../services/user_data_service.dart'; // ADD THIS IMPORT
 
 class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({super.key});
@@ -14,8 +15,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   late FlutterTts _tts;
   bool _ttsReady = false;
   final PhraseService _phraseService = PhraseService();
+  final UserDataService _userDataService = UserDataService(); // ADD THIS
   
-  // Track which categories are expanded
+  // UPDATED: Track which categories are expanded - DEFAULT TO COLLAPSED (false)
   final Map<String, bool> _expandedCategories = {};
 
   @override
@@ -127,8 +129,13 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     }
   }
 
+  // FIXED: Use UserDataService instead of PhraseService
   Future<void> _removeFromFavorites(PhraseModel phrase) async {
-    await _phraseService.toggleFavorite(phrase.id);
+    print('🔄 === REMOVE FROM FAVORITES (UI) ===');
+    print('🔄 Phrase: "${phrase.english}"');
+    print('🔄 Using UserDataService.removeFavorite()');
+    
+    await _userDataService.removeFavorite(phrase.id); // CHANGED: Use UserDataService
     
     if (mounted) {
       // Refresh the screen to show updated list
@@ -143,28 +150,56 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             label: 'Undo',
             textColor: Colors.white,
             onPressed: () async {
-              await _phraseService.toggleFavorite(phrase.id);
+              print('🔄 Undo remove - using UserDataService.addFavorite()');
+              await _userDataService.addFavorite(phrase.id); // CHANGED: Use UserDataService
               setState(() {}); // Refresh after undo
             },
           ),
         ),
       );
     }
+    
+    print('✅ === REMOVE FROM FAVORITES COMPLETE ===');
   }
 
-  // Group phrases by category and maintain order within categories
+  // FIXED: Group phrases by category with case-insensitive grouping
   Map<String, List<PhraseModel>> _groupPhrasesByCategory(List<PhraseModel> phrases) {
     final Map<String, List<PhraseModel>> grouped = {};
     
     for (final phrase in phrases) {
-      if (!grouped.containsKey(phrase.category)) {
-        grouped[phrase.category] = [];
+      // NORMALIZE CATEGORY for case-insensitive grouping
+      final normalizedCategory = _normalizeCategory(phrase.category);
+      
+      if (!grouped.containsKey(normalizedCategory)) {
+        grouped[normalizedCategory] = [];
       }
-      grouped[phrase.category]!.add(phrase);
+      grouped[normalizedCategory]!.add(phrase);
+    }
+    
+    print('📊 Grouped ${phrases.length} phrases into ${grouped.length} categories:');
+    for (final entry in grouped.entries) {
+      print('📊 Category "${entry.key}": ${entry.value.length} phrases');
+      for (final phrase in entry.value) {
+        print('📊   - "${phrase.english}" (original category: "${phrase.category}")');
+      }
     }
     
     // Each category maintains the order from getFavoritePhrases (recently added first)
     return grouped;
+  }
+
+  // FIXED: Normalize category for consistent grouping (same logic as phrase_service.dart)
+  String _normalizeCategory(String category) {
+    if (category.isEmpty) return category;
+    
+    // Split by spaces to handle multi-word categories
+    final words = category.toLowerCase().split(' ');
+    final normalizedWords = words.map((word) {
+      if (word.isEmpty) return word;
+      return word[0].toUpperCase() + word.substring(1);
+    }).toList();
+    
+    return normalizedWords.join(' ');
   }
 
   // Get category color based on app's phrasebook theme colors
@@ -305,7 +340,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             );
           }
           
-          // Group phrases by category
+          // FIXED: Group phrases by category with case-insensitive logic
           final groupedPhrases = _groupPhrasesByCategory(phrases);
           final categories = groupedPhrases.keys.toList()..sort();
           
@@ -318,6 +353,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
               final categoryColor = _getCategoryColor(category);
               final categoryIcon = _getCategoryIcon(category);
               
+              // UPDATED: Default to collapsed (false) instead of expanded (true)
+              final isExpanded = _expandedCategories[category] ?? false;
+              
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -325,7 +363,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                   GestureDetector(
                     onTap: () {
                       setState(() {
-                        _expandedCategories[category] = !(_expandedCategories[category] ?? true);
+                        // UPDATED: Toggle from default collapsed state
+                        _expandedCategories[category] = !isExpanded;
                       });
                     },
                     child: Container(
@@ -381,10 +420,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          // Expand/collapse arrow
+                          // UPDATED: Expand/collapse arrow - shows correct direction for collapsed state
                           AnimatedRotation(
                             duration: const Duration(milliseconds: 200),
-                            turns: (_expandedCategories[category] ?? true) ? 0.5 : 0,
+                            turns: isExpanded ? 0.5 : 0, // 0.5 = down arrow, 0 = right arrow
                             child: Icon(
                               Icons.keyboard_arrow_down,
                               color: categoryColor,
@@ -396,8 +435,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     ),
                   ),
                   
-                  // Phrases in this category (collapsible)
-                  if (_expandedCategories[category] ?? true)
+                  // UPDATED: Phrases in this category (only show when expanded)
+                  if (isExpanded)
                     ...categoryPhrases.map((phrase) => Dismissible(
                     key: Key(phrase.id),
                     direction: DismissDirection.endToStart,
