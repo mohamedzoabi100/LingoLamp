@@ -1,7 +1,7 @@
-//lib/services/phrase_service.dart - FIXED DUPLICATE DETECTION AND CATEGORY CONSISTENCY
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -26,21 +26,28 @@ class PhraseModel {
     this.isAiGenerated = false,
   });
 
-  // Helper method to create a copy with updated favorite status
-  PhraseModel copyWith({bool? isFavorite, bool? isAiGenerated}) {
+  PhraseModel copyWith({
+    String? id,
+    String? english,
+    String? spanish,
+    String? category,
+    String? difficulty,
+    DateTime? createdAt,
+    bool? isFavorite,
+    bool? isAiGenerated,
+  }) {
     return PhraseModel(
-      id: id,
-      english: english,
-      spanish: spanish,
-      category: category,
-      difficulty: difficulty,
-      createdAt: createdAt,
+      id: id ?? this.id,
+      english: english ?? this.english,
+      spanish: spanish ?? this.spanish,
+      category: category ?? this.category,
+      difficulty: difficulty ?? this.difficulty,
+      createdAt: createdAt ?? this.createdAt,
       isFavorite: isFavorite ?? this.isFavorite,
       isAiGenerated: isAiGenerated ?? this.isAiGenerated,
     );
   }
 
-  // Convert to JSON for local storage
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -54,7 +61,6 @@ class PhraseModel {
     };
   }
 
-  // Create from JSON
   factory PhraseModel.fromJson(Map<String, dynamic> json) {
     return PhraseModel(
       id: json['id'],
@@ -79,6 +85,10 @@ class PhraseService {
   static List<PhraseModel> _aiPhrases = [];
   Set<String> _favoriteIds = {};
   bool _isInitialized = false;
+
+  // 🔑 CHECK AUTHENTICATION - without importing user_data_service
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  bool get _isAuthenticated => _auth.currentUser != null;
 
   // Initialize from CSV file
   Future<void> initializeSampleData() async {
@@ -158,13 +168,32 @@ class PhraseService {
     }
   }
 
-  // Save AI phrases to local storage
+  // 🎯 FIXED: Save AI phrases with DUAL STORAGE + FULL OBJECTS FOR CLOUD SYNC
   Future<void> _saveAiPhrases() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final aiPhrasesJson = _aiPhrases.map((phrase) => jsonEncode(phrase.toJson())).toList();
-      await prefs.setStringList('ai_phrases', aiPhrasesJson);
-      debugPrint('Saved ${_aiPhrases.length} AI phrases to storage');
+      
+      if (_isAuthenticated) {
+        // 🔒 SIGNED-IN MODE: Save to both signed-in storage and active storage
+        await prefs.setStringList('signed_in_ai_phrases', aiPhrasesJson);
+        await prefs.setStringList('ai_phrases', aiPhrasesJson); // Make active
+        
+        // 🚀 TRIGGER SYNC FLAGS (user_data_service will monitor this)
+        await prefs.setBool('ai_phrases_need_sync', true);
+        await prefs.setInt('ai_phrases_last_modified', DateTime.now().millisecondsSinceEpoch);
+        
+        // 🆕 TRIGGER CLOUD POLL FLAG (check for updates from other devices)
+        await prefs.setBool('need_cloud_poll', true);
+        
+        debugPrint('🔒 Saved ${_aiPhrases.length} AI phrases to SIGNED-IN storage + flagged for sync + poll');
+      } else {
+        // 👤 GUEST MODE: Save to BOTH guest storage and active storage
+        await prefs.setStringList('guest_ai_phrases', aiPhrasesJson);
+        await prefs.setStringList('ai_phrases', aiPhrasesJson); // Make active
+        
+        debugPrint('👤 Saved ${_aiPhrases.length} AI phrases to GUEST storage');
+      }
     } catch (e) {
       debugPrint('Error saving AI phrases: $e');
     }
@@ -187,6 +216,7 @@ class PhraseService {
   // FIXED: Better duplicate detection with enhanced logging
   Future<void> addAiPhrases(List<PhraseModel> newAiPhrases) async {
     debugPrint('💾 === ADDING AI PHRASES START ===');
+    debugPrint('💾 Authentication status: ${_isAuthenticated ? "SIGNED-IN" : "GUEST"}');
     debugPrint('💾 Received ${newAiPhrases.length} new phrases to add');
     debugPrint('💾 Current AI phrases count: ${_aiPhrases.length}');
     
@@ -262,6 +292,7 @@ class PhraseService {
         _aiPhrases.insert(0, newPhrasesToAdd[i]);
       }
       
+      // 🎯 FIXED: Use new dual storage save method (triggers sync flag)
       await _saveAiPhrases();
       debugPrint('✅ Added ${newPhrasesToAdd.length} new AI phrases at the BEGINNING. Total AI phrases: ${_aiPhrases.length}');
       debugPrint('📍 New phrases are now at positions 0-${newPhrasesToAdd.length - 1}');
@@ -276,6 +307,39 @@ class PhraseService {
     }
     
     debugPrint('💾 === ADDING AI PHRASES COMPLETE ===');
+  }
+
+  // 🆕 NEW METHOD: Update AI phrases from cloud sync (called by user_data_service)
+  Future<void> updateAiPhrasesFromSync(List<String> aiPhrasesJson) async {
+    try {
+      debugPrint('🔄 === UPDATING AI PHRASES FROM CLOUD SYNC ===');
+      debugPrint('🔄 Received ${aiPhrasesJson.length} AI phrases from cloud sync');
+      
+      _aiPhrases.clear();
+      for (final phraseJson in aiPhrasesJson) {
+        try {
+          final phraseMap = jsonDecode(phraseJson);
+          final phrase = PhraseModel.fromJson(phraseMap);
+          phrase.isFavorite = _favoriteIds.contains(phrase.id);
+          _aiPhrases.add(phrase);
+        } catch (e) {
+          debugPrint('Error parsing synced AI phrase: $e');
+        }
+      }
+      
+      // Save the updated AI phrases locally (without triggering cloud sync again)
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('ai_phrases', aiPhrasesJson); // Make active
+      if (_isAuthenticated) {
+        await prefs.setStringList('signed_in_ai_phrases', aiPhrasesJson);
+      } else {
+        await prefs.setStringList('guest_ai_phrases', aiPhrasesJson);
+      }
+      
+      debugPrint('✅ Updated ${_aiPhrases.length} AI phrases from cloud sync');
+    } catch (e) {
+      debugPrint('❌ Error updating AI phrases from sync: $e');
+    }
   }
 
   // Fallback basic phrases
@@ -310,24 +374,44 @@ class PhraseService {
     debugPrint('Basic fallback phrases loaded');
   }
 
-  // Load favorites from SharedPreferences
+  // 🎯 FIXED: Load favorites with DUAL STORAGE awareness
   Future<void> _loadFavorites() async {
     final prefs = await SharedPreferences.getInstance();
     final favoritesList = prefs.getStringList('favorite_phrases') ?? [];
     _favoriteIds = favoritesList.toSet();
-    debugPrint('Loaded ${_favoriteIds.length} favorite IDs: ${_favoriteIds.toList()}');
+    debugPrint('Loaded ${_favoriteIds.length} favorite IDs from ${_isAuthenticated ? "SIGNED-IN" : "GUEST"} context');
   }
 
-  // Save favorites to SharedPreferences
+  // 🎯 FIXED: Save favorites with DUAL STORAGE + SYNC TRIGGER (NO CIRCULAR DEPENDENCY)
   Future<void> _saveFavorites() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('favorite_phrases', _favoriteIds.toList());
-    debugPrint('Saved ${_favoriteIds.length} favorite IDs');
+    final favoritesList = _favoriteIds.toList();
+    
+    if (_isAuthenticated) {
+      // 🔒 SIGNED-IN MODE: Save to both signed-in storage and active storage
+      await prefs.setStringList('signed_in_favorite_phrases', favoritesList);
+      await prefs.setStringList('favorite_phrases', favoritesList); // Make active
+      
+      // 🚀 TRIGGER SYNC FLAGS (NO CIRCULAR DEPENDENCY - user_data_service will monitor this)
+      await prefs.setBool('favorites_need_sync', true);
+      await prefs.setInt('favorites_last_modified', DateTime.now().millisecondsSinceEpoch);
+      
+      // 🆕 TRIGGER CLOUD POLL FLAG (check for updates from other devices)
+      await prefs.setBool('need_cloud_poll', true);
+      
+      debugPrint('🔒 Saved ${_favoriteIds.length} favorites to SIGNED-IN storage + flagged for sync + poll');
+    } else {
+      // 👤 GUEST MODE: Save to BOTH guest storage and active storage
+      await prefs.setStringList('guest_favorite_phrases', favoritesList);
+      await prefs.setStringList('favorite_phrases', favoritesList); // Make active
+      debugPrint('👤 Saved ${_favoriteIds.length} favorites to GUEST storage');
+    }
   }
 
-  // Toggle favorite status - UPDATED to handle both CSV and AI phrases
+  // Toggle favorite status - UPDATED to handle both CSV and AI phrases with dual storage
   Future<void> toggleFavorite(String phraseId) async {
     debugPrint('🔄 === TOGGLE FAVORITE START ===');
+    debugPrint('🔄 Authentication status: ${_isAuthenticated ? "SIGNED-IN" : "GUEST"}');
     debugPrint('🔄 Phrase ID: $phraseId');
     debugPrint('🔄 Current favorites count: ${_favoriteIds.length}');
     debugPrint('🔄 Is currently favorite: ${_favoriteIds.contains(phraseId)}');
@@ -354,9 +438,11 @@ class PhraseService {
     if (aiPhraseIndex != -1) {
       _aiPhrases[aiPhraseIndex].isFavorite = _favoriteIds.contains(phraseId);
       debugPrint('🤖 Updated AI phrase favorite status: ${_aiPhrases[aiPhraseIndex].english} -> ${_aiPhrases[aiPhraseIndex].isFavorite}');
-      await _saveAiPhrases(); // Save AI phrases when favorites change
+      // Save AI phrases when favorites change (triggers sync flag)
+      await _saveAiPhrases();
     }
     
+    // Save favorites (triggers sync flag)
     await _saveFavorites();
     debugPrint('💾 New favorites count: ${_favoriteIds.length}');
     debugPrint('🔄 === TOGGLE FAVORITE COMPLETE ===');
@@ -371,187 +457,72 @@ class PhraseService {
   Future<List<PhraseModel>> getPhrasesForCategory(String category) async {
     await initializeSampleData();
     
-    // NORMALIZE CATEGORY: Make case-insensitive search
+    // NORMALIZE category for consistent matching
     final normalizedCategory = _normalizeCategory(category);
-    debugPrint('📊 === GET PHRASES FOR CATEGORY ===');
-    debugPrint('📊 Original category: "$category"');
-    debugPrint('📊 Normalized category: "$normalizedCategory"');
     
-    final csvPhrases = _allPhrases.where((phrase) => 
-      _normalizeCategory(phrase.category) == normalizedCategory).toList();
-    final aiPhrases = _aiPhrases.where((phrase) => 
-      _normalizeCategory(phrase.category) == normalizedCategory).toList();
+    final csvPhrases = _allPhrases.where((p) => _normalizeCategory(p.category) == normalizedCategory).toList();
+    final aiPhrases = _aiPhrases.where((p) => _normalizeCategory(p.category) == normalizedCategory).toList();
     
-    debugPrint('📊 CSV phrases found: ${csvPhrases.length}');
-    debugPrint('📊 AI phrases found: ${aiPhrases.length}');
-    debugPrint('📊 AI favorites: ${aiPhrases.where((p) => p.isFavorite).length}');
+    // NEW: AI phrases first (newest at top), then CSV phrases
+    final result = [...aiPhrases, ...csvPhrases];
     
-    // Show first few AI phrases for debugging
-    for (int i = 0; i < math.min(3, aiPhrases.length); i++) {
-      final p = aiPhrases[i];
-      debugPrint('📊 AI[$i]: "${p.english}" (cat: "${p.category}", fav: ${p.isFavorite})');
-    }
-    
-    // IMPORTANT: Put AI phrases FIRST (they're already sorted with newest first)
-    // Then add CSV phrases after AI phrases
-    final allPhrases = [...aiPhrases, ...csvPhrases];
-    
-    // Sort CSV phrases alphabetically, but keep AI phrases at the top in their order
-    final aiPhrasesCount = aiPhrases.length;
-    if (csvPhrases.isNotEmpty) {
-      // Sort only the CSV phrases part (after AI phrases)
-      final sortedCsvPhrases = csvPhrases..sort((a, b) => a.english.compareTo(b.english));
-      // Replace the CSV portion with sorted CSV phrases
-      allPhrases.replaceRange(aiPhrasesCount, allPhrases.length, sortedCsvPhrases);
-    }
-    
-    debugPrint('📋 Final result: ${aiPhrases.length} AI phrases first, then ${csvPhrases.length} sorted CSV phrases');
-    debugPrint('📊 === GET PHRASES COMPLETE ===');
-    
-    return allPhrases;
+    debugPrint('Found ${csvPhrases.length} CSV + ${aiPhrases.length} AI = ${result.length} total phrases for "$category" (normalized: "$normalizedCategory")');
+    return result;
   }
 
-  // Get all phrases (CSV + AI)
+  // Get all phrases
   Future<List<PhraseModel>> getAllPhrases() async {
     await initializeSampleData();
-    
-    // AI phrases first (newest first), then CSV phrases
-    final allPhrases = [..._aiPhrases, ..._allPhrases];
-    
-    // Sort only the CSV portion
-    final aiPhrasesCount = _aiPhrases.length;
-    if (_allPhrases.isNotEmpty) {
-      final sortedCsvPhrases = _allPhrases..sort((a, b) => a.category.compareTo(b.category));
-      allPhrases.replaceRange(aiPhrasesCount, allPhrases.length, sortedCsvPhrases);
-    }
-    
-    return allPhrases;
+    return [..._aiPhrases, ..._allPhrases]; // AI phrases first
   }
 
-  // Get favorite phrases (CSV + AI) - ordered by recently added
+  // Get favorite phrases only
   Future<List<PhraseModel>> getFavoritePhrases() async {
     await initializeSampleData();
     
-    final csvFavorites = _allPhrases.where((phrase) => phrase.isFavorite).toList();
-    final aiFavorites = _aiPhrases.where((phrase) => phrase.isFavorite).toList();
+    final csvFavorites = _allPhrases.where((p) => p.isFavorite).toList();
+    final aiFavorites = _aiPhrases.where((p) => p.isFavorite).toList();
     
-    debugPrint('📋 === GET FAVORITE PHRASES ===');
-    debugPrint('📋 CSV favorites: ${csvFavorites.length}');
-    debugPrint('📋 AI favorites: ${aiFavorites.length}');
-    
-    // Show AI favorites for debugging
-    for (int i = 0; i < aiFavorites.length; i++) {
-      final fav = aiFavorites[i];
-      debugPrint('📋 AI Favorite[$i]: "${fav.english}" -> category: "${fav.category}" (isFavorite: ${fav.isFavorite})');
-    }
-    
-    final allFavorites = [...csvFavorites, ...aiFavorites];
-    
-    // Sort by the order they appear in _favoriteIds (recently added first)
-    final favoriteIdsList = _favoriteIds.toList().reversed.toList();
-    
-    allFavorites.sort((a, b) {
-      final indexA = favoriteIdsList.indexOf(a.id);
-      final indexB = favoriteIdsList.indexOf(b.id);
-      
-      if (indexA != -1 && indexB != -1) {
-        return indexA.compareTo(indexB);
-      }
-      
-      if (indexA != -1) return -1;
-      if (indexB != -1) return 1;
-      
-      return a.english.compareTo(b.english);
-    });
-    
-    debugPrint('📋 Returning ${allFavorites.length} total favorites');
-    debugPrint('📋 === GET FAVORITE PHRASES COMPLETE ===');
-    
-    return allFavorites;
+    return [...aiFavorites, ...csvFavorites]; // AI favorites first
   }
 
-  // Search phrases (CSV + AI)
+  // Search phrases
   Future<List<PhraseModel>> searchPhrases(String query) async {
-    if (query.isEmpty) return [];
-    
     await initializeSampleData();
     
-    final csvResults = _allPhrases.where((phrase) =>
-        phrase.english.toLowerCase().contains(query.toLowerCase()) ||
-        phrase.spanish.toLowerCase().contains(query.toLowerCase())).toList();
-        
-    final aiResults = _aiPhrases.where((phrase) =>
-        phrase.english.toLowerCase().contains(query.toLowerCase()) ||
-        phrase.spanish.toLowerCase().contains(query.toLowerCase())).toList();
+    final lowerQuery = query.toLowerCase();
     
-    // AI results first, then CSV results
-    final allResults = [...aiResults, ...csvResults];
+    final csvResults = _allPhrases.where((p) => 
+      p.english.toLowerCase().contains(lowerQuery) ||
+      p.spanish.toLowerCase().contains(lowerQuery) ||
+      p.category.toLowerCase().contains(lowerQuery)
+    ).toList();
     
-    // Sort each section alphabetically
-    final aiResultsCount = aiResults.length;
-    if (csvResults.isNotEmpty) {
-      final sortedCsvResults = csvResults..sort((a, b) => a.english.compareTo(b.english));
-      allResults.replaceRange(aiResultsCount, allResults.length, sortedCsvResults);
-    }
+    final aiResults = _aiPhrases.where((p) => 
+      p.english.toLowerCase().contains(lowerQuery) ||
+      p.spanish.toLowerCase().contains(lowerQuery) ||
+      p.category.toLowerCase().contains(lowerQuery)
+    ).toList();
     
-    return allResults;
+    return [...aiResults, ...csvResults]; // AI results first
   }
 
-  // Get unique categories (CSV + AI)
+  // Get unique categories
   Future<List<String>> getCategories() async {
     await initializeSampleData();
     
-    final csvCategories = _allPhrases.map((phrase) => phrase.category).toSet();
-    final aiCategories = _aiPhrases.map((phrase) => phrase.category).toSet();
+    final csvCategories = _allPhrases.map((p) => p.category).toSet();
+    final aiCategories = _aiPhrases.map((p) => p.category).toSet();
     
-    final allCategories = {...csvCategories, ...aiCategories}.toList();
-    allCategories.sort();
+    final allCategories = <String>{...csvCategories, ...aiCategories};
+    final sortedCategories = allCategories.toList()..sort();
     
-    return allCategories;
+    return sortedCategories;
   }
 
-  // Get unique difficulties
-  Future<List<String>> getDifficulties() async {
-    await initializeSampleData();
-    
-    final csvDifficulties = _allPhrases.map((phrase) => phrase.difficulty).toSet();
-    final aiDifficulties = _aiPhrases.map((phrase) => phrase.difficulty).toSet();
-    
-    final allDifficulties = {...csvDifficulties, ...aiDifficulties}.toList();
-    allDifficulties.sort();
-    
-    return allDifficulties;
-  }
-
-  // MODIFY the refreshData method to also refresh favorites
-  Future<void> refreshData() async {
-    _isInitialized = false;
-    _allPhrases.clear();
-    _aiPhrases.clear();
-    await initializeSampleData();
-    await forceRefreshFavorites(); // ADD THIS LINE
-  }
-
-  // Get phrase count for a category (CSV + AI)
-  Future<int> getPhraseCountForCategory(String category) async {
-    await initializeSampleData();
-    
-    final normalizedCategory = _normalizeCategory(category);
-    final csvCount = _allPhrases.where((phrase) => _normalizeCategory(phrase.category) == normalizedCategory).length;
-    final aiCount = _aiPhrases.where((phrase) => _normalizeCategory(phrase.category) == normalizedCategory).length;
-    
-    return csvCount + aiCount;
-  }
-
-  // Get AI phrases count for a category
-  Future<int> getAiPhraseCountForCategory(String category) async {
-    await initializeSampleData();
-    final normalizedCategory = _normalizeCategory(category);
-    return _aiPhrases.where((phrase) => _normalizeCategory(phrase.category) == normalizedCategory).length;
-  }
-
-  // Clear AI phrases for a category BUT preserve favorited ones
+  // Clear AI phrases for a category (preserving favorites)
   Future<void> clearAiPhrasesForCategory(String category) async {
+    // NORMALIZE CATEGORY for case-insensitive clearing
     final normalizedCategory = _normalizeCategory(category);
     debugPrint('🧹 === CLEAR AI PHRASES FOR CATEGORY ===');
     debugPrint('🧹 Original category: "$category"');
@@ -591,6 +562,7 @@ class PhraseService {
       debugPrint('💚 Preserved favorite: "${fav.english}" (ID: ${fav.id}, isFavorite: ${fav.isFavorite})');
     }
     
+    // Save changes (triggers sync flag)
     await _saveAiPhrases();
     debugPrint('🧹 === CLEAR AI PHRASES COMPLETE ===');
   }
@@ -599,7 +571,9 @@ class PhraseService {
   Future<void> clearAllAiPhrasesForCategory(String category) async {
     // NORMALIZE CATEGORY for case-insensitive clearing
     final normalizedCategory = _normalizeCategory(category);
-    debugPrint('🧹 === CLEARING ALL AI PHRASES FOR CATEGORY: "$category" -> "$normalizedCategory" ===');
+    debugPrint('🧹 === CLEARING ALL AI PHRASES FOR CATEGORY ===');
+    debugPrint('🧹 Original category: "$category"');
+    debugPrint('🧹 Normalized category: "$normalizedCategory"');
     debugPrint('🧹 BEFORE clearing:');
     debugPrint('🧹 Total AI phrases: ${_aiPhrases.length}');
     
@@ -633,7 +607,7 @@ class PhraseService {
     debugPrint('🧹 Removed $removedCount phrases (including favorites)');
     debugPrint('🧹 Total AI phrases remaining: ${_aiPhrases.length}');
     
-    // Save changes
+    // Save changes with dual storage (triggers sync flags)
     await _saveAiPhrases();
     await _saveFavorites();
     
@@ -656,34 +630,24 @@ class PhraseService {
   Stream<List<PhraseModel>> searchPhrasesStream(String query) async* {
     yield await searchPhrases(query);
   }
-  // ADD THIS NEW METHOD - Force refresh favorites from SharedPreferences
+  
+  // Force refresh favorites from SharedPreferences
   Future<void> forceRefreshFavorites() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final favoritesList = prefs.getStringList('favorite_phrases') ?? [];
-      _favoriteIds = favoritesList.toSet();
+      await _loadFavorites();
       
-      print('🔄 === FORCE REFRESH FAVORITES ===');
-      print('🔄 Loaded ${_favoriteIds.length} favorites from SharedPreferences');
-      for (int i = 0; i < favoritesList.length; i++) {
-        print('🔄   Favorite[$i]: ${favoritesList[i]}');
-      }
-      
-      // Update CSV phrases favorite status
-      for (var phrase in _allPhrases) {
+      // Update isFavorite status for all phrases
+      for (final phrase in _allPhrases) {
         phrase.isFavorite = _favoriteIds.contains(phrase.id);
       }
       
-      // Update AI phrases favorite status  
-      for (var phrase in _aiPhrases) {
+      for (final phrase in _aiPhrases) {
         phrase.isFavorite = _favoriteIds.contains(phrase.id);
       }
       
-      print('✅ === FORCE REFRESH FAVORITES COMPLETE ===');
+      debugPrint('🔄 Force refreshed favorites: ${_favoriteIds.length} total');
     } catch (e) {
-      print('❌ Error force refreshing favorites: $e');
+      debugPrint('❌ Error force refreshing favorites: $e');
     }
   }
-
-
 }

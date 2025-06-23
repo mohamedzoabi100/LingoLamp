@@ -1,8 +1,8 @@
-//lib/screens/favorites_screen.dart - FIXED TO USE USER DATA SERVICE
+//lib/screens/favorites_screen.dart - ORIGINAL VERSION + CLEAR ALL
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../services/phrase_service.dart';
-import '../services/user_data_service.dart'; // ADD THIS IMPORT
+import '../services/user_data_service.dart';
 
 class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({super.key});
@@ -15,9 +15,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   late FlutterTts _tts;
   bool _ttsReady = false;
   final PhraseService _phraseService = PhraseService();
-  final UserDataService _userDataService = UserDataService(); // ADD THIS
+  final UserDataService _userDataService = UserDataService();
   
-  // UPDATED: Track which categories are expanded - DEFAULT TO COLLAPSED (false)
+  // Track which categories are expanded - DEFAULT TO COLLAPSED (false)
   final Map<String, bool> _expandedCategories = {};
 
   @override
@@ -64,37 +64,24 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     if (_ttsReady) {
       print("Attempting to speak Spanish: $text");
       try {
-        // Stop any current speech
         await _tts.stop();
         
-        // Try different Spanish language codes
         var result = await _tts.setLanguage('es-ES');
         print("Set language es-ES result: $result");
         
         if (result == 1) {
           await _tts.speak(text);
         } else {
-          // Try alternative Spanish codes
           result = await _tts.setLanguage('es-MX');
-          print("Set language es-MX result: $result");
-          
           if (result == 1) {
             await _tts.speak(text);
           } else {
-            result = await _tts.setLanguage('es-US');
-            print("Set language es-US result: $result");
-            
-            if (result == 1) {
-              await _tts.speak(text);
-            } else {
-              print("No Spanish language available, using default");
-              await _tts.speak(text);
-            }
+            print("No Spanish language available, using default");
+            await _tts.speak(text);
           }
         }
       } catch (e) {
         print("Spanish TTS Error: $e");
-        // Fallback to default
         await _tts.speak(text);
       }
     }
@@ -104,7 +91,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     if (_ttsReady) {
       print("Attempting to speak English: $text");
       try {
-        // Stop any current speech
         await _tts.stop();
         
         var result = await _tts.setLanguage('en-US');
@@ -113,7 +99,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         if (result == 1) {
           await _tts.speak(text);
         } else {
-          // Try alternative English codes
           result = await _tts.setLanguage('en-GB');
           if (result == 1) {
             await _tts.speak(text);
@@ -129,16 +114,14 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     }
   }
 
-  // FIXED: Use UserDataService instead of PhraseService
   Future<void> _removeFromFavorites(PhraseModel phrase) async {
     print('🔄 === REMOVE FROM FAVORITES (UI) ===');
     print('🔄 Phrase: "${phrase.english}"');
     print('🔄 Using UserDataService.removeFavorite()');
     
-    await _userDataService.removeFavorite(phrase.id); // CHANGED: Use UserDataService
+    await _userDataService.removeFavorite(phrase.id);
     
     if (mounted) {
-      // Refresh the screen to show updated list
       setState(() {});
       
       ScaffoldMessenger.of(context).showSnackBar(
@@ -151,8 +134,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             textColor: Colors.white,
             onPressed: () async {
               print('🔄 Undo remove - using UserDataService.addFavorite()');
-              await _userDataService.addFavorite(phrase.id); // CHANGED: Use UserDataService
-              setState(() {}); // Refresh after undo
+              await _userDataService.addFavorite(phrase.id);
+              setState(() {});
             },
           ),
         ),
@@ -162,12 +145,85 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     print('✅ === REMOVE FROM FAVORITES COMPLETE ===');
   }
 
-  // FIXED: Group phrases by category with case-insensitive grouping
+  // 🔥 NEW: Clear All Favorites functionality
+  Future<void> _clearAllFavorites() async {
+    print('🧹 === CLEARING ALL FAVORITES ===');
+    
+    try {
+      // Get current favorites first
+      final currentFavorites = await _phraseService.getFavoritePhrases();
+      
+      // Remove each favorite
+      for (final phrase in currentFavorites) {
+        await _userDataService.removeFavorite(phrase.id);
+      }
+      
+      // Refresh the UI
+      if (mounted) {
+        setState(() {});
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Cleared ${currentFavorites.length} favorites'),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+          ),
+        );
+      }
+      
+      print('✅ Cleared ${currentFavorites.length} favorites');
+    } catch (e) {
+      print('❌ Error clearing favorites: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error clearing favorites: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // 🔥 NEW: Show Clear All confirmation dialog
+  void _showClearAllDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(
+          'Clear All Favorites?',
+          style: TextStyle(fontSize: 18),
+        ),
+        content: const Text(
+          'This will remove all phrases from your favorites. This action cannot be undone.',
+          style: TextStyle(fontSize: 14),
+        ),
+        contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+        actionsPadding: const EdgeInsets.fromLTRB(8, 0, 16, 16),
+        actions: <Widget>[
+          TextButton(
+            child: const Text('Cancel', style: TextStyle(fontSize: 14)),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            child: const Text('Clear All', style: TextStyle(fontSize: 14)),
+            onPressed: () {
+              Navigator.of(context).pop();
+              _clearAllFavorites();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Map<String, List<PhraseModel>> _groupPhrasesByCategory(List<PhraseModel> phrases) {
     final Map<String, List<PhraseModel>> grouped = {};
     
     for (final phrase in phrases) {
-      // NORMALIZE CATEGORY for case-insensitive grouping
       final normalizedCategory = _normalizeCategory(phrase.category);
       
       if (!grouped.containsKey(normalizedCategory)) {
@@ -184,15 +240,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       }
     }
     
-    // Each category maintains the order from getFavoritePhrases (recently added first)
     return grouped;
   }
 
-  // FIXED: Normalize category for consistent grouping (same logic as phrase_service.dart)
   String _normalizeCategory(String category) {
     if (category.isEmpty) return category;
     
-    // Split by spaces to handle multi-word categories
     final words = category.toLowerCase().split(' ');
     final normalizedWords = words.map((word) {
       if (word.isEmpty) return word;
@@ -202,7 +255,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     return normalizedWords.join(' ');
   }
 
-  // Get category color based on app's phrasebook theme colors
   Color _getCategoryColor(String category) {
     switch (category) {
       case 'Food & Dining':
@@ -222,7 +274,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     }
   }
 
-  // Get category icon based on app's phrasebook theme icons
   IconData _getCategoryIcon(String category) {
     switch (category) {
       case 'Food & Dining':
@@ -258,6 +309,30 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         elevation: 2,
+        // 🔥 NEW: Add Clear All action to AppBar
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              switch (value) {
+                case 'clear_all':
+                  _showClearAllDialog();
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'clear_all',
+                child: Row(
+                  children: [
+                    Icon(Icons.clear_all, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Clear All Favorites'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: FutureBuilder<List<PhraseModel>>(
@@ -289,7 +364,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () {
-                      setState(() {}); // Trigger rebuild
+                      setState(() {});
                     },
                     child: const Text('Retry'),
                   ),
@@ -340,7 +415,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             );
           }
           
-          // FIXED: Group phrases by category with case-insensitive logic
           final groupedPhrases = _groupPhrasesByCategory(phrases);
           final categories = groupedPhrases.keys.toList()..sort();
           
@@ -353,7 +427,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
               final categoryColor = _getCategoryColor(category);
               final categoryIcon = _getCategoryIcon(category);
               
-              // UPDATED: Default to collapsed (false) instead of expanded (true)
               final isExpanded = _expandedCategories[category] ?? false;
               
               return Column(
@@ -363,7 +436,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                   GestureDetector(
                     onTap: () {
                       setState(() {
-                        // UPDATED: Toggle from default collapsed state
                         _expandedCategories[category] = !isExpanded;
                       });
                     },
@@ -403,7 +475,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                               ),
                             ),
                           ),
-                          // Show count of phrases in category
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
@@ -420,10 +491,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          // UPDATED: Expand/collapse arrow - shows correct direction for collapsed state
                           AnimatedRotation(
                             duration: const Duration(milliseconds: 200),
-                            turns: isExpanded ? 0.5 : 0, // 0.5 = down arrow, 0 = right arrow
+                            turns: isExpanded ? 0.5 : 0,
                             child: Icon(
                               Icons.keyboard_arrow_down,
                               color: categoryColor,
@@ -435,7 +505,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     ),
                   ),
                   
-                  // UPDATED: Phrases in this category (only show when expanded)
+                  // Phrases in this category (only show when expanded)
                   if (isExpanded)
                     ...categoryPhrases.map((phrase) => Dismissible(
                     key: Key(phrase.id),
@@ -534,7 +604,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       ),
       child: Column(
         children: [
-          // UPDATED: Header with AI badge only (if AI-generated), no favorite icon
+          // Header with AI badge only (if AI-generated), no favorite icon
           if (phrase.isAiGenerated)
             Container(
               width: double.infinity,
@@ -585,7 +655,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     ),
                   ),
                 const Spacer(),
-                // REMOVED: No favorite icon needed in favorites screen
               ],
             ),
           ),
@@ -650,7 +719,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                 borderRadius: BorderRadius.only(
                   bottomLeft: const Radius.circular(16),
                   bottomRight: const Radius.circular(16),
-                  // Only round top corners if there's no header
                   topLeft: phrase.isAiGenerated ? Radius.zero : const Radius.circular(16),
                   topRight: phrase.isAiGenerated ? Radius.zero : const Radius.circular(16),
                 ),
