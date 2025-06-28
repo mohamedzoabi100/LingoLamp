@@ -7,6 +7,8 @@ import 'screens/guest_home_page.dart';
 import 'screens/main_app_page.dart';
 import 'screens/auth/sign_in_screen.dart'; // Add this import
 import 'services/user_data_service.dart';
+import 'services/recommendation_service.dart';
+import 'services/phrase_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,8 +23,13 @@ void main() async {
     await Firebase.initializeApp();
     print("✅ Firebase initialized successfully");
     
+    // Load local CSV and saved phrases
+    await PhraseService().init();
+    
     // Initialize user data service auth listener
     UserDataService().setupAuthListener();
+    // Start recommendation engine
+    await RecommendationService().init();
   } catch (e) {
     print("❌ Firebase initialization failed: $e");
   }

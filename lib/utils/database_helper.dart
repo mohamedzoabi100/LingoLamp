@@ -10,6 +10,7 @@ import '../models/conversation_model.dart';
 import '../models/chat_message_model.dart';
 import '../models/flashcard_model.dart';
 import '../models/spaced_repetition_model.dart';
+import '../models/recommended_flashcard_model.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._privateConstructor();
@@ -19,11 +20,19 @@ class DatabaseHelper {
   final _flashcardsController = BehaviorSubject<List<Flashcard>>();
   Stream<List<Flashcard>> get flashcardsStream => _flashcardsController.stream;
 
+  // StreamController for recommended flashcards
+  final _recommendedController = BehaviorSubject<List<RecommendedFlashcard>>.seeded(const <RecommendedFlashcard>[]);
+  Stream<List<RecommendedFlashcard>> get recommendedStream => _recommendedController.stream;
+
+  // StreamController for chat messages
+  final _chatController = BehaviorSubject<List<ChatMessage>>.seeded(const <ChatMessage>[]);
+  Stream<List<ChatMessage>> get chatStream => _chatController.stream;
+
   DatabaseHelper._privateConstructor();
 
   // Database version incremented to handle schema change
   static const String _dbName = 'lingolamp_chat.db';
-  static const int _dbVersion = 6;
+  static const int _dbVersion = 7;
 
   static const String tableConversations = 'conversations';
   static const String colConversationId = 'id';
@@ -67,11 +76,23 @@ class DatabaseHelper {
   static const String colSpacedRepetitionLastReviewed = 'last_reviewed';
   static const String colSpacedRepetitionLastReviewQuality = 'last_review_quality';
 
+  // === NEW: Recommended flashcards table ===
+  static const String tableRecommended = 'recommended_flashcards';
+  static const String colRecommendedId = 'id';
+  static const String colRecommendedTerm = 'term';
+  static const String colRecommendedContext = 'context';
+  static const String colRecommendedSource = 'source';
+  static const String colRecommendedWeight = 'weight';
+  static const String colRecommendedCreatedAt = 'created_at';
+  static const String colRecommendedUpdatedAt = 'updated_at';
+
   Future<Database> get database async {
     if (_database != null) return _database!;
     _database = await _initDatabase();
     // Prime the stream with initial data as soon as the db is ready
     _onFlashcardsChanged();
+    _onChatChanged();
+    _onRecommendedChanged();
     return _database!;
   }
 
@@ -139,6 +160,18 @@ class DatabaseHelper {
         FOREIGN KEY ($colSpacedRepetitionFlashcardId) REFERENCES $tableFlashcards ($colFlashcardId) ON DELETE CASCADE
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE $tableRecommended (
+        $colRecommendedId INTEGER PRIMARY KEY AUTOINCREMENT,
+        $colRecommendedTerm TEXT NOT NULL,
+        $colRecommendedContext TEXT NOT NULL,
+        $colRecommendedSource TEXT NOT NULL,
+        $colRecommendedWeight REAL NOT NULL,
+        $colRecommendedCreatedAt TEXT NOT NULL,
+        $colRecommendedUpdatedAt TEXT NOT NULL
+      )
+    ''');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -199,11 +232,39 @@ class DatabaseHelper {
       }
       await batch.commit();
     }
+    if (oldVersion < 7) {
+      await db.execute('''
+        CREATE TABLE $tableRecommended (
+          $colRecommendedId INTEGER PRIMARY KEY AUTOINCREMENT,
+          $colRecommendedTerm TEXT NOT NULL,
+          $colRecommendedContext TEXT NOT NULL,
+          $colRecommendedSource TEXT NOT NULL,
+          $colRecommendedWeight REAL NOT NULL,
+          $colRecommendedCreatedAt TEXT NOT NULL,
+          $colRecommendedUpdatedAt TEXT NOT NULL
+        )
+      ''');
+    }
   }
 
   Future<void> _onFlashcardsChanged() async {
     final flashcards = await getAllFlashcards();
     _flashcardsController.add(flashcards);
+  }
+
+  Future<void> _onRecommendedChanged() async {
+    final recs = await getAllRecommendedFlashcards();
+    _recommendedController.add(recs);
+  }
+
+  Future<void> _onChatChanged() async {
+    Database db = await instance.database;
+    final rows = await db.query(
+      tableMessages,
+      orderBy: '$colMessageTimestamp DESC',
+    );
+    final messages = rows.map(ChatMessage.fromMap).toList();
+    _chatController.add(messages);
   }
 
   // === CONVERSATION METHODS ===
@@ -270,6 +331,7 @@ class DatabaseHelper {
         await updateConversation(convo);
       }
     }
+    _onChatChanged();
     return messageId;
   }
 
@@ -497,20 +559,61 @@ class DatabaseHelper {
     }
   }
 
-  // Stream for reactive UI updates
-  // This is now handled by the StreamController
-  /*
-  Stream<List<Flashcard>> watchAllFlashcards() async* {
-    final db = await instance.database;
-    
-    // Initial data emission
-    yield* db.query(tableFlashcards, orderBy: '$colFlashcardCreatedAt DESC')
-        .asStream()
-        .map((maps) => List.generate(maps.length, (i) => Flashcard.fromMap(maps[i])));
-
-    // Here you could add a mechanism to listen for database changes
-    // For now, this stream will emit once. For real-time updates without polling,
-    // you would typically integrate a stream controller that you notify on writes.
+  // === RECOMMENDED FLASHCARD METHODS ===
+  Future<int> upsertRecommendedFlashcard(RecommendedFlashcard card) async {
+    Database db = await instance.database;
+    // Try update first
+    final existing = await db.query(
+      tableRecommended,
+      where: '$colRecommendedTerm = ?',
+      whereArgs: [card.term],
+      limit: 1,
+    );
+    int result;
+    if (existing.isNotEmpty) {
+      result = await db.update(
+        tableRecommended,
+        card.copyWith(id: existing.first[colRecommendedId] as int).toMap(),
+        where: '$colRecommendedId = ?',
+        whereArgs: [existing.first[colRecommendedId]],
+      );
+    } else {
+      result = await db.insert(tableRecommended, card.toMap());
+    }
+    _onRecommendedChanged();
+    return result;
   }
-  */
+
+  Future<List<RecommendedFlashcard>> getAllRecommendedFlashcards() async {
+    Database db = await instance.database;
+    final maps = await db.query(
+      tableRecommended,
+      orderBy: '$colRecommendedWeight DESC',
+    );
+    return maps.map(RecommendedFlashcard.fromMap).toList();
+  }
+
+  Future<int> deleteRecommended(int id) async {
+    Database db = await instance.database;
+    final result = await db.delete(
+      tableRecommended,
+      where: '$colRecommendedId = ?',
+      whereArgs: [id],
+    );
+    _onRecommendedChanged();
+    return result;
+  }
+
+  Future<int> clearAllRecommended() async {
+    Database db = await instance.database;
+    final result = await db.delete(tableRecommended);
+    _onRecommendedChanged();
+    return result;
+  }
+
+  void dispose() {
+    _flashcardsController.close();
+    _recommendedController.close();
+    _chatController.close();
+  }
 }

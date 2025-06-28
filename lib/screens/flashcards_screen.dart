@@ -9,6 +9,8 @@ import '../utils/database_helper.dart';
 import '../services/user_data_service.dart';
 import 'flashcards/browse_flashcards_list.dart';
 import 'spaced_repetition_study_screen.dart';
+import '../models/recommended_flashcard_model.dart';
+import 'recommendations_screen.dart';
 
 class FlashcardsScreen extends StatefulWidget {
   final VoidCallback? onBackToHome;
@@ -35,6 +37,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
   late FlutterTts _tts;
 
   late Stream<List<Flashcard>> _flashcardsStream;
+  late Stream<List<RecommendedFlashcard>> _recommendedStream;
 
   @override
   void initState() {
@@ -42,6 +45,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
     _tabController = TabController(length: 2, vsync: this, initialIndex: 0);
     _initTts();
     _flashcardsStream = _dbHelper.flashcardsStream;
+    _recommendedStream = _dbHelper.recommendedStream;
 
     // Listen to flashcards changes to regenerate review queue
     _flashcardsStream.listen((_) => _loadReviewQueue());
@@ -260,6 +264,47 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
             }
           },
         ),
+        actions: [
+          StreamBuilder<List<RecommendedFlashcard>>(
+            stream: _recommendedStream,
+            builder: (context, snap) {
+              final count = snap.data?.length ?? 0;
+              return IconButton(
+                tooltip: 'Recommendations',
+                icon: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(Icons.lightbulb_outline),
+                    if (count > 0)
+                      Positioned(
+                        right: -2,
+                        top: -2,
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                          child: Text(
+                            '$count',
+                            style: const TextStyle(color: Colors.white, fontSize: 10),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const RecommendationsScreen()),
+                  );
+                },
+              );
+            },
+          ),
+        ],
       ),
       backgroundColor: Colors.white,
       body: Center(
@@ -477,6 +522,47 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
                   Tab(text: 'Browse'),
                 ],
               ),
+              actions: [
+                StreamBuilder<List<RecommendedFlashcard>>(
+                  stream: _recommendedStream,
+                  builder: (context, snap) {
+                    final count = snap.data?.length ?? 0;
+                    return IconButton(
+                      tooltip: 'Recommendations',
+                      icon: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          const Icon(Icons.lightbulb_outline),
+                          if (count > 0)
+                            Positioned(
+                              right: -2,
+                              top: -2,
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: const BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                ),
+                                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                                child: Text(
+                                  '$count',
+                                  style: const TextStyle(color: Colors.white, fontSize: 10),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const RecommendationsScreen()),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ],
             ),
             body: TabBarView(
               controller: _tabController,
