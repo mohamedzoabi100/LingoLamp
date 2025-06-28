@@ -30,7 +30,7 @@ class _GuestHomePageState extends State<GuestHomePage> {
 
   Color _selectedNavColor(BuildContext ctx) =>
     _selectedIndex == -1                       // home?
-        ? Theme.of(ctx).colorScheme.onSurface.withOpacity(.6)   // same as unselected
+        ? Theme.of(ctx).colorScheme.onSurface.withAlpha((255 * .6).round())   // same as unselected
         : Theme.of(ctx).colorScheme.primary;   // normal highlight
 
   void _returnToHome() => setState(() => _selectedIndex = -1);
@@ -44,7 +44,7 @@ class _GuestHomePageState extends State<GuestHomePage> {
       margin: const EdgeInsets.only(top: 20),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withOpacity(.10),
+        color: Theme.of(context).colorScheme.primary.withAlpha((255 * .10).round()),
         borderRadius: BorderRadius.circular(15),
         border: Border.all(
           color: Theme.of(context).colorScheme.primary,
@@ -69,7 +69,7 @@ class _GuestHomePageState extends State<GuestHomePage> {
                         color: Theme.of(context)
                             .colorScheme
                             .primary
-                            .withOpacity(1)),
+                            .withAlpha(255)),
                     textAlign: TextAlign.center),
               ],
             ),
@@ -93,7 +93,7 @@ class _GuestHomePageState extends State<GuestHomePage> {
                         color: Theme.of(context)
                             .colorScheme
                             .primary
-                            .withOpacity(1)),
+                            .withAlpha(255)),
                     textAlign: TextAlign.center),
               ],
             ),
@@ -114,12 +114,12 @@ class _GuestHomePageState extends State<GuestHomePage> {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: isTaskCompleted
-            ? Colors.green.withOpacity(.08)
-            : Theme.of(context).colorScheme.secondary.withOpacity(.10),
+            ? Colors.green.withAlpha((255 * .08).round())
+            : Theme.of(context).colorScheme.secondary.withAlpha((255 * .10).round()),
         borderRadius: BorderRadius.circular(15),
         border: Border.all(
           color: isTaskCompleted
-              ? Colors.green.withOpacity(.25)
+              ? Colors.green.withAlpha((255 * .25).round())
               : Theme.of(context).colorScheme.secondary,
           width: 2,
         ),
@@ -165,7 +165,7 @@ class _GuestHomePageState extends State<GuestHomePage> {
                     backgroundColor: Theme.of(context)
                         .colorScheme
                         .secondary
-                        .withOpacity(.13),
+                        .withAlpha((255 * .13).round()),
                     foregroundColor: Theme.of(context).colorScheme.secondary),
                 onPressed: () => debugPrint('Start Task pressed'),
                 child: const Text('Start Task'),
@@ -235,7 +235,7 @@ class _GuestHomePageState extends State<GuestHomePage> {
         onTap: _onItemTapped,
         selectedItemColor: _selectedNavColor(context),
         unselectedItemColor:
-            Theme.of(context).colorScheme.onSurface.withOpacity(.6),
+            Theme.of(context).colorScheme.onSurface.withAlpha((255 * .6).round()),
 
           selectedFontSize: _selectedIndex == -1 ? 12 : 14,
           unselectedFontSize: 12,

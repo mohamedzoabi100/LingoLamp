@@ -22,13 +22,10 @@ class _SignInScreenState extends State<SignInScreen> {
       final result = await _authService.signInWithGoogle();
       
       if (result != null && mounted) {
-        // Success - AuthStateWrapper will automatically navigate to MainAppPage
-        print('Sign-in successful! AuthStateWrapper will handle navigation.');
-        
-        // FIXED: Clear entire navigation stack so AuthStateWrapper can properly show MainAppPage
-        // This handles both guest mode navigation and regular navigation properly
-        Navigator.of(context).popUntil((route) => route.isFirst);
-        
+        // Success! We don't need to do anything here.
+        // The AuthStateWrapper is listening and will automatically navigate
+        // to the MainAppPage. Removing all manual navigation calls
+        // from this screen fixes the race condition and navigation bugs.
       } else {
         // User cancelled sign-in - just stay on this screen
         print('Google Sign-In was cancelled by user');

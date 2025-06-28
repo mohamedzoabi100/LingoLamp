@@ -3,7 +3,7 @@ import * as functions from 'firebase-functions';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Initialize Gemini AI
-const genAI = new GoogleGenerativeAI(functions.config().gemini.api_key);
+const genAI = new GoogleGenerativeAI("AIzaSyBx03Wja1HkkfTMIs4SeVgbcp7uAW28FtU");
 
 interface PhraseRequest {
   topic: string;

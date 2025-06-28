@@ -46,7 +46,6 @@ class GuestSettingsScreen extends StatelessWidget {
               ),
             ),
             onTap: () {
-              print('Log In tapped - navigating to SignInScreen');
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const SignInScreen()),
@@ -95,7 +94,6 @@ class GuestSettingsScreen extends StatelessWidget {
                   duration: Duration(seconds: 2),
                 ),
               );
-              print('Notifications tapped - Coming soon');
             },
             trailing: const Icon(
               Icons.arrow_forward_ios,
@@ -140,7 +138,6 @@ class GuestSettingsScreen extends StatelessWidget {
                   duration: Duration(seconds: 2),
                 ),
               );
-              print('Appearance tapped - Coming soon');
             },
             trailing: const Icon(
               Icons.arrow_forward_ios,

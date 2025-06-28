@@ -8,9 +8,7 @@ class SettingsScreen extends StatelessWidget {
 
   Future<void> _signOut(BuildContext context) async {
     try {
-      print('Starting sign out process from settings...');
       await AuthService().signOut();
-      print('Sign out completed - navigating to home');
       
       // Navigate back to home page (root) and clear navigation stack
       if (context.mounted) {
@@ -27,7 +25,6 @@ class SettingsScreen extends StatelessWidget {
       }
       
     } catch (e) {
-      print('Error signing out: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

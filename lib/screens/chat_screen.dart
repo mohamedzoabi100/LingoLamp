@@ -14,6 +14,7 @@ import '../utils/database_helper.dart';
 import '../models/chat_message_model.dart' as model;
 import '../models/conversation_model.dart';
 import '../models/flashcard_model.dart';
+import '../models/phrase_model.dart';
 import 'chat_history_screen.dart';
 
 const targetLangCode = 'es-ES';
@@ -247,21 +248,21 @@ class _ChatScreenState extends State<ChatScreen> {
     String appBarTitle = _currentConversation?.title ?? 'AI Language Tutor';
     return Scaffold(
       appBar: AppBar( 
-                      leading: IconButton(                           // ★ new
-                      icon: const Icon(Icons.arrow_back),
-                      onPressed: () {
-                        if (widget.onBackToHome != null) {
-                          widget.onBackToHome!();                  // jump to home tab
-                        } else {
-                          Navigator.pop(context);                  // normal pop
-                        }
-                      },
-                    ),
-                    title: Text(appBarTitle, 
-                     overflow: TextOverflow.ellipsis), 
-                     backgroundColor: primaryColor, 
-                     foregroundColor: Colors.white, 
-                     actions: [
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (widget.onBackToHome != null) {
+              widget.onBackToHome!();
+            } else {
+              Navigator.pop(context);
+            }
+          },
+        ),
+        title: Text(appBarTitle, 
+         overflow: TextOverflow.ellipsis), 
+         backgroundColor: primaryColor, 
+         foregroundColor: Colors.white, 
+         actions: [
         IconButton(
           icon: const Icon(Icons.history),
           tooltip: 'Chat History',
@@ -272,6 +273,29 @@ class _ChatScreenState extends State<ChatScreen> {
               _loadConversationAndMessages(selectedId);
             }
           },
+        ),
+        PopupMenuButton<String>(
+          onSelected: (value) {
+            if (value == 'new') {
+              setState(() {
+                _currentConversationId = null;
+                _currentConversation = null;
+                _messages.clear();
+                _messages.add(model.ChatMessage(
+                  conversationId: -1,
+                  text: "¡Hola! I'm Lingo, your personal Spanish tutor. How can I help you practice today?",
+                  isUserMessage: false,
+                  timestamp: DateTime.now(),
+                ));
+              });
+            }
+          },
+          itemBuilder: (context) => const [
+            PopupMenuItem(
+              value: 'new',
+              child: Text('New Chat'),
+            ),
+          ],
         ),
       ]),
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -402,7 +426,7 @@ class _ChatScreenState extends State<ChatScreen> {
       return _parseJson(visible.group(0)!);
     }
 
-    // 3️⃣ Fallback “The Spanish word for X is **Y**.”
+    // 3️⃣ Fallback "The Spanish word for X is **Y**."
     final visSentence = RegExp(
       r'The Spanish (?:word|translation) for .*?["“]?([^"”]+?)["”]? .*?\*\*(.+?)\*\*',
       caseSensitive: false,

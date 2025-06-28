@@ -1,6 +1,7 @@
 //lib/screens/ai_suggestions_screen.dart - COMPLETE WITH GENERATE MORE FUNCTIONALITY
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import '../models/phrase_model.dart';
 import '../services/ai_phrase_service.dart';
 import '../services/phrase_service.dart';
 
@@ -22,6 +23,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
   List<PhraseModel> _generatedPhrases = [];
   String _currentTopic = '';
   String? _errorMessage;
+  Set<String> _favoriteIds = {};
 
   @override
   void initState() {
@@ -65,27 +67,22 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _currentTopic = topic;
       _generatedPhrases = [];
     });
 
     try {
-      final stopwatch = Stopwatch()..start();
-      
       final aiPhrases = await _aiPhraseService.generatePhrasesForTopic(topic);
-      final phraseModels = _aiPhraseService.aiPhrasesToPhraseModels(aiPhrases);
+      final phraseModels = _aiPhraseService.aiPhrasesToPhraseModels(
+        aiPhrases: aiPhrases,
+        category: topic,
+      );
       
-      await _phraseService.addAiPhrases(phraseModels);
-      
-      final allCategoryPhrases = await _phraseService.getPhrasesForCategory(topic);
-      final allAiPhrases = allCategoryPhrases.where((p) => p.isAiGenerated).toList();
-      
-      stopwatch.stop();
-      debugPrint('⏱️ Phrase generation took: ${stopwatch.elapsedMilliseconds}ms');
-      debugPrint('📊 Showing ${allAiPhrases.length} total AI phrases for $topic');
+      for (final model in phraseModels) {
+        await _phraseService.addAiPhrase(model);
+      }
       
       setState(() {
-        _generatedPhrases = allAiPhrases;
-        _currentTopic = topic;
         _isLoading = false;
       });
 
@@ -113,27 +110,21 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
       debugPrint('🔄 Generating MORE phrases for topic: $_currentTopic');
       debugPrint('🔄 Current phrases count: ${_generatedPhrases.length}');
       
-      // Generate MORE phrases using the enhanced service method
       final moreAiPhrases = await _aiPhraseService.generateMorePhrasesForTopic(
         _currentTopic,
         _generatedPhrases,
       );
       
-      final morePhraseModels = _aiPhraseService.aiPhrasesToPhraseModels(moreAiPhrases);
+      final morePhraseModels = _aiPhraseService.aiPhrasesToPhraseModels(
+        aiPhrases: moreAiPhrases,
+        category: _currentTopic,
+      );
       
-      // Add the new phrases to the database
-      await _phraseService.addAiPhrases(morePhraseModels);
-      
-      // Get ALL phrases for this category (including the new ones)
-      final allCategoryPhrases = await _phraseService.getPhrasesForCategory(_currentTopic);
-      final allAiPhrases = allCategoryPhrases.where((p) => p.isAiGenerated).toList();
-      
-      stopwatch.stop();
-      debugPrint('⏱️ MORE phrase generation took: ${stopwatch.elapsedMilliseconds}ms');
-      debugPrint('📊 Added ${moreAiPhrases.length} new phrases. Total: ${allAiPhrases.length} AI phrases for $_currentTopic');
+      for (final model in morePhraseModels) {
+        await _phraseService.addAiPhrase(model);
+      }
       
       setState(() {
-        _generatedPhrases = allAiPhrases;
         _isGeneratingMore = false;
       });
 
@@ -211,28 +202,14 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
 
   Future<void> _toggleFavorite(PhraseModel phrase) async {
     try {
-      final wasInFavorites = phrase.isFavorite;
-      
-      debugPrint('🔄 Toggling favorite for: ${phrase.english}');
-      debugPrint('🔄 Current state: ${wasInFavorites ? "IS favorite" : "NOT favorite"}');
-      
       await _phraseService.toggleFavorite(phrase.id);
       
-      final index = _generatedPhrases.indexWhere((p) => p.id == phrase.id);
-      if (index != -1) {
-        setState(() {
-          _generatedPhrases[index].isFavorite = !wasInFavorites;
-        });
-        
-        debugPrint('🔄 Updated UI state to: ${_generatedPhrases[index].isFavorite ? "IS favorite" : "NOT favorite"}');
-      }
-      
       if (mounted) {
-        final isNowInFavorites = !wasInFavorites;
+        final isNowFavorite = !_favoriteIds.contains(phrase.id);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(isNowInFavorites ? '💚 Added to favorites!' : '💔 Removed from favorites'),
-            backgroundColor: isNowInFavorites 
+            content: Text(isNowFavorite ? '💚 Added to favorites!' : '💔 Removed from favorites'),
+            backgroundColor: isNowFavorite 
               ? Theme.of(context).colorScheme.primary 
               : Colors.grey[600],
             duration: const Duration(seconds: 2),
@@ -262,6 +239,10 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
     
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         title: Row(
           children: [
             const Icon(Icons.auto_awesome, color: Colors.white),
@@ -555,7 +536,17 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
             ],
             
             Expanded(
-              child: _buildResultsSection(),
+              child: StreamBuilder<List<PhraseModel>>(
+                stream: _phraseService.allPhrasesStream,
+                builder: (context, snapshot) {
+                  if (snapshot.hasData) {
+                    _generatedPhrases = snapshot.data!
+                        .where((p) => p.isAiGenerated && p.category.toLowerCase() == _currentTopic.toLowerCase())
+                        .toList();
+                  }
+                  return _buildResultsSection();
+                },
+              ),
             ),
           ],
         ),

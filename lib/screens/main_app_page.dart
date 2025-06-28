@@ -7,6 +7,7 @@ import '../services/user_data_service.dart';
 import 'chat_screen.dart';
 import 'phrasebook_screen.dart';
 import 'flashcards_screen.dart';
+import '../widgets/sync_status_bar.dart';
 import 'loggedin_settings_screen.dart';
 
 class MainAppPage extends StatefulWidget {
@@ -34,33 +35,21 @@ class _MainAppPageState extends State<MainAppPage> {
 
 /* ──────────────────── bottom-bar state (unchanged) ──────────────────── */
 
-  int _selectedIndex = -1; // –1 = Home
+  int _selectedIndex = 0;
 
-  late final List<Widget> _navPages = [
-    ChatScreen(onBackToHome: _returnToHome),
-    PhrasebookScreen(onBackToHome: _returnToHome),
-    FlashcardsScreen(onBackToHome: _returnToHome),
-  ];
-
-  Widget get _body =>
-      _selectedIndex == -1 ? _homeContent() : _navPages[_selectedIndex];
-
-  void _onItemTapped(int i) => setState(() => _selectedIndex = i);
-
-  Color _selectedNavColor(BuildContext ctx) =>
-    _selectedIndex == -1                       // home?
-        ? Theme.of(ctx).colorScheme.onSurface.withOpacity(.6)   // same as unselected
-        : Theme.of(ctx).colorScheme.primary;   // normal highlight
-
-  void _returnToHome() => setState(() => _selectedIndex = -1);
-
-/* ──────────────────── lifecycle ──────────────────── */
+  late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
     _currentUser = _authService.currentUser;
     _loadUserData();
+    _pages = <Widget>[
+      const _HomeScreen(),
+      ChatScreen(onBackToHome: () => _onItemTapped(0)),
+      PhrasebookScreen(onBackToHome: () => _onItemTapped(0)),
+      FlashcardsScreen(onBackToHome: () => _onItemTapped(0)),
+    ];
   }
 
   Future<void> _loadUserData() async {
@@ -236,30 +225,23 @@ class _MainAppPageState extends State<MainAppPage> {
                 ),
               ]),
               PopupMenuButton<String>(
-                icon: const Icon(Icons.account_circle,
-                    size: 32, color: Colors.white),
-                onSelected: (v) => v == 'settings'
-                    ? Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const SettingsScreen()))
-                    : _signOut(),
+                icon: const Icon(Icons.account_circle, size: 32, color: Colors.white),
+                onSelected: (value) {
+                  if (value == 'settings') {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+                  } else if (value == 'signout') {
+                    _signOut();
+                  }
+                },
                 itemBuilder: (_) => [
                   const PopupMenuItem(
-                      value: 'settings',
-                      child: Row(children: [
-                        Icon(Icons.settings),
-                        SizedBox(width: 8),
-                        Text('Settings')
-                      ])),
+                    value: 'settings',
+                    child: Row(children: [Icon(Icons.settings), SizedBox(width: 8), Text('Settings')]),
+                  ),
                   const PopupMenuItem(
-                      value: 'signout',
-                      child: Row(children: [
-                        Icon(Icons.logout, color: Colors.red),
-                        SizedBox(width: 8),
-                        Text('Sign Out',
-                            style: TextStyle(color: Colors.red))
-                      ])),
+                    value: 'signout',
+                    child: Row(children: [Icon(Icons.logout, color: Colors.red), SizedBox(width: 8), Text('Sign Out', style: TextStyle(color: Colors.red))]),
+                  ),
                 ],
               )
             ]),
@@ -297,27 +279,212 @@ class _MainAppPageState extends State<MainAppPage> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: _body,
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex < 0 ? 0 : _selectedIndex,
-        onTap: _onItemTapped,
-        selectedItemColor: _selectedNavColor(context),
-        unselectedItemColor:
-            Theme.of(context).colorScheme.onSurface.withOpacity(.6),
-
-        selectedFontSize: _selectedIndex == -1 ? 12 : 14,
-        unselectedFontSize: 12,
-        
-        items: const [
-          // Still 3 tabs for now ── Home tab decision comes later
-          BottomNavigationBarItem(
-              icon: Icon(Icons.chat_outlined), label: 'Chat'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.auto_stories_outlined), label: 'Phrasebook'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.diamond_outlined), label: 'Flashcards'),
+      body: Column(
+        children: [
+          Expanded(
+            child: IndexedStack(
+              index: _selectedIndex,
+              children: _pages,
+            ),
+          ),
+          SyncStatusBar(),
         ],
       ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: Theme.of(context).primaryColor,
+        unselectedItemColor: Colors.grey[600],
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.chat_outlined), label: 'Chat'),
+          BottomNavigationBarItem(icon: Icon(Icons.auto_stories_outlined), label: 'Phrasebook'),
+          BottomNavigationBarItem(icon: Icon(Icons.diamond_outlined), label: 'Flashcards'),
+        ],
+      ),
+    );
+  }
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+}
+
+// -------------------
+// New Home Screen Widget
+// -------------------
+class _HomeScreen extends StatefulWidget {
+  const _HomeScreen();
+
+  @override
+  State<_HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<_HomeScreen> {
+  final AuthService _authService = AuthService();
+  final UserDataService _userDataService = UserDataService();
+  User? _currentUser;
+  Map<String, dynamic> _userStats = {};
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentUser = _authService.currentUser;
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    if (!mounted) return;
+    final stats = await _userDataService.getUserStats();
+    if (mounted) {
+      setState(() {
+        _userStats = stats;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _signOut() async {
+    try {
+      await _authService.signOut();
+    } catch (e) {
+      // Error handling
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    
+    final Color primaryTeal = Theme.of(context).colorScheme.primary;
+    final double statusBar = MediaQuery.of(context).padding.top;
+
+    return Column(children: [
+      Container(
+        width: double.infinity,
+        color: primaryTeal,
+        padding: EdgeInsets.only(top: statusBar + 15, bottom: 10, left: 20, right: 20),
+        child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Welcome back!', style: TextStyle(color: Colors.white70, fontSize: 16)),
+                Text(
+                  _currentUser?.displayName ?? _currentUser?.email?.split('@')[0] ?? 'User',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white, fontSize: 24),
+                ),
+              ]),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.account_circle, size: 32, color: Colors.white),
+                onSelected: (value) {
+                  if (value == 'settings') {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+                  } else if (value == 'signout') {
+                    _signOut();
+                  }
+                },
+                itemBuilder: (_) => [
+                  const PopupMenuItem(
+                    value: 'settings',
+                    child: Row(children: [Icon(Icons.settings), SizedBox(width: 8), Text('Settings')]),
+                  ),
+                  const PopupMenuItem(
+                    value: 'signout',
+                    child: Row(children: [Icon(Icons.logout, color: Colors.red), SizedBox(width: 8), Text('Sign Out', style: TextStyle(color: Colors.red))]),
+                  ),
+                ],
+              )
+            ]),
+      ),
+      Expanded(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            SizedBox(height: MediaQuery.of(context).size.height * .02),
+            _buildStreakPanel(context),
+            _buildDailyTaskPanel(context),
+            const SizedBox(height: 20),
+          ]),
+        ),
+      ),
+    ]);
+  }
+  
+  Widget _buildStreakPanel(BuildContext ctx) {
+    return Container(
+      margin: const EdgeInsets.only(top: 20),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Theme.of(ctx).colorScheme.primary.withAlpha(25),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Theme.of(ctx).colorScheme.primary, width: 2),
+      ),
+      child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+        Expanded(
+          child: Column(children: [
+            Text('${_userStats['currentStreak'] ?? 0} 🔥', style: TextStyle(fontSize: 35, fontWeight: FontWeight.bold, color: Theme.of(ctx).colorScheme.primary)),
+            const SizedBox(height: 4),
+            Text('Current Streak', style: TextStyle(fontSize: 20, color: Theme.of(ctx).colorScheme.primary), textAlign: TextAlign.center),
+          ]),
+        ),
+        Container(height: 55, width: 1, color: Theme.of(ctx).colorScheme.primary),
+        Expanded(
+          child: Column(children: [
+            Text('${_userStats['longestStreak'] ?? 0} 🏆', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Theme.of(ctx).colorScheme.primary)),
+            const SizedBox(height: 4),
+            Text('Longest Streak', style: TextStyle(fontSize: 13, color: Theme.of(ctx).colorScheme.primary), textAlign: TextAlign.center),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildDailyTaskPanel(BuildContext ctx) {
+    const taskTitle = 'Learn 10 new vocabulary words';
+    const taskDescription = 'Focus on common verbs and nouns related to travel.';
+    const isDone = false;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 25, bottom: 15),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: isDone ? Colors.green.withAlpha(20) : Theme.of(ctx).colorScheme.secondary.withAlpha(25),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(
+          color: isDone ? Colors.green.withAlpha(64) : Theme.of(ctx).colorScheme.secondary,
+          width: 2,
+        ),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Expanded(
+            child: Text("Today's Task ✨", style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: isDone ? Colors.green[700] : Theme.of(ctx).colorScheme.secondary)),
+          ),
+          Icon(isDone ? Icons.check_circle : Icons.radio_button_unchecked, color: isDone ? Colors.green[700] : Theme.of(ctx).colorScheme.secondary, size: 26)
+        ]),
+        const SizedBox(height: 10),
+        Text(taskTitle, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Theme.of(ctx).colorScheme.onSurface)),
+        const SizedBox(height: 5),
+        Text(taskDescription, style: TextStyle(fontSize: 13, color: Theme.of(ctx).colorScheme.onSurface)),
+        if (!isDone)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                  style: TextButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.secondary.withAlpha(33), foregroundColor: Theme.of(ctx).colorScheme.secondary),
+                  onPressed: () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => const PhrasebookScreen())),
+                  child: const Text('Start Task')),
+            ),
+          ),
+      ]),
     );
   }
 }

@@ -18,22 +18,16 @@ class AuthService {
   // Sign in with Google
   Future<UserCredential?> signInWithGoogle() async {
     try {
-      print('Starting Google Sign-In process...');
-      print('Platform: Android ${defaultTargetPlatform.name}');
-      
       // Check if Google Play services is available
       final bool isAvailable = await _googleSignIn.isSignedIn();
-      print('Google Sign-In service check completed. Previously signed in: $isAvailable');
       
       // Clear any existing sign-in state
       await _googleSignIn.signOut();
-      print('Cleared previous Google Sign-In state...');
       
       print('Attempting to sign in with Google...');
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       
       if (googleUser == null) {
-        print('Google Sign-In was cancelled by user or failed to complete');
         return null;
       }
       
@@ -47,7 +41,6 @@ class AuthService {
       print('ID token: ${googleAuth.idToken != null ? "Present (${googleAuth.idToken!.substring(0, 20)}...)" : "Missing"}');
       
       if (googleAuth.accessToken == null || googleAuth.idToken == null) {
-        print('ERROR: Missing authentication tokens');
         throw Exception('Failed to get authentication tokens from Google. This might be due to Google Play Services issues on the emulator.');
       }
       
@@ -70,11 +63,6 @@ class AuthService {
       return result;
       
     } on FirebaseAuthException catch (e) {
-      print('FirebaseAuthException during Google Sign-In:');
-      print('Code: ${e.code}');
-      print('Message: ${e.message}');
-      print('Details: ${e.toString()}');
-      
       // Handle network-specific errors
       if (e.code == 'network-request-failed') {
         throw Exception('Network error: Please check your internet connection and try again.');
@@ -84,11 +72,6 @@ class AuthService {
       
       rethrow;
     } on PlatformException catch (e) {
-      print('PlatformException during Google Sign-In:');
-      print('Code: ${e.code}');
-      print('Message: ${e.message}');
-      print('Details: ${e.details}');
-      
       // Handle specific Google Sign-In errors
       if (e.code == 'sign_in_failed') {
         throw Exception('Google Sign-In failed. On emulators, make sure you have Google Play Services installed and updated. Consider testing on a real device.');
@@ -102,9 +85,6 @@ class AuthService {
       
       rethrow;
     } catch (e, stackTrace) {
-      print('Unexpected error during Google Sign-In: $e');
-      print('Stack trace: $stackTrace');
-      
       // Handle timeout errors
       if (e.toString().contains('TimeoutException') || e.toString().contains('timed out')) {
         throw Exception('Connection timeout. Please check your internet connection and try again. If using an emulator, consider testing on a real device.');
@@ -122,20 +102,13 @@ class AuthService {
   // Sign out
   Future<void> signOut() async {
     try {
-      print('Starting sign out process...');
-      
       // Sign out from Google
-      print('Signing out from Google Sign-In...');
       await _googleSignIn.signOut();
-      print('Google Sign-In cleared');
       
       // Sign out from Firebase
-      print('Signing out from Firebase...');
       await _auth.signOut();
       
-      print('Sign out completed successfully');
     } catch (e) {
-      print('Error signing out: $e');
       rethrow;
     }
   }

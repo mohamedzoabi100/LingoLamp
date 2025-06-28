@@ -65,6 +65,10 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         title: const Text('Chat History'),
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,

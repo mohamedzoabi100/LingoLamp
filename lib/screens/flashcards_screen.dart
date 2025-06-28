@@ -2,13 +2,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../models/flashcard_model.dart';
+import '../models/spaced_repetition_model.dart';
+import '../models/study_card_model.dart';
+import '../services/study_service.dart';
 import '../utils/database_helper.dart';
 import '../services/user_data_service.dart';
+import 'flashcards/browse_flashcards_list.dart';
+import 'spaced_repetition_study_screen.dart';
 
 class FlashcardsScreen extends StatefulWidget {
-
-  final VoidCallback? onBackToHome;             // ★ add
-  const FlashcardsScreen({Key? key, this.onBackToHome}) : super(key: key);
+  final VoidCallback? onBackToHome;
+  const FlashcardsScreen({super.key, this.onBackToHome});
 
   @override
   State<FlashcardsScreen> createState() => _FlashcardsScreenState();
@@ -17,22 +21,32 @@ class FlashcardsScreen extends StatefulWidget {
 class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerProviderStateMixin {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
   final UserDataService _userDataService = UserDataService();
-  List<Flashcard> _flashcards = [];
-  List<Flashcard> _filteredFlashcards = [];
-  bool _isLoading = true;
-  String _currentFilter = 'all'; // all, favorites, easy, medium, hard
-  late TabController _tabController;
-  late FlutterTts _tts;
+  
+  List<StudyCard> _studyCards = [];
+  List<StudyCard> _reviewQueue = [];
+  int _currentIndex = 0;
+  bool _showAnswer = false;
+
+  // Legacy variables kept for backward compatibility with old code paths (will be removed later)
   bool _isStudyMode = false;
   int _currentStudyIndex = 0;
-  bool _showAnswer = false;
+
+  late TabController _tabController;
+  late FlutterTts _tts;
+
+  late Stream<List<Flashcard>> _flashcardsStream;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this, initialIndex: 0);
     _initTts();
-    _loadFlashcards();
+    _flashcardsStream = _dbHelper.flashcardsStream;
+
+    // Listen to flashcards changes to regenerate review queue
+    _flashcardsStream.listen((_) => _loadReviewQueue());
+
+    _loadReviewQueue();
   }
 
   @override
@@ -47,69 +61,23 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
     await _tts.setSpeechRate(0.5);
   }
 
-  Future<void> _loadFlashcards() async {
-    setState(() => _isLoading = true);
-    try {
-      List<Flashcard> flashcards = await _dbHelper.getAllFlashcards();
-      setState(() {
-        _flashcards = flashcards;
-        _applyFilter();
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading flashcards: $e')),
-        );
-      }
-    }
-  }
+  Future<void> _loadReviewQueue() async {
+    final flashcards = await _dbHelper.getAllFlashcards();
+    final spacedCards = await _dbHelper.getAllSpacedRepetitionCards();
 
-  void _applyFilter() {
-    switch (_currentFilter) {
-      case 'favorites':
-        _filteredFlashcards = _flashcards.where((f) => f.isFavorite).toList();
-        break;
-      case 'easy':
-        _filteredFlashcards = _flashcards.where((f) => f.difficulty == 1).toList();
-        break;
-      case 'medium':
-        _filteredFlashcards = _flashcards.where((f) => f.difficulty == 2).toList();
-        break;
-      case 'hard':
-        _filteredFlashcards = _flashcards.where((f) => f.difficulty == 3).toList();
-        break;
-      default:
-        _filteredFlashcards = List.from(_flashcards);
-    }
+    final studyCards = StudyService.createStudySession(flashcards, spacedCards);
+
+    setState(() {
+      _studyCards = studyCards;
+      _reviewQueue = studyCards;
+      _currentIndex = 0;
+      _showAnswer = false;
+    });
   }
 
   Future<void> _speakText(String text, String language) async {
     await _tts.setLanguage(language);
     await _tts.speak(text);
-  }
-
-  Future<void> _toggleFavorite(Flashcard flashcard) async {
-    final updatedFlashcard = flashcard.copyWith(isFavorite: !flashcard.isFavorite);
-    await _userDataService.updateFlashcard(updatedFlashcard);
-    _loadFlashcards();
-  }
-
-  Future<void> _updateDifficulty(Flashcard flashcard, int newDifficulty) async {
-    final updatedFlashcard = flashcard.copyWith(difficulty: newDifficulty);
-    await _userDataService.updateFlashcard(updatedFlashcard);
-    _loadFlashcards();
-  }
-
-  Future<void> _deleteFlashcard(Flashcard flashcard) async {
-    await _userDataService.deleteFlashcard(flashcard);
-    _loadFlashcards();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Flashcard deleted')),
-      );
-    }
   }
 
   Future<void> _markAsStudied(Flashcard flashcard) async {
@@ -120,14 +88,25 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
     await _userDataService.updateFlashcard(updatedFlashcard);
   }
 
-  void _startStudyMode() {
-    if (_filteredFlashcards.isNotEmpty) {
+  void _startStudyMode(List<Flashcard> filteredFlashcards) {
+    if (filteredFlashcards.isNotEmpty) {
       setState(() {
         _isStudyMode = true;
         _currentStudyIndex = 0;
         _showAnswer = false;
       });
     }
+  }
+
+  void _startSpacedRepetitionMode() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SpacedRepetitionStudyScreen(
+          onBackToHome: widget.onBackToHome,
+        ),
+      ),
+    ).then((_) => _loadReviewQueue()); // Reload study cards after returning
   }
 
   void _exitStudyMode() {
@@ -137,8 +116,8 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
     });
   }
 
-  void _nextCard() {
-    if (_currentStudyIndex < _filteredFlashcards.length - 1) {
+  void _nextCard(List<Flashcard> filteredFlashcards) {
+    if (_currentStudyIndex < filteredFlashcards.length - 1) {
       setState(() {
         _currentStudyIndex++;
         _showAnswer = false;
@@ -151,267 +130,135 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
     }
   }
 
-  Widget _buildFilterChips() {
+  Widget _buildReviewStats() {
+    final stats = StudyService.getStudyStats(_studyCards);
+    final dueCards = stats['dueCards'] as int;
+    final totalCards = stats['totalCards'] as int;
+    
     return Container(
-      height: 50,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: ListView(
-        scrollDirection: Axis.horizontal,
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor.withAlpha(25),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Theme.of(context).primaryColor.withAlpha(75)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildFilterChip('All', 'all'),
-          _buildFilterChip('Favorites', 'favorites'),
-          _buildFilterChip('Easy', 'easy'),
-          _buildFilterChip('Medium', 'medium'),
-          _buildFilterChip('Hard', 'hard'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterChip(String label, String filter) {
-    final isSelected = _currentFilter == filter;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: FilterChip(
-        label: Text(label),
-        selected: isSelected,
-        onSelected: (selected) {
-          setState(() {
-            _currentFilter = filter;
-            _applyFilter();
-          });
-        },
-        selectedColor: Theme.of(context).primaryColor.withOpacity(0.2),
-        checkmarkColor: Theme.of(context).primaryColor,
-      ),
-    );
-  }
-
-  Widget _buildFlashcardsList() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_filteredFlashcards.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.school_outlined,
-              size: 64,
-              color: Colors.grey[400],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _flashcards.isEmpty 
-                ? 'No flashcards yet!\nAdd some from your chat translations.'
-                : 'No flashcards match this filter.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 18,
-                color: Colors.grey[600],
+          Row(
+            children: [
+              Icon(Icons.analytics, color: Theme.of(context).primaryColor),
+              const SizedBox(width: 8),
+              Text(
+                'Study Statistics',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).primaryColor,
+                ),
               ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        _buildFilterChips(),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                '${_filteredFlashcards.length} flashcards',
-                style: Theme.of(context).textTheme.titleMedium,
+              _buildStatItem('Total Cards', totalCards.toString()),
+              _buildStatItem('Due Today', dueCards.toString()),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: dueCards > 0 ? _startSpacedRepetitionMode : null,
+                  icon: const Icon(Icons.schedule),
+                  label: Text('Review ($dueCards)'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: dueCards > 0 ? Colors.green : Colors.grey,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
               ),
-              if (_filteredFlashcards.isNotEmpty)
-                ElevatedButton.icon(
-                  onPressed: _startStudyMode,
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    // This needs access to the filtered list from StreamBuilder
+                    // We'll pass it down from the main build method.
+                  }, // Logic moved to where filtered list is available
                   icon: const Icon(Icons.quiz),
-                  label: const Text('Study'),
+                  label: const Text('Study All'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).primaryColor,
                     foregroundColor: Colors.white,
                   ),
                 ),
+              ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: _filteredFlashcards.length,
-            itemBuilder: (context, index) {
-              return _buildFlashcardTile(_filteredFlashcards[index]);
-            },
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[600],
           ),
         ),
       ],
     );
   }
 
-  Widget _buildFlashcardTile(Flashcard flashcard) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+  Widget _buildReviewMode() {
+    if (_reviewQueue.isEmpty) {
+      return Center(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              flashcard.originalText,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.volume_up),
-                            onPressed: () => _speakText(
-                              flashcard.originalText,
-                              flashcard.sourceLanguage,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              flashcard.translatedText,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.volume_up),
-                            onPressed: () => _speakText(
-                              flashcard.translatedText,
-                              flashcard.targetLanguage,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(
-                    flashcard.isFavorite ? Icons.favorite : Icons.favorite_border,
-                    color: flashcard.isFavorite ? Colors.red : null,
-                  ),
-                  onPressed: () => _toggleFavorite(flashcard),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                _buildDifficultyChips(flashcard),
-                const Spacer(),
-                Text(
-                  'Studied: ${flashcard.timesStudied}x',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'delete') {
-                      _deleteFlashcard(flashcard);
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Text('Delete'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+            Icon(Icons.check_circle, size: 64, color: Colors.green),
+            const SizedBox(height: 16),
+            const Text('No cards due for review!', style: TextStyle(fontSize: 18)),
+            const SizedBox(height: 8),
+            const Text('Great job keeping up with your studies!', style: TextStyle(fontSize: 14, color: Colors.grey)),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildDifficultyChips(Flashcard flashcard) {
-    return Row(
-      children: [
-        _buildDifficultyChip('Easy', 1, flashcard),
-        _buildDifficultyChip('Medium', 2, flashcard),
-        _buildDifficultyChip('Hard', 3, flashcard),
-      ],
-    );
-  }
-
-  Widget _buildDifficultyChip(String label, int difficulty, Flashcard flashcard) {
-    final isSelected = flashcard.difficulty == difficulty;
-    return Padding(
-      padding: const EdgeInsets.only(right: 4),
-      child: ChoiceChip(
-        label: Text(
-          label,
-          style: TextStyle(fontSize: 10),
-        ),
-        selected: isSelected,
-        onSelected: (selected) {
-          if (selected) {
-            _updateDifficulty(flashcard, difficulty);
-          }
-        },
-        selectedColor: _getDifficultyColor(difficulty).withOpacity(0.2),
-        labelStyle: TextStyle(
-          color: isSelected ? _getDifficultyColor(difficulty) : Colors.grey[600],
-        ),
-      ),
-    );
-  }
-
-  Color _getDifficultyColor(int difficulty) {
-    switch (difficulty) {
-      case 1: return Colors.green;
-      case 2: return Colors.orange;
-      case 3: return Colors.red;
-      default: return Colors.grey;
+      );
     }
-  }
 
-  Widget _buildStudyMode() {
-    if (_filteredFlashcards.isEmpty) return Container();
-
-    final flashcard = _filteredFlashcards[_currentStudyIndex];
+    final studyCard = _reviewQueue[_currentIndex];
+    final flashcard = studyCard.flashcard;
 
     return Scaffold(
       appBar: AppBar(
-        
-        title: Text('Study Mode (${_currentStudyIndex + 1}/${_filteredFlashcards.length})'),
+        title: Text('Review (${_currentIndex + 1}/${_reviewQueue.length})'),
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
         leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: _exitStudyMode,
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (widget.onBackToHome != null) {
+              widget.onBackToHome!();
+            } else {
+              Navigator.pop(context);
+            }
+          },
         ),
       ),
       backgroundColor: Colors.white,
@@ -455,10 +302,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
                           const SizedBox(height: 16),
                           IconButton(
                             icon: Icon(Icons.volume_up, size: 32, color: Theme.of(context).primaryColor),
-                            onPressed: () => _speakText(
-                              flashcard.originalText,
-                              flashcard.sourceLanguage,
-                            ),
+                            onPressed: () => _speakText(flashcard.originalText, flashcard.sourceLanguage),
                           ),
                           const SizedBox(height: 16),
                           Text(
@@ -516,32 +360,12 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
               const SizedBox(height: 32),
               if (_showAnswer)
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    ElevatedButton(
-                      onPressed: () {
-                        _markAsStudied(flashcard);
-                        _nextCard();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      ),
-                      child: const Text('Correct'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () {
-                        _markAsStudied(flashcard);
-                        _nextCard();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      ),
-                      child: const Text('Incorrect'),
-                    ),
+                    _buildReviewBtn('Again', Colors.red, ReviewQuality.again),
+                    _buildReviewBtn('Hard', Colors.orange, ReviewQuality.hard),
+                    _buildReviewBtn('Good', Colors.green, ReviewQuality.good),
+                    _buildReviewBtn('Easy', Colors.blue, ReviewQuality.easy),
                   ],
                 ),
             ],
@@ -551,46 +375,119 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (_isStudyMode) {
-      return _buildStudyMode();
+  Widget _buildReviewBtn(String label, Color color, ReviewQuality quality) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4.0),
+        child: ElevatedButton(
+          onPressed: () => _processReview(_reviewQueue[_currentIndex], quality),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: color,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+          ),
+          child: Text(label, textAlign: TextAlign.center),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _processReview(StudyCard card, ReviewQuality quality) async {
+    final updated = StudyService.processReview(card, quality);
+
+    // Persist changes
+    await _dbHelper.updateFlashcard(updated.flashcard);
+    if (updated.spacedRepetitionCard != null) {
+      if (updated.spacedRepetitionCard!.id != null) {
+        await _dbHelper.updateSpacedRepetitionCard(updated.spacedRepetitionCard!);
+      } else {
+        await _dbHelper.insertSpacedRepetitionCard(updated.spacedRepetitionCard!);
+      }
     }
 
-    return Scaffold(
-      appBar: AppBar(
-          leading: IconButton(               // ← add this block
-            icon: const Icon(Icons.arrow_back),
+    if (_currentIndex < _reviewQueue.length - 1) {
+      setState(() {
+        _currentIndex++;
+        _showAnswer = false;
+      });
+    } else {
+      _showSessionComplete();
+    }
+  }
+
+  void _showSessionComplete() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Session Complete! 🎉'),
+        actions: [
+          TextButton(
             onPressed: () {
-              if (widget.onBackToHome != null) {
-                widget.onBackToHome!();      // jump back to daily-task home
-              } else {
-                Navigator.pop(context);      // normal push-stack use
-              }
+              Navigator.of(context).pop();
+              _loadReviewQueue();
             },
-        ),
-        title: const Text('Flashcards'),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: const [
-            Tab(text: 'Study'),
-            Tab(text: 'All Cards'),
-          ],
-        ),
-      ),
-      backgroundColor: Colors.white,
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildStudyMode(),
-          _buildFlashcardsList(),
+            child: const Text('OK'),
+          ),
         ],
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<Flashcard>>(
+      stream: _flashcardsStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+
+        final allFlashcards = snapshot.data ?? [];
+        final filteredFlashcards = allFlashcards;
+
+        return DefaultTabController(
+          length: 2,
+          child: Scaffold(
+            appBar: AppBar(
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () {
+                  if (widget.onBackToHome != null) {
+                    widget.onBackToHome!();
+                  } else {
+                    Navigator.pop(context);
+                  }
+                },
+              ),
+              title: const Text('Flashcards'),
+              backgroundColor: Theme.of(context).primaryColor,
+              foregroundColor: Colors.white,
+              bottom: TabBar(
+                controller: _tabController,
+                indicatorColor: Colors.white,
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.white70,
+                tabs: const [
+                  Tab(text: 'Review'),
+                  Tab(text: 'Browse'),
+                ],
+              ),
+            ),
+            body: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildReviewMode(),
+                const BrowseFlashcardsList(),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

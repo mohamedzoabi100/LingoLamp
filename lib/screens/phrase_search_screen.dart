@@ -1,26 +1,38 @@
 //lib/screens/phrase_search_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import '../models/phrase_model.dart';
 import '../services/phrase_service.dart';
 
 class PhraseSearchScreen extends StatefulWidget {
-  const PhraseSearchScreen({super.key});
+  const PhraseSearchScreen({Key? key}) : super(key: key);
 
   @override
-  State<PhraseSearchScreen> createState() => _PhraseSearchScreenState();
+  _PhraseSearchScreenState createState() => _PhraseSearchScreenState();
 }
 
 class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
+  final PhraseService _phraseService = PhraseService();
   final TextEditingController _searchController = TextEditingController();
+  List<PhraseModel> _allPhrases = [];
+  List<PhraseModel> _filteredPhrases = [];
   late FlutterTts _tts;
   bool _ttsReady = false;
   String _searchQuery = '';
-  final PhraseService _phraseService = PhraseService();
   
   @override
   void initState() {
     super.initState();
     _initTts();
+    _phraseService.allPhrasesStream.listen((phrases) {
+      if (mounted) {
+        setState(() {
+          _allPhrases = phrases;
+          _filterPhrases();
+        });
+      }
+    });
+    _searchController.addListener(_filterPhrases);
   }
 
   Future<void> _initTts() async {
@@ -33,19 +45,15 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
     
     // Check available languages
     List<dynamic> languages = await _tts.getLanguages;
-    print("Available TTS languages: $languages");
     
     // Check available voices
     List<dynamic> voices = await _tts.getVoices;
-    print("Available TTS voices: $voices");
     
     // Set completion handler
     _tts.setCompletionHandler(() {
-      print("TTS completed");
     });
     
     _tts.setErrorHandler((msg) {
-      print("TTS Error: $msg");
     });
     
     setState(() => _ttsReady = true);
@@ -58,41 +66,44 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
     super.dispose();
   }
 
+  void _filterPhrases() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredPhrases = _allPhrases.where((phrase) {
+        return phrase.english.toLowerCase().contains(query) ||
+               phrase.spanish.toLowerCase().contains(query);
+      }).toList();
+    });
+  }
+
   Future<void> _speakSpanish(String text) async {
     if (_ttsReady) {
-      print("Attempting to speak Spanish: $text");
       try {
         // Stop any current speech
         await _tts.stop();
         
         // Try different Spanish language codes
         var result = await _tts.setLanguage('es-ES');
-        print("Set language es-ES result: $result");
         
         if (result == 1) {
           await _tts.speak(text);
         } else {
           // Try alternative Spanish codes
           result = await _tts.setLanguage('es-MX');
-          print("Set language es-MX result: $result");
           
           if (result == 1) {
             await _tts.speak(text);
           } else {
             result = await _tts.setLanguage('es-US');
-            print("Set language es-US result: $result");
             
             if (result == 1) {
               await _tts.speak(text);
             } else {
-              print("No Spanish language available, using default");
               await _tts.speak(text);
             }
           }
         }
       } catch (e) {
-        print("Spanish TTS Error: $e");
-        // Fallback to default
         await _tts.speak(text);
       }
     }
@@ -100,13 +111,11 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
 
   Future<void> _speakEnglish(String text) async {
     if (_ttsReady) {
-      print("Attempting to speak English: $text");
       try {
         // Stop any current speech
         await _tts.stop();
         
         var result = await _tts.setLanguage('en-US');
-        print("Set language en-US result: $result");
         
         if (result == 1) {
           await _tts.speak(text);
@@ -116,322 +125,52 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
           if (result == 1) {
             await _tts.speak(text);
           } else {
-            print("Using default language");
             await _tts.speak(text);
           }
         }
       } catch (e) {
-        print("English TTS Error: $e");
         await _tts.speak(text);
       }
     }
   }
 
-  Future<void> _toggleFavorite(PhraseModel phrase) async {
-    // First toggle the favorite status
-    await _phraseService.toggleFavorite(phrase.id);
-    
-    // Update the phrase object immediately for UI responsiveness
-    phrase.isFavorite = !phrase.isFavorite;
-    
-    // Show a snackbar to give user feedback
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            phrase.isFavorite 
-              ? '💚 Added to favorites' 
-              : 'Removed from favorites',
-          ),
-          duration: const Duration(seconds: 2),
-          backgroundColor: phrase.isFavorite 
-            ? Theme.of(context).colorScheme.primary
-            : Colors.grey[600],
-        ),
-      );
-      
-      // NO setState() call - let the StreamBuilder handle updates naturally
-      // The phrase object is already updated above, so the UI will reflect the change
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-    
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Search Phrases'),
-        backgroundColor: primaryColor,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text('Search Phrases'),
+        backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
       ),
-      backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Search bar
           Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey[300]!),
-              ),
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Search phrases in English or Spanish...',
-                  hintStyle: TextStyle(color: Colors.grey[600]),
-                  prefixIcon: Icon(
-                    Icons.search,
-                    color: primaryColor,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.all(8.0),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search English or Spanish...',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value.toLowerCase();
-                  });
-                },
               ),
             ),
           ),
-
-          // Search results
           Expanded(
-            child: _searchQuery.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.search,
-                          size: 64,
-                          color: Colors.grey[400],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Type to search phrases',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Search in English or Spanish',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : FutureBuilder<List<PhraseModel>>(
-                    future: _phraseService.searchPhrases(_searchQuery),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      
-                      if (snapshot.hasError) {
-                        return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                              const SizedBox(height: 16),
-                              Text('Error: ${snapshot.error}'),
-                            ],
-                          ),
-                        );
-                      }
-                      
-                      final phrases = snapshot.data ?? [];
-                      
-                      if (phrases.isEmpty) {
-                        return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.search_off,
-                                size: 64,
-                                color: Colors.grey[400],
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'No phrases found',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Try a different search term',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[500],
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }
-                      
-                      return ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: phrases.length,
-                        itemBuilder: (context, index) {
-                          return _buildPhraseCard(phrases[index]);
-                        },
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPhraseCard(PhraseModel phrase) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            spreadRadius: 0,
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Category badge only (no favorite button)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-              ),
-            ),
-            child: Text(
-              phrase.category,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-          ),
-          
-          // English section
-          GestureDetector(
-            onTap: () => _speakEnglish(phrase.english),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      'EN',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue[700],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      phrase.english,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ),
-                  Icon(
-                    Icons.volume_up_rounded,
-                    size: 24,
-                    color: Colors.blue[600],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          
-          // Divider
-          Container(
-            height: 1,
-            color: Colors.grey[200],
-          ),
-          
-          // Spanish section
-          GestureDetector(
-            onTap: () => _speakSpanish(phrase.spanish),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(16),
-                  bottomRight: Radius.circular(16),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      'ES',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.red[700],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      phrase.spanish,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ),
-                  Icon(
-                    Icons.volume_up_rounded,
-                    size: 24,
-                    color: Colors.red[600],
-                  ),
-                ],
-              ),
+            child: ListView.builder(
+              itemCount: _filteredPhrases.length,
+              itemBuilder: (context, index) {
+                final phrase = _filteredPhrases[index];
+                return ListTile(
+                  title: Text(phrase.english),
+                  subtitle: Text(phrase.spanish),
+                );
+              },
             ),
           ),
         ],

@@ -4,8 +4,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'phrase_service.dart';
+import 'sync_status_service.dart';
 import '../utils/database_helper.dart';
 import '../models/flashcard_model.dart';
+import '../models/spaced_repetition_model.dart';
 
 class UserDataService {
   static final UserDataService _instance = UserDataService._internal();
@@ -16,6 +18,7 @@ class UserDataService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
   final PhraseService _phraseService = PhraseService();
+  final SyncStatusService _syncStatusService = SyncStatusService();
 
   // 🚀 AUTO-SYNC & CLOUD POLLING - NO CIRCULAR DEPENDENCIES
   Timer? _syncMonitorTimer;
@@ -32,7 +35,6 @@ class UserDataService {
     if (_isMonitoring) return;
     
     _isMonitoring = true;
-    print('🚀 Started full sync monitoring + cloud polling');
     
     // Check for sync flags every 2 seconds (push to cloud)
     _syncMonitorTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
@@ -56,7 +58,6 @@ class UserDataService {
     _syncMonitorTimer = null;
     _cloudPollTimer = null;
     _isMonitoring = false;
-    print('🛑 Stopped all sync monitoring + cloud polling');
   }
 
   // 🔍 CHECK FOR SYNC FLAGS AND PUSH TO CLOUD
@@ -116,7 +117,7 @@ class UserDataService {
       bool hasUpdates = false;
       
       // Check favorites timestamp
-      if (cloudData.containsKey('favoritesLastModified')) {
+      if (cloudData.containsKey('favoritesLastModified') && cloudData['favoritesLastModified'] != null) {
         final cloudFavoritesTime = (cloudData['favoritesLastModified'] as Timestamp).millisecondsSinceEpoch;
         final localFavoritesTime = prefs.getInt('favorites_last_modified') ?? 0;
         
@@ -129,7 +130,7 @@ class UserDataService {
       }
       
       // 🎯 FIXED: Check AI phrases timestamp
-      if (cloudData.containsKey('aiPhrasesLastModified')) {
+      if (cloudData.containsKey('aiPhrasesLastModified') && cloudData['aiPhrasesLastModified'] != null) {
         final cloudAiPhrasesTime = (cloudData['aiPhrasesLastModified'] as Timestamp).millisecondsSinceEpoch;
         final localAiPhrasesTime = prefs.getInt('ai_phrases_last_modified') ?? 0;
         
@@ -143,7 +144,7 @@ class UserDataService {
       
       if (hasUpdates) {
         // Refresh phrase service to reflect cloud updates
-        await _phraseService.forceRefreshFavorites();
+        await _phraseService.forceRefreshFromDisk();
         print('✅ Applied cloud updates to local data');
       } else {
         print('✅ Local data is up to date');
@@ -219,17 +220,17 @@ class UserDataService {
       
       // Update local timestamps
       final prefs = await SharedPreferences.getInstance();
-      if (cloudData.containsKey('favoritesLastModified')) {
+      if (cloudData.containsKey('favoritesLastModified') && cloudData['favoritesLastModified'] != null) {
         final cloudFavoritesTime = (cloudData['favoritesLastModified'] as Timestamp).millisecondsSinceEpoch;
         await prefs.setInt('favorites_last_modified', cloudFavoritesTime);
       }
-      if (cloudData.containsKey('aiPhrasesLastModified')) {
+      if (cloudData.containsKey('aiPhrasesLastModified') && cloudData['aiPhrasesLastModified'] != null) {
         final cloudAiPhrasesTime = (cloudData['aiPhrasesLastModified'] as Timestamp).millisecondsSinceEpoch;
         await prefs.setInt('ai_phrases_last_modified', cloudAiPhrasesTime);
       }
       
       // Refresh phrase service
-      await _phraseService.forceRefreshFavorites();
+      await _phraseService.forceRefreshFromDisk();
       
       print('✅ Startup cloud sync completed');
     } catch (e) {
@@ -263,7 +264,7 @@ class UserDataService {
       await prefs.setStringList('ai_phrases', guestAiPhrases);
       
       // Force phrase service to reload with guest data
-      await _phraseService.forceRefreshFavorites();
+      await _phraseService.forceRefreshFromDisk();
       
       print('👤 Switched to GUEST context with ${guestFavorites.length} favorites and ${guestAiPhrases.length} AI phrases');
     } catch (e) {
@@ -293,7 +294,7 @@ class UserDataService {
       await prefs.setStringList('ai_phrases', signedInAiPhrases);
       
       // Force phrase service to reload with signed-in data
-      await _phraseService.forceRefreshFavorites();
+      await _phraseService.forceRefreshFromDisk();
       
       print('🔒 Switched to SIGNED-IN context with ${signedInFavorites.length} favorites and ${signedInAiPhrases.length} AI phrases');
     } catch (e) {
@@ -335,6 +336,7 @@ class UserDataService {
       // Save current flashcards as LATEST guest flashcards
       final flashcards = await _dbHelper.getAllFlashcards();
       final flashcardsJson = flashcards.map((f) => json.encode({
+        'uuid': f.uuid,
         'originalText': f.originalText,
         'translatedText': f.translatedText,
         'sourceLanguage': f.sourceLanguage,
@@ -392,6 +394,7 @@ class UserDataService {
         try {
           final data = json.decode(flashcardJson);
           final flashcard = Flashcard(
+            uuid: data['uuid'],
             originalText: data['originalText'],
             translatedText: data['translatedText'],
             sourceLanguage: data['sourceLanguage'] ?? 'en-US',
@@ -423,7 +426,7 @@ class UserDataService {
       print('🧹 Cleared signed-in specific storage');
       
       // Update phrase service to refresh favorites
-      await _phraseService.forceRefreshFavorites();
+      await _phraseService.forceRefreshFromDisk();
       
       print('✅ FORCE restored LATEST guest data successfully');
     } catch (e) {
@@ -478,42 +481,39 @@ class UserDataService {
   // Sync flashcards to cloud (PRESERVED EXACTLY AS WORKING)
   Future<void> syncFlashcardsToCloud() async {
     if (!isAuthenticated) return;
-    
+    _syncStatusService.updateStatus(SyncStatus.syncing);
     try {
-      final flashcards = await _dbHelper.getAllFlashcards();
+      final localFlashcards = await _dbHelper.getAllFlashcards();
+      final collection =
+          _firestore.collection('users').doc(userId).collection('flashcards');
+
+      // Get all cloud flashcard UUIDs first
+      final cloudQuery = await collection.get();
+      final cloudFlashcardUuids = cloudQuery.docs.map((doc) => doc.id).toSet();
+
       final batch = _firestore.batch();
-      
-      // Clear existing flashcards in cloud
-      final collection = _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('flashcards');
-      
-      final existingDocs = await collection.get();
-      for (final doc in existingDocs.docs) {
-        batch.delete(doc.reference);
+      final localFlashcardUuids = <String>{};
+
+      // Batch write all local flashcards to the cloud using UUID as document ID
+      for (final flashcard in localFlashcards) {
+        localFlashcardUuids.add(flashcard.uuid);
+        final docRef = collection.doc(flashcard.uuid);
+        batch.set(docRef, flashcard.toMap());
       }
-      
-      // Add current flashcards to cloud
-      for (final flashcard in flashcards) {
-        final docRef = collection.doc();
-        batch.set(docRef, {
-          'originalText': flashcard.originalText,
-          'translatedText': flashcard.translatedText,
-          'sourceLanguage': flashcard.sourceLanguage,
-          'targetLanguage': flashcard.targetLanguage,
-          'createdAt': flashcard.createdAt,
-          'lastStudied': flashcard.lastStudied,
-          'timesStudied': flashcard.timesStudied,
-          'difficulty': flashcard.difficulty,
-          'isFavorite': flashcard.isFavorite,
-        });
+
+      // Find UUIDs that are in the cloud but not locally, and delete them
+      final uuidsToDelete = cloudFlashcardUuids.difference(localFlashcardUuids);
+      for (final uuid in uuidsToDelete) {
+        final docRef = collection.doc(uuid);
+        batch.delete(docRef);
       }
-      
+
       await batch.commit();
-      print('Successfully synced ${flashcards.length} flashcards to cloud');
+      _syncStatusService.updateStatus(SyncStatus.synced);
+      print('☁️ Synced ${localFlashcards.length} flashcards to cloud. Deleted ${uuidsToDelete.length} stale cards.');
     } catch (e) {
-      print('Error syncing flashcards to cloud: $e');
+      _syncStatusService.updateStatus(SyncStatus.error);
+      print('❌ Error syncing flashcards to cloud: $e');
     }
   }
 
@@ -531,6 +531,7 @@ class UserDataService {
       final cloudFlashcards = querySnapshot.docs.map((doc) {
         final data = doc.data();
         return Flashcard(
+          uuid: doc.id,
           originalText: data['originalText'],
           translatedText: data['translatedText'],
           sourceLanguage: data['sourceLanguage'] ?? 'en-US',
@@ -552,6 +553,7 @@ class UserDataService {
         try {
           final data = json.decode(flashcardJson);
           final flashcard = Flashcard(
+            uuid: data['uuid'],
             originalText: data['originalText'],
             translatedText: data['translatedText'],
             sourceLanguage: data['sourceLanguage'] ?? 'en-US',
@@ -573,14 +575,12 @@ class UserDataService {
       
       // Add saved guest flashcards first
       for (final flashcard in savedGuestFlashcards) {
-        final key = '${flashcard.originalText}_${flashcard.translatedText}';
-        unionFlashcards[key] = flashcard;
+        unionFlashcards[flashcard.uuid] = flashcard;
       }
       
       // Add cloud flashcards (they take precedence if duplicate)
       for (final flashcard in cloudFlashcards) {
-        final key = '${flashcard.originalText}_${flashcard.translatedText}';
-        unionFlashcards[key] = flashcard;
+        unionFlashcards[flashcard.uuid] = flashcard;
       }
       
       // Clear database and insert union (this is the combined data for signed-in mode)
@@ -598,7 +598,7 @@ class UserDataService {
   // 🎯 FIXED: Sync favorites to cloud with timestamp
   Future<void> syncFavoritesToCloud() async {
     if (!isAuthenticated) return;
-    
+    _syncStatusService.updateStatus(SyncStatus.syncing);
     try {
       final prefs = await SharedPreferences.getInstance();
       final signedInFavorites = prefs.getStringList('signed_in_favorite_phrases') ?? [];
@@ -612,8 +612,10 @@ class UserDataService {
         'lastModified': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       
+      _syncStatusService.updateStatus(SyncStatus.synced);
       print('☁️ Synced ${signedInFavorites.length} SIGNED-IN favorites to cloud with timestamp');
     } catch (e) {
+      _syncStatusService.updateStatus(SyncStatus.error);
       print('❌ Error syncing favorites to cloud: $e');
     }
   }
@@ -734,7 +736,7 @@ class UserDataService {
   // 🎯 FIXED: Sync FULL AI phrase objects to cloud (not just IDs)
   Future<void> syncAiPhrasesToCloud() async {
     if (!isAuthenticated) return;
-    
+    _syncStatusService.updateStatus(SyncStatus.syncing);
     try {
       final prefs = await SharedPreferences.getInstance();
       
@@ -760,8 +762,10 @@ class UserDataService {
         'lastModified': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       
+      _syncStatusService.updateStatus(SyncStatus.synced);
       print('☁️ Synced ${signedInAiPhrasesData.length} full AI phrase objects to cloud with timestamp');
     } catch (e) {
+      _syncStatusService.updateStatus(SyncStatus.error);
       print('❌ Error syncing AI phrases to cloud: $e');
     }
   }
@@ -838,7 +842,7 @@ class UserDataService {
   // Perform full sync when user logs in (UNION guest + cloud data)
   Future<void> performFullSync() async {
     if (!isAuthenticated) return;
-    
+    _syncStatusService.updateStatus(SyncStatus.syncing);
     try {
       print('🔄 Starting full user data sync with UNION logic...');
       
@@ -887,10 +891,12 @@ class UserDataService {
       await performStartupCloudSync();
       
       // Update phrase service to reflect new favorites
-      await _phraseService.forceRefreshFavorites();
+      await _phraseService.forceRefreshFromDisk();
       
+      _syncStatusService.updateStatus(SyncStatus.synced);
       print('✅ Full user data sync completed with UNION logic + auto-sync + cloud polling started');
     } catch (e) {
+      _syncStatusService.updateStatus(SyncStatus.error);
       print('❌ Error during full sync: $e');
     }
   }
@@ -915,6 +921,7 @@ class UserDataService {
       // Save current flashcards to signed-in storage
       final flashcards = await _dbHelper.getAllFlashcards();
       final flashcardsJson = flashcards.map((f) => json.encode({
+        'uuid': f.uuid,
         'originalText': f.originalText,
         'translatedText': f.translatedText,
         'sourceLanguage': f.sourceLanguage,
@@ -1095,7 +1102,7 @@ class UserDataService {
       }
       
       // Force phrase service to reload favorites
-      await _phraseService.forceRefreshFavorites();
+      await _phraseService.forceRefreshFromDisk();
       
       // Trigger sync flag (auto-sync will handle it)
       await prefs.setBool('favorites_need_sync', true);
@@ -1111,7 +1118,7 @@ class UserDataService {
       }
       
       // Force phrase service to reload favorites
-      await _phraseService.forceRefreshFavorites();
+      await _phraseService.forceRefreshFromDisk();
       print('👤 Guest user added favorite - stays local');
     }
   }
@@ -1126,7 +1133,7 @@ class UserDataService {
       await prefs.setStringList('favorite_phrases', signedInFavorites); // Make active
       
       // Force phrase service to reload favorites
-      await _phraseService.forceRefreshFavorites();
+      await _phraseService.forceRefreshFromDisk();
       
       // Trigger sync flag (auto-sync will handle it)
       await prefs.setBool('favorites_need_sync', true);
@@ -1140,7 +1147,7 @@ class UserDataService {
       await prefs.setStringList('favorite_phrases', guestFavorites); // Make active
       
       // Force phrase service to reload favorites
-      await _phraseService.forceRefreshFavorites();
+      await _phraseService.forceRefreshFromDisk();
       print('👤 Guest user removed favorite - stays local');
     }
   }
@@ -1185,7 +1192,7 @@ class UserDataService {
     if (flashcard.id != null) {
       await _dbHelper.deleteFlashcardById(flashcard.id!);
     } else {
-      await _dbHelper.deleteFlashcard(flashcard.originalText, flashcard.translatedText);
+      await _dbHelper.deleteFlashcardByUuid(flashcard.uuid);
     }
     
     if (isAuthenticated) {
@@ -1206,6 +1213,7 @@ class UserDataService {
       final prefs = await SharedPreferences.getInstance();
       final flashcards = await _dbHelper.getAllFlashcards();
       final flashcardsJson = flashcards.map((f) => json.encode({
+        'uuid': f.uuid,
         'originalText': f.originalText,
         'translatedText': f.translatedText,
         'sourceLanguage': f.sourceLanguage,
@@ -1220,6 +1228,58 @@ class UserDataService {
       print('💾 Updated signed-in flashcards storage');
     } catch (e) {
       print('❌ Error updating signed-in flashcards: $e');
+    }
+  }
+
+  // === NEW: Spaced-repetition sync ===
+
+  Future<void> syncSrsToCloud() async {
+    if (!isAuthenticated) return;
+    try {
+      final spacedCards = await _dbHelper.getAllSpacedRepetitionCards();
+      final flashcards = await _dbHelper.getAllFlashcards();
+      final uuidById = {for (final f in flashcards) f.id!: f.uuid};
+
+      final col = _firestore.collection('users').doc(userId).collection('spacedRepetition');
+
+      final cloudDocs = await col.get();
+      final cloudIds = cloudDocs.docs.map((d) => d.id).toSet();
+
+      final batch = _firestore.batch();
+      final localIds = <String>{};
+
+      for (final card in spacedCards) {
+        final uuid = uuidById[card.flashcardId];
+        if (uuid == null) continue; // Orphan
+        localIds.add(uuid);
+        batch.set(col.doc(uuid), card.toFirestore());
+      }
+
+      for (final id in cloudIds.difference(localIds)) {
+        batch.delete(col.doc(id));
+      }
+
+      await batch.commit();
+    } catch (e) {
+      print('❌ Error syncing SRS to cloud: $e');
+    }
+  }
+
+  Future<void> syncSrsFromCloud() async {
+    if (!isAuthenticated) return;
+    try {
+      final snapshot = await _firestore.collection('users').doc(userId).collection('spacedRepetition').get();
+      if (snapshot.docs.isEmpty) return;
+
+      for (final doc in snapshot.docs) {
+        final uuid = doc.id;
+        final flash = await _dbHelper.getFlashcardByUuid(uuid);
+        if (flash == null) continue;
+        final srs = SpacedRepetitionCard.fromFirestore(doc.data(), flash.id!);
+        await _dbHelper.upsertSpacedRepetitionCard(srs);
+      }
+    } catch (e) {
+      print('❌ Error syncing SRS from cloud: $e');
     }
   }
 }

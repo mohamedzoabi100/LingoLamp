@@ -39,9 +39,9 @@ dependencies:
   cupertino_icons: ^1.0.8
 
   # ===== OFFLINE LANGUAGE FEATURES =====
-  google_mlkit_translation: ^0.13.0  # Offline translation (English ↔ Spanish)
+  #google_mlkit_translation: ^0.13.0  # Offline translation (English ↔ Spanish)
   flutter_tts: ^3.8.5                # Text-to-speech (works offline)
-  permission_handler: ^11.3.0        # Microphone permission for STT
+ # permission_handler: ^11.3.0        # Microphone permission for STT
 
   # ===== LOCAL DATA STORAGE =====
   shared_preferences: ^2.2.2         # For favorites storage (offline)
@@ -58,7 +58,9 @@ dependencies:
   google_generative_ai: ^0.4.0
   http: ^1.2.1    
   flutter_markdown: ^0.7.1  
-
+  flutter_dotenv: ^5.1.0
+  provider: ^6.1.2
+  uuid: ^4.4.0
 
 dev_dependencies:
   flutter_test:
@@ -68,8 +70,9 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^5.0.0
+  flutter_lints: ^2.0.0
   flutter_launcher_icons: ^0.13.1
+  rxdart: ^0.27.7
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

@@ -1,6 +1,7 @@
 //lib/screens/favorites_screen.dart - ORIGINAL VERSION + CLEAR ALL
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import '../models/phrase_model.dart';
 import '../services/phrase_service.dart';
 import '../services/user_data_service.dart';
 
@@ -36,19 +37,15 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     
     // Check available languages
     List<dynamic> languages = await _tts.getLanguages;
-    print("Available TTS languages: $languages");
     
     // Check available voices
     List<dynamic> voices = await _tts.getVoices;
-    print("Available TTS voices: $voices");
     
     // Set completion handler
     _tts.setCompletionHandler(() {
-      print("TTS completed");
     });
     
     _tts.setErrorHandler((msg) {
-      print("TTS Error: $msg");
     });
     
     setState(() => _ttsReady = true);
@@ -62,12 +59,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   Future<void> _speakSpanish(String text) async {
     if (_ttsReady) {
-      print("Attempting to speak Spanish: $text");
       try {
         await _tts.stop();
         
         var result = await _tts.setLanguage('es-ES');
-        print("Set language es-ES result: $result");
         
         if (result == 1) {
           await _tts.speak(text);
@@ -76,12 +71,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           if (result == 1) {
             await _tts.speak(text);
           } else {
-            print("No Spanish language available, using default");
-            await _tts.speak(text);
+          await _tts.speak(text);
           }
         }
       } catch (e) {
-        print("Spanish TTS Error: $e");
         await _tts.speak(text);
       }
     }
@@ -89,12 +82,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   Future<void> _speakEnglish(String text) async {
     if (_ttsReady) {
-      print("Attempting to speak English: $text");
       try {
         await _tts.stop();
         
         var result = await _tts.setLanguage('en-US');
-        print("Set language en-US result: $result");
         
         if (result == 1) {
           await _tts.speak(text);
@@ -103,22 +94,16 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           if (result == 1) {
             await _tts.speak(text);
           } else {
-            print("Using default language");
-            await _tts.speak(text);
+          await _tts.speak(text);
           }
         }
       } catch (e) {
-        print("English TTS Error: $e");
         await _tts.speak(text);
       }
     }
   }
 
   Future<void> _removeFromFavorites(PhraseModel phrase) async {
-    print('🔄 === REMOVE FROM FAVORITES (UI) ===');
-    print('🔄 Phrase: "${phrase.english}"');
-    print('🔄 Using UserDataService.removeFavorite()');
-    
     await _userDataService.removeFavorite(phrase.id);
     
     if (mounted) {
@@ -133,7 +118,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             label: 'Undo',
             textColor: Colors.white,
             onPressed: () async {
-              print('🔄 Undo remove - using UserDataService.addFavorite()');
               await _userDataService.addFavorite(phrase.id);
               setState(() {});
             },
@@ -141,14 +125,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         ),
       );
     }
-    
-    print('✅ === REMOVE FROM FAVORITES COMPLETE ===');
   }
 
   // 🔥 NEW: Clear All Favorites functionality
   Future<void> _clearAllFavorites() async {
-    print('🧹 === CLEARING ALL FAVORITES ===');
-    
     try {
       // Get current favorites first
       final currentFavorites = await _phraseService.getFavoritePhrases();
@@ -170,10 +150,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           ),
         );
       }
-      
-      print('✅ Cleared ${currentFavorites.length} favorites');
     } catch (e) {
-      print('❌ Error clearing favorites: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -232,14 +209,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       grouped[normalizedCategory]!.add(phrase);
     }
     
-    print('📊 Grouped ${phrases.length} phrases into ${grouped.length} categories:');
-    for (final entry in grouped.entries) {
-      print('📊 Category "${entry.key}": ${entry.value.length} phrases');
-      for (final phrase in entry.value) {
-        print('📊   - "${phrase.english}" (original category: "${phrase.category}")');
-      }
-    }
-    
     return grouped;
   }
 
@@ -295,10 +264,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-    
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         title: Row(
           children: [
             Icon(Icons.star, color: Colors.white),
@@ -306,7 +277,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             const Text('Favorite Phrases'),
           ],
         ),
-        backgroundColor: primaryColor,
+        backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
         elevation: 2,
         // 🔥 NEW: Add Clear All action to AppBar
@@ -335,46 +306,17 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         ],
       ),
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: FutureBuilder<List<PhraseModel>>(
-        future: _phraseService.getFavoritePhrases(),
+      body: StreamBuilder<List<PhraseModel>>(
+        stream: _phraseService.favoritePhrasesStream,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text('Loading your favorites...'),
-                ],
-              ),
-            );
+          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
           }
-          
           if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text('Error: ${snapshot.error}'),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {});
-                    },
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            );
+            return Center(child: Text('Error: ${snapshot.error}'));
           }
-          
           final phrases = snapshot.data ?? [];
-          
+
           if (phrases.isEmpty) {
             return Center(
               child: Column(
@@ -443,10 +385,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                       margin: EdgeInsets.only(bottom: 12, top: categoryIndex == 0 ? 0 : 24),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: categoryColor.withOpacity(0.1),
+                        color: categoryColor.withAlpha(25),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: categoryColor.withOpacity(0.3),
+                          color: categoryColor.withAlpha(75),
                           width: 2,
                         ),
                       ),
@@ -455,7 +397,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: categoryColor.withOpacity(0.2),
+                              color: categoryColor.withAlpha(50),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Icon(
@@ -478,7 +420,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: categoryColor.withOpacity(0.2),
+                              color: categoryColor.withAlpha(50),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -533,7 +475,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                               ),
                               TextButton(
                                 style: TextButton.styleFrom(
-                                  foregroundColor: primaryColor,
+                                  foregroundColor: Theme.of(context).colorScheme.primary,
                                 ),
                                 child: const Text('Remove', style: TextStyle(fontSize: 14)),
                                 onPressed: () => Navigator.of(dialogContext).pop(true),
@@ -551,7 +493,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                       padding: const EdgeInsets.only(right: 20),
                       margin: const EdgeInsets.only(bottom: 12),
                       decoration: BoxDecoration(
-                        color: primaryColor,
+                        color: Theme.of(context).colorScheme.primary,
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: const Row(

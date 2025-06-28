@@ -1,6 +1,7 @@
 // lib/services/ai_chat_service.dart
 // ** FINAL VERSION with your preferred detailed prompt **
 
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import '../config/api_keys.dart';
@@ -52,21 +53,33 @@ class AiChatService {
 
   Future<String> sendMessage(String text) async {
     if (_chatSession == null) {
+      debugPrint('[AI] Starting new chat session');
       startChat();
     }
+    debugPrint('[AI] sendMessage called with text: "$text"');
+    debugPrint('[AI] Using API key: ' + geminiApiKey.substring(0, 8) + '...');
     try {
-      debugPrint('Sending message to AI: "$text"');
-      final response = await _chatSession!.sendMessage(Content.text(text));
+      debugPrint('[AI] Sending message to Gemini API...');
+      final response = await _chatSession!.sendMessage(Content.text(text))
+          .timeout(const Duration(seconds: 30), onTimeout: () {
+        debugPrint('[AI] Gemini API response timed out after 30 seconds');
+        throw TimeoutException('AI response timed out after 30 seconds');
+      });
+      debugPrint('[AI] Gemini API response received');
       final aiResponse = response.text;
-
+      debugPrint('[AI] Gemini API response text: ${aiResponse ?? "<null>"}');
       if (aiResponse == null || aiResponse.isEmpty) {
+        debugPrint('[AI] Empty or null response from Gemini API');
         return "I'm sorry, I couldn't process that. Could you try rephrasing?";
       }
       return aiResponse;
+    } on TimeoutException {
+      debugPrint('[AI] Gemini API response timed out (caught in catch)');
+      return 'Sorry, I\'m taking too long to respond. Please try again.';
     } catch (e, s) {
-      debugPrint('Error sending message to AI: $e');
-      debugPrint('STACK TRACE: $s');
-      return 'Sorry, I\'m having trouble connecting. Please check your internet connection and try again.';
+      debugPrint('[AI] Error sending message to Gemini API: $e');
+      debugPrint('[AI] Stack trace: $s');
+      return "Sorry, something went wrong. Please try again later.";
     }
   }
 }
