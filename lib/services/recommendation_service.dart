@@ -6,6 +6,7 @@ import '../utils/database_helper.dart';
 import 'phrase_service.dart';
 import '../models/chat_message_model.dart';
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class RecommendationService {
   static final RecommendationService _instance = RecommendationService._internal();
@@ -16,6 +17,9 @@ class RecommendationService {
   final PhraseService _phraseService = PhraseService();
 
   StreamSubscription? _subscription;
+  
+  // 🆕 Track dismissed recommendations to prevent reappearing
+  Set<String> _dismissedTerms = {};
 
   // Simple English stop-word list; extend per language as needed
   static const Set<String> _stopWords = {
@@ -26,6 +30,9 @@ class RecommendationService {
   };
 
   Future<void> init() async {
+    // 🆕 Load dismissed recommendations from storage
+    await _loadDismissedRecommendations();
+    
     // Combine favorites stream + chat stream and run algorithm after small debounce
     _subscription = Rx.combineLatest2<List<dynamic>, List<dynamic>, int>(
       _phraseService.favoritePhrasesStream,
@@ -38,6 +45,44 @@ class RecommendationService {
 
   Future<void> dispose() async {
     await _subscription?.cancel();
+  }
+
+  // 🆕 Load dismissed recommendations from SharedPreferences
+  Future<void> _loadDismissedRecommendations() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final dismissedList = prefs.getStringList('dismissed_recommendations') ?? [];
+      _dismissedTerms = dismissedList.toSet();
+      print('📱 Loaded ${_dismissedTerms.length} dismissed recommendations');
+    } catch (e) {
+      print('❌ Error loading dismissed recommendations: $e');
+      _dismissedTerms = {};
+    }
+  }
+
+  // 🆕 Save dismissed recommendations to SharedPreferences
+  Future<void> _saveDismissedRecommendations() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('dismissed_recommendations', _dismissedTerms.toList());
+      print('💾 Saved ${_dismissedTerms.length} dismissed recommendations');
+    } catch (e) {
+      print('❌ Error saving dismissed recommendations: $e');
+    }
+  }
+
+  // 🆕 Mark a recommendation as dismissed
+  Future<void> dismissRecommendation(String term) async {
+    _dismissedTerms.add(term.toLowerCase());
+    await _saveDismissedRecommendations();
+    print('🚫 Dismissed recommendation: $term');
+  }
+
+  // 🆕 Clear all dismissed recommendations (for testing)
+  Future<void> clearDismissedRecommendations() async {
+    _dismissedTerms.clear();
+    await _saveDismissedRecommendations();
+    print('🧹 Cleared all dismissed recommendations');
   }
 
   Future<void> _recalculateRecommendations() async {
@@ -53,7 +98,16 @@ class RecommendationService {
 
     void _addToken(String token, String context, String source) {
       final lower = token.toLowerCase();
-      if (lower.length < 2 || !_looksEnglish(lower) || _stopWords.contains(lower) || existingTerms.contains(lower)) return;
+      
+      // 🆕 Skip if dismissed or doesn't meet criteria
+      if (lower.length < 2 || 
+          !_looksEnglish(lower) || 
+          _stopWords.contains(lower) || 
+          existingTerms.contains(lower) ||
+          _dismissedTerms.contains(lower)) { // 🆕 NEW: Skip dismissed terms
+        return;
+      }
+      
       final entry = stats.putIfAbsent(lower, () => _TokenStats(token: lower));
       entry.count += 1;
       entry.context = context; // keep latest context snippet
@@ -106,11 +160,12 @@ class RecommendationService {
       await _db.upsertRecommendedFlashcard(rec);
     }
 
-    // Delete obsolete recommendations (Spanish leftovers)
+    // 🆕 IMPROVED: Delete obsolete recommendations (including dismissed ones)
     final existingRecs = await _db.getAllRecommendedFlashcards();
     for (final r in existingRecs) {
-      if (!stats.containsKey(r.term.toLowerCase())) {
+      if (!stats.containsKey(r.term.toLowerCase()) || _dismissedTerms.contains(r.term.toLowerCase())) {
         await _db.deleteRecommended(r.id!);
+        print('🗑️ Deleted obsolete/dismissed recommendation: ${r.term}');
       }
     }
   }
