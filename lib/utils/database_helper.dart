@@ -446,6 +446,17 @@ class DatabaseHelper {
     return maps.isNotEmpty;
   }
 
+  Future<bool> flashcardExistsByOriginalText(String originalText) async {
+    Database db = await instance.database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      tableFlashcards,
+      where: '$colFlashcardOriginalText = ?',
+      whereArgs: [originalText],
+      limit: 1,
+    );
+    return maps.isNotEmpty;
+  }
+
   // === SPACED REPETITION METHODS ===
   
   Future<int> insertSpacedRepetitionCard(SpacedRepetitionCard card) async {
@@ -599,6 +610,17 @@ class DatabaseHelper {
       tableRecommended,
       where: '$colRecommendedId = ?',
       whereArgs: [id],
+    );
+    _onRecommendedChanged();
+    return result;
+  }
+
+  Future<int> deleteRecommendedByTerm(String term) async {
+    Database db = await instance.database;
+    final result = await db.delete(
+      tableRecommended,
+      where: '$colRecommendedTerm = ?',
+      whereArgs: [term],
     );
     _onRecommendedChanged();
     return result;

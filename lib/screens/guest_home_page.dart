@@ -16,11 +16,20 @@ class _GuestHomePageState extends State<GuestHomePage> {
 /* ──────────────────────────  bottom-nav state  ────────────────────────── */
 
   int _selectedIndex = -1; // –1 = Home
+  int? _currentConversationId;
 
   List<Widget> get _navPages => [
-  ChatScreen(onBackToHome: _returnToHome),
-  PhrasebookScreen(onBackToHome: _returnToHome),
-  FlashcardsScreen(onBackToHome: _returnToHome),
+    ChatScreen(
+      onBackToHome: _returnToHome,
+      conversationId: _currentConversationId,
+      onConversationIdChanged: (id) {
+        setState(() {
+          _currentConversationId = id;
+        });
+      },
+    ),
+    PhrasebookScreen(onBackToHome: _returnToHome),
+    FlashcardsScreen(onBackToHome: _returnToHome),
   ];
 
   Widget get _body =>

@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:rxdart/rxdart.dart';
 import '../models/phrase_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import './xp_event_tracker.dart';
+import './user_data_service.dart';
 
 class PhraseService {
   static final PhraseService _instance = PhraseService._internal();
@@ -101,8 +103,19 @@ class PhraseService {
   Future<void> toggleFavorite(String phraseId) async {
     if (_favoriteIds.contains(phraseId)) {
       _favoriteIds.remove(phraseId);
+      final aiPhrasesJson = _aiPhrases.map((p) => jsonEncode(p.toJson())).toList();
+      await UserDataService().saveAiPhrasesLocally(aiPhrasesJson);
+      UserDataService().scheduleAiPhrasesSync();
+      debugPrint('[SYNC] AI phrases sync scheduled after remove');
     } else {
       _favoriteIds.add(phraseId);
+      final aiPhrasesJson = _aiPhrases.map((p) => jsonEncode(p.toJson())).toList();
+      await UserDataService().saveAiPhrasesLocally(aiPhrasesJson);
+      UserDataService().scheduleAiPhrasesSync();
+      debugPrint('[SYNC] AI phrases sync scheduled after add');
+      // Award XP only when adding to favourites
+      final xpTracker = XPEventTracker();
+      xpTracker.addXP(XPEventTracker.favoriteAdded, 'Phrase added to favourites');
     }
     await _saveFavorites();
     _updateStreams();
@@ -112,6 +125,10 @@ class PhraseService {
     _aiPhrases.removeWhere((p) => p.id == phrase.id);
     _aiPhrases.add(phrase);
     await _saveAiPhrases();
+    final aiPhrasesJson = _aiPhrases.map((p) => jsonEncode(p.toJson())).toList();
+    await UserDataService().saveAiPhrasesLocally(aiPhrasesJson);
+    UserDataService().scheduleAiPhrasesSync();
+    debugPrint('[SYNC] AI phrases sync scheduled after add');
     _updateStreams();
   }
   

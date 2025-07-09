@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/phrase_model.dart';
 import 'ai_chat_service.dart';
+import 'xp_event_tracker.dart';
 
 class AiPhraseService {
   static final AiPhraseService _instance = AiPhraseService._internal();
@@ -87,10 +88,15 @@ class AiPhraseService {
           if (response != null && response.isNotEmpty) {
             // 🆕 Improved parsing with better error handling
             final phrase = _parsePhraseResponse(response);
-            if (phrase != null) {
-              print('✅ AI phrase generated successfully: ${phrase.english}');
-              return phrase;
-            }
+                      if (phrase != null) {
+            print('✅ AI phrase generated successfully: ${phrase.english}');
+            
+            // Award XP for generating a new phrase
+            final xpTracker = XPEventTracker();
+            xpTracker.addXP(XPEventTracker.phraseLearned, 'New phrase generated');
+            
+            return phrase;
+          }
           }
           
           print('⚠️ Attempt $attempt: Invalid response format');

@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:async';
+import 'dart:io';
 import 'phrase_service.dart';
 import 'sync_status_service.dart';
 import '../utils/database_helper.dart';
@@ -36,19 +37,8 @@ class UserDataService {
     
     _isMonitoring = true;
     
-    // Check for sync flags every 2 seconds (push to cloud)
-    _syncMonitorTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-      if (isAuthenticated) {
-        _checkAndPerformAutoSync();
-      }
-    });
-    
-    // 🆕 Poll cloud for updates every 10 seconds (pull from cloud)
-    _cloudPollTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
-      if (isAuthenticated) {
-        _pollCloudForUpdates();
-      }
-    });
+    // 🆕 REMOVED: Aggressive auto-sync timer - now only syncs on user actions
+    // Sync happens automatically when user performs actions (add flashcard, complete review, etc.)
   }
 
   // 🛑 STOP ALL MONITORING
@@ -65,6 +55,16 @@ class UserDataService {
     if (!isAuthenticated) return;
     
     try {
+      // Check network connectivity first
+      try {
+        final result = await InternetAddress.lookup('google.com');
+        if (result.isEmpty || result[0].rawAddress.isEmpty) {
+          return; // Skip sync if no internet
+        }
+      } catch (e) {
+        return; // Skip sync if no internet
+      }
+      
       final prefs = await SharedPreferences.getInstance();
       
       // Check if favorites need sync
@@ -101,9 +101,28 @@ class UserDataService {
     if (!isAuthenticated) return;
     
     try {
+      // Check network connectivity first
+      try {
+        final result = await InternetAddress.lookup('google.com');
+        if (result.isEmpty || result[0].rawAddress.isEmpty) {
+          print('🌐 No internet connection - skipping cloud poll');
+          return;
+        }
+      } catch (e) {
+        print('🌐 No internet connection - skipping cloud poll');
+        return;
+      }
+      
       print('🔍 Polling cloud for updates from other devices...');
       
-      final doc = await _firestore.collection('users').doc(userId).get();
+      // Add timeout to prevent hanging - reduced from 5 to 3 seconds
+      final doc = await _firestore.collection('users').doc(userId).get().timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {
+          print('⏰ Cloud polling timed out - skipping this cycle');
+          throw TimeoutException('Cloud polling timed out');
+        },
+      );
       
       if (!doc.exists) {
         print('📭 No cloud data found');
@@ -150,8 +169,11 @@ class UserDataService {
         print('✅ Local data is up to date');
       }
       
+    } on TimeoutException {
+      print('⏰ Cloud polling timed out - will retry later');
     } catch (e) {
       print('❌ Error polling cloud for updates: $e');
+      // Don't let network errors crash the app - just log and continue
     }
   }
 
@@ -205,7 +227,26 @@ class UserDataService {
     try {
       print('🚀 Performing startup cloud sync...');
       
-      final doc = await _firestore.collection('users').doc(userId).get();
+      // Check network connectivity first
+      try {
+        final result = await InternetAddress.lookup('google.com');
+        if (result.isEmpty || result[0].rawAddress.isEmpty) {
+          print('🌐 No internet - skipping startup cloud sync');
+          return;
+        }
+      } catch (_) {
+        print('🌐 No internet - skipping startup cloud sync');
+        return;
+      }
+      
+      // Add timeout to prevent hanging on startup
+      final doc = await _firestore.collection('users').doc(userId).get().timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {
+          print('⏰ Startup cloud sync timed out - continuing without cloud data');
+          throw TimeoutException('Startup cloud sync timed out');
+        },
+      );
       
       if (!doc.exists) {
         print('📭 No cloud data found on startup');
@@ -233,8 +274,11 @@ class UserDataService {
       await _phraseService.forceRefreshFromDisk();
       
       print('✅ Startup cloud sync completed');
+    } on TimeoutException {
+      print('⏰ Startup cloud sync timed out - app will continue with local data');
     } catch (e) {
       print('❌ Error in startup cloud sync: $e');
+      // Don't let cloud sync errors prevent app startup
     }
   }
 
@@ -852,34 +896,42 @@ class UserDataService {
       // STEP 2: Switch to signed-in context
       await _switchToSignedInContext();
       
-      // STEP 3: UNION guest data with cloud data
-      await Future.wait([
-        saveUserProfile(),
-        syncFlashcardsFromCloud(),  // UNION guest + cloud flashcards
-        syncFavoritesFromCloud(),   // UNION guest + cloud favorites
-        syncAiPhrasesFromCloud(),   // UNION guest + cloud AI phrases
-        syncChatHistoryFromCloud(), // UNION guest + cloud conversations
-      ]).timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          print('⏰ Sync from cloud timed out after 15 seconds, continuing...');
-          return <void>[];
-        },
-      );
+      // STEP 3: UNION guest data with cloud data (with timeout)
+      try {
+        await Future.wait([
+          saveUserProfile(),
+          syncFlashcardsFromCloud(),  // UNION guest + cloud flashcards
+          syncFavoritesFromCloud(),   // UNION guest + cloud favorites
+          syncAiPhrasesFromCloud(),   // UNION guest + cloud AI phrases
+          syncChatHistoryFromCloud(), // UNION guest + cloud conversations
+        ]).timeout(
+          const Duration(seconds: 15),
+          onTimeout: () {
+            print('⏰ Sync from cloud timed out after 15 seconds, continuing...');
+            return <void>[];
+          },
+        );
+      } catch (e) {
+        print('⚠️ Cloud sync failed, continuing with local data: $e');
+      }
       
-      // STEP 4: Save the merged data back to cloud
-      await Future.wait([
-        syncFlashcardsToCloud(),
-        syncFavoritesToCloud(),
-        syncAiPhrasesToCloud(),     // Sync AI phrases to cloud
-        syncChatHistoryToCloud(),
-      ]).timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          print('⏰ Sync to cloud timed out after 15 seconds, continuing...');
-          return <void>[];
-        },
-      );
+      // STEP 4: Save the merged data back to cloud (with timeout)
+      try {
+        await Future.wait([
+          syncFlashcardsToCloud(),
+          syncFavoritesToCloud(),
+          syncAiPhrasesToCloud(),     // Sync AI phrases to cloud
+          syncChatHistoryToCloud(),
+        ]).timeout(
+          const Duration(seconds: 15),
+          onTimeout: () {
+            print('⏰ Sync to cloud timed out after 15 seconds, continuing...');
+            return <void>[];
+          },
+        );
+      } catch (e) {
+        print('⚠️ Cloud sync failed, continuing with local data: $e');
+      }
       
       // STEP 5: IMPORTANT - Save current union data as "signed_in" data
       await _saveSignedInData();
@@ -887,8 +939,8 @@ class UserDataService {
       // STEP 6: 🚀 Start auto-sync monitoring + cloud polling
       startSyncMonitoring();
       
-      // STEP 7: 🆕 Perform startup cloud sync (get latest from other devices)
-      await performStartupCloudSync();
+      // 🆕 REMOVED: Startup cloud sync - app starts immediately with local data
+      // Cloud sync happens automatically when user performs actions
       
       // Update phrase service to reflect new favorites
       await _phraseService.forceRefreshFromDisk();
@@ -898,6 +950,7 @@ class UserDataService {
     } catch (e) {
       _syncStatusService.updateStatus(SyncStatus.error);
       print('❌ Error during full sync: $e');
+      // Don't let sync errors prevent app from working
     }
   }
 
@@ -1092,32 +1145,25 @@ class UserDataService {
 
   Future<void> addFavorite(String phraseId) async {
     if (isAuthenticated) {
-      // 🔒 SIGNED-IN MODE: Update signed-in favorites and sync to cloud
       final prefs = await SharedPreferences.getInstance();
       final signedInFavorites = prefs.getStringList('signed_in_favorite_phrases') ?? [];
       if (!signedInFavorites.contains(phraseId)) {
         signedInFavorites.add(phraseId);
-        await prefs.setStringList('signed_in_favorite_phrases', signedInFavorites);
-        await prefs.setStringList('favorite_phrases', signedInFavorites); // Make active
+        await saveFavoritesLocally(signedInFavorites);
       }
-      
-      // Force phrase service to reload favorites
       await _phraseService.forceRefreshFromDisk();
-      
-      // Trigger sync flag (auto-sync will handle it)
       await prefs.setBool('favorites_need_sync', true);
       print('🔒 Signed-in user added favorite - flagged for sync');
+      scheduleFavoritesSync();
+      print('[SYNC] Favorites sync scheduled after add');
     } else {
-      // 👤 GUEST MODE: Update guest favorites only
       final prefs = await SharedPreferences.getInstance();
       final guestFavorites = prefs.getStringList('guest_favorite_phrases') ?? [];
       if (!guestFavorites.contains(phraseId)) {
         guestFavorites.add(phraseId);
         await prefs.setStringList('guest_favorite_phrases', guestFavorites);
-        await prefs.setStringList('favorite_phrases', guestFavorites); // Make active
+        await prefs.setStringList('favorite_phrases', guestFavorites);
       }
-      
-      // Force phrase service to reload favorites
       await _phraseService.forceRefreshFromDisk();
       print('👤 Guest user added favorite - stays local');
     }
@@ -1125,28 +1171,21 @@ class UserDataService {
 
   Future<void> removeFavorite(String phraseId) async {
     if (isAuthenticated) {
-      // 🔒 SIGNED-IN MODE: Update signed-in favorites and sync to cloud
       final prefs = await SharedPreferences.getInstance();
       final signedInFavorites = prefs.getStringList('signed_in_favorite_phrases') ?? [];
       signedInFavorites.remove(phraseId);
-      await prefs.setStringList('signed_in_favorite_phrases', signedInFavorites);
-      await prefs.setStringList('favorite_phrases', signedInFavorites); // Make active
-      
-      // Force phrase service to reload favorites
+      await saveFavoritesLocally(signedInFavorites);
       await _phraseService.forceRefreshFromDisk();
-      
-      // Trigger sync flag (auto-sync will handle it)
       await prefs.setBool('favorites_need_sync', true);
       print('🔒 Signed-in user removed favorite - flagged for sync');
+      scheduleFavoritesSync();
+      print('[SYNC] Favorites sync scheduled after remove');
     } else {
-      // 👤 GUEST MODE: Update guest favorites only
       final prefs = await SharedPreferences.getInstance();
       final guestFavorites = prefs.getStringList('guest_favorite_phrases') ?? [];
       guestFavorites.remove(phraseId);
       await prefs.setStringList('guest_favorite_phrases', guestFavorites);
-      await prefs.setStringList('favorite_phrases', guestFavorites); // Make active
-      
-      // Force phrase service to reload favorites
+      await prefs.setStringList('favorite_phrases', guestFavorites);
       await _phraseService.forceRefreshFromDisk();
       print('👤 Guest user removed favorite - stays local');
     }
@@ -1168,22 +1207,24 @@ class UserDataService {
 
   Future<void> addFlashcard(Flashcard flashcard) async {
     await _dbHelper.insertFlashcard(flashcard);
-    
+    print('[SYNC] addFlashcard called');
     if (isAuthenticated) {
       // When signed in, also save to cloud AND update signed-in storage
-      await syncFlashcardsToCloud();
+      scheduleFlashcardSync();
       await _updateSignedInFlashcards();
+      print('[SYNC] Flashcard sync scheduled after add');
     }
     // If guest mode, data will be automatically saved as latest guest data on next login
   }
 
   Future<void> updateFlashcard(Flashcard flashcard) async {
     await _dbHelper.updateFlashcard(flashcard);
-    
+    print('[SYNC] updateFlashcard called');
     if (isAuthenticated) {
       // When signed in, also save to cloud AND update signed-in storage
-      await syncFlashcardsToCloud();
+      scheduleFlashcardSync();
       await _updateSignedInFlashcards();
+      print('[SYNC] Flashcard sync scheduled after update');
     }
     // If guest mode, data will be automatically saved as latest guest data on next login
   }
@@ -1194,11 +1235,12 @@ class UserDataService {
     } else {
       await _dbHelper.deleteFlashcardByUuid(flashcard.uuid);
     }
-    
+    print('[SYNC] removeFlashcard called');
     if (isAuthenticated) {
       // When signed in, also save to cloud AND update signed-in storage
-      await syncFlashcardsToCloud();
+      scheduleFlashcardSync();
       await _updateSignedInFlashcards();
+      print('[SYNC] Flashcard sync scheduled after remove');
     }
     // If guest mode, data will be automatically saved as latest guest data on next login
   }
@@ -1281,5 +1323,101 @@ class UserDataService {
     } catch (e) {
       print('❌ Error syncing SRS from cloud: $e');
     }
+  }
+
+  Timer? _chatSyncDebounce;
+  static const int _maxChatConversations = 20;
+
+  // Call this after any chat change
+  void scheduleChatHistorySync() {
+    _chatSyncDebounce?.cancel();
+    _chatSyncDebounce = Timer(const Duration(seconds: 2), () {
+      unawaited(syncChatHistoryToCloud());
+    });
+  }
+
+  // Overwrite local chat save to keep only latest 20 conversations
+  Future<void> saveConversationLocally(Map<String, dynamic> conversations) async {
+    // Keep only the latest 20 by timestamp (assuming each conversation has a timestamp field)
+    final sorted = Map.fromEntries(
+      conversations.entries.toList()
+        ..sort((a, b) {
+          final aTime = a.value['lastMessageTimestamp'] ?? 0;
+          final bTime = b.value['lastMessageTimestamp'] ?? 0;
+          return bTime.compareTo(aTime);
+        })
+    );
+    final limited = Map<String, dynamic>.fromEntries(sorted.entries.take(_maxChatConversations));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('conversations', json.encode(limited));
+  }
+
+  Timer? _flashcardSyncDebounce;
+  static const int _maxFlashcards = 20;
+
+  // Call this after any flashcard change
+  void scheduleFlashcardSync() {
+    _flashcardSyncDebounce?.cancel();
+    _flashcardSyncDebounce = Timer(const Duration(seconds: 2), () {
+      unawaited(syncFlashcardsToCloud());
+    });
+  }
+
+  // Overwrite local flashcard save to keep only latest 20
+  Future<void> saveFlashcardsLocally(List<Flashcard> flashcards) async {
+    final sorted = List<Flashcard>.from(flashcards)
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final limited = sorted.take(_maxFlashcards).toList();
+    final prefs = await SharedPreferences.getInstance();
+    final flashcardsJson = limited.map((f) => json.encode({
+      'uuid': f.uuid,
+      'originalText': f.originalText,
+      'translatedText': f.translatedText,
+      'sourceLanguage': f.sourceLanguage,
+      'targetLanguage': f.targetLanguage,
+      'difficulty': f.difficulty,
+      'createdAt': f.createdAt.toIso8601String(),
+      'lastStudied': f.lastStudied.toIso8601String(),
+      'timesStudied': f.timesStudied,
+      'isFavorite': f.isFavorite,
+    })).toList();
+    await prefs.setStringList('signed_in_flashcards', flashcardsJson);
+  }
+
+  Timer? _favoritesSyncDebounce;
+  Timer? _aiPhrasesSyncDebounce;
+  static const int _maxFavorites = 20;
+  static const int _maxAiPhrases = 20;
+
+  // Call this after any favorites change
+  void scheduleFavoritesSync() {
+    _favoritesSyncDebounce?.cancel();
+    _favoritesSyncDebounce = Timer(const Duration(seconds: 2), () {
+      unawaited(syncFavoritesToCloud());
+    });
+  }
+
+  // Call this after any AI phrases change
+  void scheduleAiPhrasesSync() {
+    _aiPhrasesSyncDebounce?.cancel();
+    _aiPhrasesSyncDebounce = Timer(const Duration(seconds: 2), () {
+      unawaited(syncAiPhrasesToCloud());
+    });
+  }
+
+  // Overwrite local favorites save to keep only latest 20
+  Future<void> saveFavoritesLocally(List<String> favorites) async {
+    final limited = favorites.take(_maxFavorites).toList();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('signed_in_favorite_phrases', limited);
+    await prefs.setStringList('favorite_phrases', limited);
+  }
+
+  // Overwrite local AI phrases save to keep only latest 20
+  Future<void> saveAiPhrasesLocally(List<String> aiPhrases) async {
+    final limited = aiPhrases.take(_maxAiPhrases).toList();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('signed_in_ai_phrases', limited);
+    await prefs.setStringList('ai_phrases', limited);
   }
 }

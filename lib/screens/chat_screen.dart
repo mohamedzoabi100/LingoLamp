@@ -16,6 +16,8 @@ import '../models/conversation_model.dart';
 import '../models/flashcard_model.dart';
 import '../models/phrase_model.dart';
 import 'chat_history_screen.dart';
+import '../services/xp_event_tracker.dart';
+import '../services/user_data_service.dart';
 
 const targetLangCode = 'es-ES';
 
@@ -23,7 +25,8 @@ class ChatScreen extends StatefulWidget {
   final VoidCallback? onBackToHome;
 
   final int? conversationId;
-  const ChatScreen({Key? key, this.conversationId, this.onBackToHome})
+  final void Function(int)? onConversationIdChanged;
+  const ChatScreen({Key? key, this.conversationId, this.onBackToHome, this.onConversationIdChanged})
       : super(key: key);
 
 
@@ -76,6 +79,18 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(covariant ChatScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.conversationId != oldWidget.conversationId && widget.conversationId != null) {
+      debugPrint('[CHAT] didUpdateWidget: conversationId changed to ${widget.conversationId}');
+      _currentConversationId = widget.conversationId;
+      _loadConversationAndMessages(_currentConversationId!).then((_) {
+        if (mounted) setState(() { _isResponding = false; });
+      });
+    }
+  }
+
   Widget _buildBubbleButton(IconData icon, String label, VoidCallback onPressed) {
     final primaryColor = Theme.of(context).colorScheme.primary;
     return InkWell(
@@ -121,6 +136,7 @@ class _ChatScreenState extends State<ChatScreen> {
           : gen_ai.Content.model([gen_ai.TextPart(msg.text)]));
     }
     _aiChatService.startChat(history: history);
+    if (!mounted) return;
     setState(() {
       _messages.clear();
       _messages.addAll(dbMessages);
@@ -136,6 +152,9 @@ class _ChatScreenState extends State<ChatScreen> {
       Conversation newConvo = Conversation(title: convoTitle, createdAt: now, lastMessageTimestamp: now);
       _currentConversationId = await _dbHelper.insertConversation(newConvo);
       _currentConversation = await _dbHelper.getConversation(_currentConversationId!);
+      if (widget.onConversationIdChanged != null) {
+        widget.onConversationIdChanged!(_currentConversationId!);
+      }
       for (int i = 0; i < _messages.length; i++) {
         if (_messages[i].conversationId == -1) {
           final oldMsg = _messages[i];
@@ -155,51 +174,46 @@ class _ChatScreenState extends State<ChatScreen> {
     if (text.isEmpty || _isResponding) return;
     _inputController.clear();
     FocusScope.of(context).unfocus();
-
+    debugPrint('[CHAT] User submitted: $text');
     final userMessage = model.ChatMessage(
       conversationId: _currentConversationId ?? -1,
       text: text,
       isUserMessage: true,
       timestamp: DateTime.now(),
     );
+    if (!mounted) return;
     setState(() { _messages.add(userMessage); _isResponding = true; });
     _scrollToBottom();
-    
-    // The new, correct code for _handleSubmittedText
-    await _ensureConversationExists();
-
-    // After ensuring the conversation exists, we now have a valid _currentConversationId.
-    // We create a new ChatMessage object here with the correct ID to save to the database.
-    final messageToSave = model.ChatMessage(
+    try {
+      await _ensureConversationExists();
+      final messageToSave = model.ChatMessage(
         conversationId: _currentConversationId!,
         text: userMessage.text,
-        isUserMessage: userMessage.isUserMessage,
-        timestamp: userMessage.timestamp);
-        
-    await _dbHelper.insertMessage(messageToSave);
-    
-    // Get the raw response from the AI
-    final aiResponseText = await _aiChatService.sendMessage(text);
-    debugPrint("AI RAW RESPONSE: '$aiResponseText'");
-    
-    // Create the ChatMessage that will be stored in the database and displayed
-    final aiMessage = model.ChatMessage(
-      conversationId: _currentConversationId!,
-      text: aiResponseText, // Store the FULL, raw response
-      isUserMessage: false,
-      timestamp: DateTime.now(),
-      originalQuery: text, // Store the user's query that prompted this response
-    );
-    
-    // Save the full message to the database
-    await _dbHelper.insertMessage(aiMessage);
-    
-    // Add the exact same message to the UI list and trigger a rebuild
-    setState(() {
-      _messages.add(aiMessage);
-      _isResponding = false;
-    });
-    _scrollToBottom();
+        isUserMessage: true,
+        timestamp: userMessage.timestamp,
+      );
+      await _dbHelper.insertMessage(messageToSave);
+      debugPrint('[CHAT] Message saved to DB');
+      final aiResponseText = await _aiChatService.sendMessage(messageToSave.text);
+      debugPrint('[CHAT] AI response: $aiResponseText');
+      final aiMessage = model.ChatMessage(
+        conversationId: _currentConversationId!,
+        text: aiResponseText,
+        isUserMessage: false,
+        timestamp: DateTime.now(),
+        originalQuery: messageToSave.text,
+      );
+      await _dbHelper.insertMessage(aiMessage);
+      await _loadConversationAndMessages(_currentConversationId!);
+      if (mounted) {
+        setState(() { _isResponding = false; });
+        _scrollToBottom();
+      }
+    } catch (e, st) {
+      debugPrint('[CHAT] Error in _handleSubmittedText: $e\n$st');
+      if (!mounted) return;
+      setState(() { _isResponding = false; });
+    }
   }
 
   // In _ChatScreenState, REPLACE this function
@@ -225,6 +239,14 @@ class _ChatScreenState extends State<ChatScreen> {
       isFavorite: false,            // ← Add this line
     );
     await _dbHelper.insertFlashcard(flashcard);
+
+    // Remove from recommendations if it exists there
+    await _dbHelper.deleteRecommendedByTerm(originalText);
+
+    // Award XP for creating flashcard from chat
+    final xpTracker = XPEventTracker();
+    xpTracker.addXP(XPEventTracker.flashcardCreatedFromChat, 'Flashcard created from chat');
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Added to flashcards! 📚'),
@@ -323,7 +345,7 @@ class _ChatScreenState extends State<ChatScreen> {
         Expanded(
           child: TextField(
             controller: _inputController,
-            onSubmitted: (_) => _handleSubmittedText(),
+            // Removed onSubmitted to avoid double submission
             textInputAction: TextInputAction.send,
             decoration: InputDecoration(
               hintText: 'Ask Lingo anything...',
@@ -428,9 +450,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
     // 3️⃣ Fallback "The Spanish word for X is **Y**."
     final visSentence = RegExp(
-      r'The Spanish (?:word|translation) for .*?["“]?([^"”]+?)["”]? .*?\*\*(.+?)\*\*',
+      r'The Spanish (?:word|translation) for "?([^"]+)"? is \*\*([^*]+)\*\*',
       caseSensitive: false,
     ).firstMatch(text);
+
     if (visSentence != null) {
       return FlashcardData(
           front: visSentence.group(1)!.trim(),

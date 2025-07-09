@@ -2,6 +2,7 @@ import '../models/flashcard_model.dart';
 import '../models/spaced_repetition_model.dart';
 import '../models/study_card_model.dart';
 import 'spaced_repetition_service.dart';
+import 'xp_event_tracker.dart';
 
 class StudyService {
   /// Create a study session with cards that are due for review
@@ -64,6 +65,25 @@ class StudyService {
       // Create new spaced repetition card
       final newSpacedCard = SpacedRepetitionService.createNewCard(studyCard.flashcard.id!);
       updatedSpacedCard = SpacedRepetitionService.processReview(newSpacedCard, quality);
+    }
+    
+    // Award XP based on quality response
+    final xpTracker = XPEventTracker();
+    switch (quality) {
+      case ReviewQuality.easy:
+        xpTracker.addXP(XPEventTracker.flashcardEasy, 'Flashcard review (Easy)');
+        break;
+      case ReviewQuality.good:
+        xpTracker.addXP(XPEventTracker.flashcardGood, 'Flashcard review (Good)');
+        break;
+      case ReviewQuality.hard:
+        xpTracker.addXP(XPEventTracker.flashcardHard, 'Flashcard review (Hard)');
+        break;
+      case ReviewQuality.again:
+        if (XPEventTracker.flashcardAgain > 0) {
+          xpTracker.addXP(XPEventTracker.flashcardAgain, 'Flashcard review (Again)');
+        }
+        break;
     }
     
     return StudyCard(

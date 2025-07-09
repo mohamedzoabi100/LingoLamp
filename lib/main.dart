@@ -9,6 +9,7 @@ import 'screens/auth/sign_in_screen.dart'; // Add this import
 import 'services/user_data_service.dart';
 import 'services/recommendation_service.dart';
 import 'services/phrase_service.dart';
+import 'package:http/http.dart' as http; // Add this import
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,6 +19,20 @@ void main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+  
+  // Network connectivity test
+  try {
+    final googleResp = await http.get(Uri.parse('https://www.google.com'));
+    print('🌐 Google.com status: \\${googleResp.statusCode}');
+  } catch (e) {
+    print('❌ Failed to reach google.com: \\${e.toString()}');
+  }
+  try {
+    final firestoreResp = await http.get(Uri.parse('https://firestore.googleapis.com'));
+    print('🌐 Firestore.googleapis.com status: \\${firestoreResp.statusCode}');
+  } catch (e) {
+    print('❌ Failed to reach firestore.googleapis.com: \\${e.toString()}');
+  }
   
   try {
     await Firebase.initializeApp();

@@ -11,6 +11,7 @@ import 'flashcards/browse_flashcards_list.dart';
 import 'spaced_repetition_study_screen.dart';
 import '../models/recommended_flashcard_model.dart';
 import 'recommendations_screen.dart';
+import 'dart:async';
 
 class FlashcardsScreen extends StatefulWidget {
   final VoidCallback? onBackToHome;
@@ -39,6 +40,8 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
   late Stream<List<Flashcard>> _flashcardsStream;
   late Stream<List<RecommendedFlashcard>> _recommendedStream;
 
+  StreamSubscription<List<Flashcard>>? _flashcardsSubscription;
+
   @override
   void initState() {
     super.initState();
@@ -48,7 +51,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
     _recommendedStream = _dbHelper.recommendedStream;
 
     // Listen to flashcards changes to regenerate review queue
-    _flashcardsStream.listen((_) => _loadReviewQueue());
+    _flashcardsSubscription = _flashcardsStream.listen((_) => _loadReviewQueue());
 
     _loadReviewQueue();
   }
@@ -57,6 +60,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
   void dispose() {
     _tabController.dispose();
     _tts.stop();
+    _flashcardsSubscription?.cancel();
     super.dispose();
   }
 
@@ -71,6 +75,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
 
     final studyCards = StudyService.createStudySession(flashcards, spacedCards);
 
+    if (!mounted) return;
     setState(() {
       _studyCards = studyCards;
       _reviewQueue = studyCards;

@@ -33,11 +33,12 @@ class RecommendationService {
     // 🆕 Load dismissed recommendations from storage
     await _loadDismissedRecommendations();
     
-    // Combine favorites stream + chat stream and run algorithm after small debounce
-    _subscription = Rx.combineLatest2<List<dynamic>, List<dynamic>, int>(
+    // Combine favorites stream + chat stream + flashcards stream and run algorithm after small debounce
+    _subscription = Rx.combineLatest3<List<dynamic>, List<dynamic>, List<dynamic>, int>(
       _phraseService.favoritePhrasesStream,
       _db.chatStream,
-      (fav, chat) => DateTime.now().millisecondsSinceEpoch, // dummy value
+      _db.flashcardsStream,
+      (fav, chat, flashcards) => DateTime.now().millisecondsSinceEpoch, // dummy value
     ).debounceTime(const Duration(seconds: 2)).listen((_) async {
       await _recalculateRecommendations();
     });
@@ -86,7 +87,7 @@ class RecommendationService {
   }
 
   Future<void> _recalculateRecommendations() async {
-    final favorites = _phraseService.getFavoritePhrases();
+    final _favorites = _phraseService.getFavoritePhrases(); // no longer used for recommendations
     final messages = await _db.chatStream.first;
     final flashcards = await _db.getAllFlashcards();
     final existingTerms = flashcards.map((c) => c.originalText.toLowerCase()).toSet();
@@ -94,15 +95,16 @@ class RecommendationService {
     // Collect candidate tokens with frequency
     final Map<String, _TokenStats> stats = {};
 
-    bool _looksEnglish(String s) => RegExp(r'^[A-Za-z]+$').hasMatch(s);
+    // Accept single words AND multi-word English phrases (letters, spaces, hyphens, apostrophes)
+    bool _looksEnglish(String s) => RegExp(r"^[A-Za-z]+(?:[ \-'][A-Za-z]+)*").hasMatch(s.trim());
 
     void _addToken(String token, String context, String source) {
       final lower = token.toLowerCase();
       
-      // 🆕 Skip if dismissed or doesn't meet criteria
+      // Allow multi-word tokens. Only apply stop-word filter to single words.
       if (lower.length < 2 || 
           !_looksEnglish(lower) || 
-          _stopWords.contains(lower) || 
+          (!lower.contains(' ') && _stopWords.contains(lower)) || 
           existingTerms.contains(lower) ||
           _dismissedTerms.contains(lower)) { // 🆕 NEW: Skip dismissed terms
         return;
@@ -115,13 +117,7 @@ class RecommendationService {
       entry.recentMillis = DateTime.now().millisecondsSinceEpoch; // simplified recency
     }
 
-    // From favourites (use english side only for now)
-    for (final p in favorites) {
-      final tokens = p.english.split(RegExp(r'[^A-Za-zÀ-ÿ]+'));
-      for (final t in tokens) {
-        if (t.isNotEmpty) _addToken(t, p.english, 'favorite');
-      }
-    }
+    // Removed recommendation generation from phrasebook favourites – keep chat-based recommendations only
 
     // --- From chat messages (only JSON payload pairs) ---
     for (final ChatMessage m in messages) {

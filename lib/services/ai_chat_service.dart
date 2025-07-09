@@ -2,9 +2,11 @@
 // ** FINAL VERSION with your preferred detailed prompt **
 
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import '../config/api_keys.dart';
+import 'xp_event_tracker.dart';
 
 class AiChatService {
   final GenerativeModel _model;
@@ -58,6 +60,11 @@ class AiChatService {
     }
     debugPrint('[AI] sendMessage called with text: "$text"');
     debugPrint('[AI] Using API key: ' + geminiApiKey.substring(0, 8) + '...');
+    
+    // Award XP for sending a chat message
+    final xpTracker = XPEventTracker();
+    xpTracker.addXP(XPEventTracker.chatMessage, 'Chat message sent');
+    
     try {
       debugPrint('[AI] Sending message to Gemini API...');
       final response = await _chatSession!.sendMessage(Content.text(text))
