@@ -60,6 +60,34 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
     }
   }
 
+  Future<void> _renameConversation(Conversation conversation) async {
+    final TextEditingController controller = TextEditingController(text: conversation.title ?? '');
+    final bool? renamed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Rename Chat'),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(labelText: 'Chat Title'),
+            autofocus: true,
+          ),
+          actions: <Widget>[
+            TextButton(child: const Text('Cancel'), onPressed: () => Navigator.of(dialogContext).pop(false)),
+            TextButton(child: const Text('Rename'), onPressed: () => Navigator.of(dialogContext).pop(true)),
+          ],
+        );
+      },
+    );
+    if (renamed == true && controller.text.trim().isNotEmpty && conversation.id != null) {
+      conversation.title = controller.text.trim();
+      await _dbHelper.updateConversation(conversation);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Chat renamed successfully')));
+      _loadConversations();
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -94,9 +122,15 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
                           onSelected: (String value) {
                             if (value == 'delete') {
                               _confirmAndDeleteConversation(conversation);
+                            } else if (value == 'rename') {
+                              _renameConversation(conversation);
                             }
                           },
                           itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                            const PopupMenuItem<String>(
+                              value: 'rename',
+                              child: Row(children: [Icon(Icons.edit, color: Colors.blueAccent), SizedBox(width: 8), Text('Rename Chat')]),
+                            ),
                             const PopupMenuItem<String>(
                               value: 'delete',
                               child: Row(children: [Icon(Icons.delete_outline, color: Colors.redAccent), SizedBox(width: 8), Text('Delete Chat', style: TextStyle(color: Colors.redAccent))]),

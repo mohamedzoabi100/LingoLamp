@@ -1116,7 +1116,13 @@ class UserDataService {
           final doc = await _firestore
               .collection('users')
               .doc(userId)
-              .get();
+              .get()
+              .timeout(
+                Duration(seconds: 10),
+                onTimeout: () {
+                  throw TimeoutException('Failed to fetch user stats from cloud');
+                },
+              );
           
           if (doc.exists) {
             final data = doc.data()!;

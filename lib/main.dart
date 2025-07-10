@@ -38,18 +38,37 @@ void main() async {
     await Firebase.initializeApp();
     print("✅ Firebase initialized successfully");
     
-    // Load local CSV and saved phrases
-    await PhraseService().init();
-    
-    // Initialize user data service auth listener
-    UserDataService().setupAuthListener();
-    // Start recommendation engine
-    await RecommendationService().init();
+    // Initialize all services with proper error handling
+    await initializeServices();
   } catch (e) {
     print("❌ Firebase initialization failed: $e");
   }
   
   runApp(const MyApp());
+}
+
+// Initialize all services with proper error handling
+Future<void> initializeServices() async {
+  try {
+    print("🔄 Initializing services...");
+    
+    // Load local CSV and saved phrases
+    await PhraseService().init();
+    print("✅ PhraseService initialized");
+    
+    // Initialize user data service auth listener
+    UserDataService().setupAuthListener();
+    print("✅ UserDataService initialized");
+    
+    // Start recommendation engine
+    await RecommendationService().init();
+    print("✅ RecommendationService initialized");
+    
+    print("✅ All services initialized successfully");
+  } catch (e) {
+    print("❌ Service initialization failed: $e");
+    // Continue app startup even if some services fail
+  }
 }
 
 // Rest of your code remains exactly the same...

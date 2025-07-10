@@ -83,6 +83,9 @@ class AiChatService {
     } on TimeoutException {
       debugPrint('[AI] Gemini API response timed out (caught in catch)');
       return 'Sorry, I\'m taking too long to respond. Please try again.';
+    } on SocketException catch (e) {
+      debugPrint('[AI] Network error: $e');
+      return 'Sorry, I can\'t connect to the internet. Please check your connection and try again.';
     } catch (e, s) {
       debugPrint('[AI] Error sending message to Gemini API: $e');
       debugPrint('[AI] Stack trace: $s');

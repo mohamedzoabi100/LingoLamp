@@ -30,6 +30,7 @@ class _MainAppPageState extends State<MainAppPage> {
   static const int STREAK_REQUIREMENT_MINUTES = 1440; // 24 hours
   bool _isLoading = true;
   bool _initialLoadDone = false;
+  bool _canNavigate = true; // Navigation guard
   User? _currentUser;
   Timer? _refreshTimer;
   int? _currentConversationId;
@@ -51,12 +52,15 @@ class _MainAppPageState extends State<MainAppPage> {
   List<Widget> get _pages => [
     _buildHomeScreen(),
     ChatScreen(
+      key: ValueKey(_currentConversationId), // Force rebuild when conversation changes
       onBackToHome: () => _onItemTapped(0),
       conversationId: _currentConversationId,
       onConversationIdChanged: (id) {
-        setState(() {
-          _currentConversationId = id;
-        });
+        if (mounted) {
+          setState(() {
+            _currentConversationId = id;
+          });
+        }
       },
     ),
     PhrasebookScreen(onBackToHome: () => _onItemTapped(0)),
@@ -92,7 +96,10 @@ class _MainAppPageState extends State<MainAppPage> {
     if (shouldShowSpinner && mounted) {
       setState(() => _isLoading = true);
     }
+    
     try {
+      _canNavigate = false; // Prevent navigation during data loading
+      
       final stats = await _userDataService.getUserStats().timeout(const Duration(seconds: 10));
       final totalXP = await _xpTracker.getTotalXP().timeout(const Duration(seconds: 10));
       final todayXP = await _xpTracker.getTodayXP().timeout(const Duration(seconds: 10));
@@ -111,13 +118,21 @@ class _MainAppPageState extends State<MainAppPage> {
     } catch (e, st) {
       debugPrint('Error in _loadUserData: $e\n$st');
       if (mounted) {
-        setState(() {
-          // Optionally show an error message to the user
-        });
+        // Show user-friendly error message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load user data. Please try again.'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
       }
     } finally {
-      if (shouldShowSpinner && mounted) {
-        setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _canNavigate = true; // Re-enable navigation
+        });
       }
     }
   }
@@ -532,6 +547,8 @@ class _MainAppPageState extends State<MainAppPage> {
   }
 
   void _onItemTapped(int index) {
+    if (!_canNavigate || !mounted) return;
+    
     setState(() {
       _selectedIndex = index;
     });

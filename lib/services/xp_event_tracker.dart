@@ -2,6 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'dart:async';
 
 class XPEventTracker {
   static final XPEventTracker _instance = XPEventTracker._internal();
@@ -59,10 +60,16 @@ class XPEventTracker {
           'totalXP': totalXP + amount,
           'todayXP': todayXP,
           'lastXPDate': today.toIso8601String(),
-        }, SetOptions(merge: true));
+        }, SetOptions(merge: true)).timeout(
+          Duration(seconds: 10),
+          onTimeout: () {
+            throw TimeoutException('XP sync timeout');
+          },
+        );
         print('[SYNC] XP synced to Firestore');
       } catch (e) {
         print('[SYNC] Error syncing XP to Firestore: $e');
+        // Don't let sync errors affect local XP tracking
       }
     }
     // Notify listeners for UI update

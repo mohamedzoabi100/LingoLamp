@@ -358,14 +358,19 @@ class DatabaseHelper {
   }
 
   Future<List<Flashcard>> getAllFlashcards() async {
-    Database db = await instance.database;
-    final List<Map<String, dynamic>> maps = await db.query(
-      tableFlashcards,
-      orderBy: '$colFlashcardCreatedAt DESC',
-    );
-    return List.generate(maps.length, (i) {
-      return Flashcard.fromMap(maps[i]);
-    });
+    try {
+      Database db = await instance.database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        tableFlashcards,
+        orderBy: '$colFlashcardCreatedAt DESC',
+      );
+      return List.generate(maps.length, (i) {
+        return Flashcard.fromMap(maps[i]);
+      });
+    } catch (e) {
+      print('❌ Error getting all flashcards: $e');
+      return [];
+    }
   }
 
   Future<List<Flashcard>> getFlashcardsPaginated({required int limit, required int offset}) async {
@@ -631,6 +636,12 @@ class DatabaseHelper {
     final result = await db.delete(tableRecommended);
     _onRecommendedChanged();
     return result;
+  }
+
+  // Add this method to update the chat stream for a conversation
+  void updateChatStreamForConversation(int conversationId) async {
+    final messages = await getMessagesForConversation(conversationId);
+    _chatController.add(messages);
   }
 
   void dispose() {

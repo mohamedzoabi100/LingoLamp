@@ -240,4 +240,31 @@ Now generate your phrase:
     
     return phrases;
   }
+
+  /// 🆕 Translate text to Spanish with fallback handling
+  Future<String> translateToSpanish(String text) async {
+    try {
+      final response = await _aiChatService.sendMessage(
+        'Translate "$text" to Spanish. Respond with only the Spanish translation.'
+      );
+      
+      if (response != null && response.trim().isNotEmpty) {
+        return response.trim();
+      }
+      
+      // Fallback: try simpler prompt
+      final fallbackResponse = await _aiChatService.sendMessage(
+        'Translate to Spanish: $text'
+      );
+      
+      if (fallbackResponse != null && fallbackResponse.trim().isNotEmpty) {
+        return fallbackResponse.trim();
+      }
+      
+      return text; // Return original if translation fails
+    } catch (e) {
+      print('❌ Translation error: $e');
+      return text; // Return original text if translation fails
+    }
+  }
 }

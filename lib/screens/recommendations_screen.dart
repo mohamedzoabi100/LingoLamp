@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../models/recommended_flashcard_model.dart';
 import '../utils/database_helper.dart';
 import '../models/flashcard_model.dart';
@@ -19,12 +20,19 @@ class _RecommendationsScreenState extends State<RecommendationsScreen> {
   final DatabaseHelper _db = DatabaseHelper.instance;
   final RecommendationService _recommendationService = RecommendationService();
   late Stream<List<RecommendedFlashcard>> _stream;
+  StreamSubscription<List<RecommendedFlashcard>>? _streamSubscription;
 
   @override
   void initState() {
     super.initState();
     _stream = _db.recommendedStream;
     print('[RECOMMENDATIONS] Screen initialized');
+  }
+
+  @override
+  void dispose() {
+    _streamSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _addFlashcard(RecommendedFlashcard rec) async {
@@ -80,10 +88,10 @@ class _RecommendationsScreenState extends State<RecommendationsScreen> {
         print('[RECOMMENDATIONS] Trying simple AI translation...');
         try {
           // Use a simpler, faster approach
-          final simplePrompt = 'Translate "$rec.term" to Spanish. Respond with only the Spanish translation.';
+          final simplePrompt = 'Translate "${rec.term}" to Spanish. Respond with only the Spanish translation.';
           final response = await _getSimpleTranslation(simplePrompt);
           if (response != null && response.isNotEmpty) {
-            translated = response.trim();
+            translated = _cleanTranslation(response);
             print('[RECOMMENDATIONS] Simple AI translation found: $translated');
           }
         } catch (e) {
@@ -158,6 +166,8 @@ class _RecommendationsScreenState extends State<RecommendationsScreen> {
         timesStudied: 0,
         difficulty: 2,
         isFavorite: false,
+        category: 'Recommended',
+        tags: ['recommended'],
       );
 
       print('[RECOMMENDATIONS] Created flashcard: ${card.originalText} -> ${card.translatedText}');
@@ -242,6 +252,20 @@ class _RecommendationsScreenState extends State<RecommendationsScreen> {
       print('[RECOMMENDATIONS] Error in simple translation: $e');
       return null;
     }
+  }
+
+  String _cleanTranslation(String response) {
+    // Remove markdown, object strings, and extra whitespace
+    String cleaned = response
+        .replaceAll(RegExp(r'\*\*'), '') // remove bold markdown
+        .replaceAll(RegExp(r'_'), '') // remove italics markdown
+        .replaceAll(RegExp(r'`'), '') // remove code markdown
+        .replaceAll(RegExp(r"Instance of 'RecommendedFlashcard'\.term"), '') // remove object string
+        .replaceAll(RegExp(r'\s+'), ' ') // collapse whitespace
+        .trim();
+    // Remove any leading/trailing non-word characters
+    cleaned = cleaned.replaceAll(RegExp(r'^[^\wáéíóúüñÁÉÍÓÚÜÑ]+|[^\wáéíóúüñÁÉÍÓÚÜÑ]+ 0$'), '');
+    return cleaned;
   }
 
   @override

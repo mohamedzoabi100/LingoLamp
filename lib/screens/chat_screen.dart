@@ -52,22 +52,49 @@ class _ChatScreenState extends State<ChatScreen> {
   int? _currentConversationId;
   Conversation? _currentConversation;
   bool _isResponding = false;
+  bool _isConversationReady = false;
+  bool _showScrollToBottom = false;
 
   @override
   void initState() {
     super.initState();
-    _currentConversationId = widget.conversationId;
-    _initTts();
+    _scrollController.addListener(_handleScroll);
+    _initChat();
+  }
 
-    if (_currentConversationId != null) {
-      _loadConversationAndMessages(_currentConversationId!);
+  void _handleScroll() {
+    if (!_scrollController.hasClients) return;
+    final atBottom = _scrollController.offset >= _scrollController.position.maxScrollExtent - 20;
+    if (_showScrollToBottom == atBottom) {
+      setState(() { _showScrollToBottom = !atBottom; });
+    }
+  }
+
+  void _maybeShowScrollToBottom(List messages) {
+    if (!_scrollController.hasClients) return;
+    final atBottom = _scrollController.offset >= _scrollController.position.maxScrollExtent - 20;
+    if (!atBottom && messages.isNotEmpty) {
+      setState(() { _showScrollToBottom = true; });
     } else {
-      _messages.add(model.ChatMessage(
-        conversationId: -1,
-        text: "¡Hola! I'm Lingo, your personal Spanish tutor. How can I help you practice today?",
-        isUserMessage: false,
-        timestamp: DateTime.now(),
-      ));
+      setState(() { _showScrollToBottom = false; });
+    }
+  }
+
+  Future<void> _initChat() async {
+    setState(() { _isConversationReady = false; });
+    if (widget.conversationId != null) {
+      await _loadConversationAndMessages(widget.conversationId!);
+      setState(() { _isConversationReady = true; });
+    } else {
+      // Ensure a new conversation is created and loaded
+      await _ensureConversationExists();
+      if (_currentConversationId != null) {
+        await _loadConversationAndMessages(_currentConversationId!);
+        if (widget.onConversationIdChanged != null) {
+          widget.onConversationIdChanged!(_currentConversationId!);
+        }
+      }
+      setState(() { _isConversationReady = true; });
     }
   }
 
@@ -125,21 +152,23 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _loadConversationAndMessages(int conversationId) async {
     _currentConversation = await _dbHelper.getConversation(conversationId);
     if (_currentConversation == null) {
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to load conversation. It may have been deleted.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        Navigator.pop(context);
+      }
       return;
     }
     final dbMessages = await _dbHelper.getMessagesForConversation(conversationId);
-    final history = <gen_ai.Content>[];
-    for (var msg in dbMessages) {
-      history.add(msg.isUserMessage
-          ? gen_ai.Content.text(msg.text)
-          : gen_ai.Content.model([gen_ai.TextPart(msg.text)]));
-    }
-    _aiChatService.startChat(history: history);
+    // Update the chat stream for this conversation
+    _dbHelper.updateChatStreamForConversation(conversationId);
     if (!mounted) return;
     setState(() {
-      _messages.clear();
-      _messages.addAll(dbMessages);
+      _currentConversationId = conversationId;
     });
     _scrollToBottom(milliseconds: 100);
   }
@@ -172,30 +201,43 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _handleSubmittedText() async {
     final text = _inputController.text.trim();
     if (text.isEmpty || _isResponding) return;
+    
     _inputController.clear();
     FocusScope.of(context).unfocus();
     debugPrint('[CHAT] User submitted: $text');
+    
     final userMessage = model.ChatMessage(
       conversationId: _currentConversationId ?? -1,
       text: text,
       isUserMessage: true,
       timestamp: DateTime.now(),
     );
+    
     if (!mounted) return;
-    setState(() { _messages.add(userMessage); _isResponding = true; });
+    setState(() { 
+      _isResponding = true; 
+    });
     _scrollToBottom();
+    
     try {
       await _ensureConversationExists();
+      
       final messageToSave = model.ChatMessage(
         conversationId: _currentConversationId!,
         text: userMessage.text,
         isUserMessage: true,
         timestamp: userMessage.timestamp,
       );
+      
       await _dbHelper.insertMessage(messageToSave);
       debugPrint('[CHAT] Message saved to DB');
+      
+      // Update chat stream
+      _dbHelper.updateChatStreamForConversation(_currentConversationId!);
+      
       final aiResponseText = await _aiChatService.sendMessage(messageToSave.text);
       debugPrint('[CHAT] AI response: $aiResponseText');
+      
       final aiMessage = model.ChatMessage(
         conversationId: _currentConversationId!,
         text: aiResponseText,
@@ -203,16 +245,32 @@ class _ChatScreenState extends State<ChatScreen> {
         timestamp: DateTime.now(),
         originalQuery: messageToSave.text,
       );
+      
       await _dbHelper.insertMessage(aiMessage);
+      // Update chat stream again
+      _dbHelper.updateChatStreamForConversation(_currentConversationId!);
+      
       await _loadConversationAndMessages(_currentConversationId!);
+      
       if (mounted) {
         setState(() { _isResponding = false; });
         _scrollToBottom();
       }
     } catch (e, st) {
       debugPrint('[CHAT] Error in _handleSubmittedText: $e\n$st');
-      if (!mounted) return;
-      setState(() { _isResponding = false; });
+      
+      if (mounted) {
+        setState(() { _isResponding = false; });
+        
+        // Show user-friendly error message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send message. Please try again.'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
@@ -233,10 +291,12 @@ class _ChatScreenState extends State<ChatScreen> {
       sourceLanguage: 'en-US',
       targetLanguage: 'es-ES',
       createdAt: DateTime.now(),
-      lastStudied: DateTime.now(),  // ← Add this line
-      timesStudied: 0,              // ← Add this line
-      difficulty: 2,                // ← Add this line  
-      isFavorite: false,            // ← Add this line
+      lastStudied: DateTime.now(),
+      timesStudied: 0,
+      difficulty: 2,
+      isFavorite: false,
+      category: 'Chat Generated',
+      tags: ['chat', 'ai-generated'],
     );
     await _dbHelper.insertFlashcard(flashcard);
 
@@ -289,6 +349,20 @@ class _ChatScreenState extends State<ChatScreen> {
           icon: const Icon(Icons.history),
           tooltip: 'Chat History',
           onPressed: () async {
+            if (_inputController.text.isNotEmpty) {
+              final discard = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Discard unsent message?'),
+                  content: const Text('You have unsent input. Discard and continue?'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                    TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Discard')),
+                  ],
+                ),
+              );
+              if (discard != true) return;
+            }
             final selectedId = await Navigator.push<int?>(context, MaterialPageRoute(builder: (context) => const ChatHistoryScreen()));
             if (selectedId != null && selectedId != _currentConversationId) {
               _currentConversationId = selectedId;
@@ -297,19 +371,84 @@ class _ChatScreenState extends State<ChatScreen> {
           },
         ),
         PopupMenuButton<String>(
-          onSelected: (value) {
+          onSelected: (value) async {
             if (value == 'new') {
-              setState(() {
-                _currentConversationId = null;
-                _currentConversation = null;
-                _messages.clear();
-                _messages.add(model.ChatMessage(
-                  conversationId: -1,
-                  text: "¡Hola! I'm Lingo, your personal Spanish tutor. How can I help you practice today?",
-                  isUserMessage: false,
-                  timestamp: DateTime.now(),
-                ));
-              });
+              if (_inputController.text.isNotEmpty) {
+                final discard = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Discard unsent message?'),
+                    content: const Text('You have unsent input. Discard and start a new chat?'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                      TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Discard')),
+                    ],
+                  ),
+                );
+                if (discard != true) return;
+              }
+              // Confirm if the current chat has any messages (other than greeting)
+              final currentMessages = await _dbHelper.getMessagesForConversation(_currentConversationId ?? -1);
+              final hasRealMessages = currentMessages.any((m) => m.isUserMessage || (m.text != "¡Hola! I'm Lingo, your personal Spanish tutor. How can I help you practice today?"));
+              if (hasRealMessages) {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Start new chat?'),
+                    content: const Text('You have an active chat. Start a new chat and discard the current one?'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                      TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Start New Chat')),
+                    ],
+                  ),
+                );
+                if (confirm != true) return;
+              }
+              setState(() { _isConversationReady = false; });
+              final now = DateTime.now();
+              final greeting = "¡Hola! I'm Lingo, your personal Spanish tutor. How can I help you practice today?";
+              final newConvo = Conversation(
+                title: 'New Chat',
+                createdAt: now,
+                lastMessageTimestamp: now,
+              );
+              final newId = await _dbHelper.insertConversation(newConvo);
+              final greetingMsg = model.ChatMessage(
+                conversationId: newId,
+                text: greeting,
+                isUserMessage: false,
+                timestamp: now,
+              );
+              await _dbHelper.insertMessage(greetingMsg);
+              _currentConversationId = newId;
+              _currentConversation = newConvo;
+              if (widget.onConversationIdChanged != null) {
+                widget.onConversationIdChanged!(newId);
+              }
+              // Poll the DB until the greeting is present (max 500ms)
+              bool found = false;
+              for (int i = 0; i < 5; i++) {
+                final msgs = await _dbHelper.getMessagesForConversation(newId);
+                if (msgs.any((m) => m.text == greeting)) {
+                  found = true;
+                  break;
+                }
+                await Future.delayed(const Duration(milliseconds: 100));
+              }
+              if (!found) {
+                if (mounted) {
+                  setState(() { _isConversationReady = true; });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Failed to load greeting message. Please try again.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+                return;
+              }
+              await _loadConversationAndMessages(newId);
+              setState(() { _isConversationReady = true; });
             }
           },
           itemBuilder: (context) => const [
@@ -321,19 +460,52 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       ]),
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: Column(children: [
-        Expanded(child: ListView.builder(controller: _scrollController, padding: const EdgeInsets.all(16), itemCount: _messages.length, itemBuilder: (_, index) => _buildChatBubble(_messages[index]))),
-        if (_isResponding)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-            child: Row(children: [
-              SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: primaryColor)),
-              const SizedBox(width: 12),
-              Text("Lingo is typing...", style: TextStyle(color: Colors.grey[600], fontStyle: FontStyle.italic)),
-            ]),
-          ),
-        _buildInputRow(primaryColor),
-      ]),
+      body: _isConversationReady
+        ? StreamBuilder<List<model.ChatMessage>>(
+            stream: _dbHelper.chatStream,
+            builder: (context, snapshot) {
+              final messages = snapshot.data ?? [];
+              WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowScrollToBottom(messages));
+              return Stack(
+                children: [
+                  Column(children: [
+                    Expanded(
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.all(16),
+                        itemCount: messages.length,
+                        itemBuilder: (_, index) => _buildChatBubble(messages[index]),
+                      ),
+                    ),
+                    if (_isResponding)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                        child: Row(children: [
+                          SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: primaryColor)),
+                          const SizedBox(width: 12),
+                          Text("Lingo is typing...", style: TextStyle(color: Colors.grey[600], fontStyle: FontStyle.italic)),
+                        ]),
+                      ),
+                    _buildInputRow(primaryColor),
+                  ]),
+                  if (_showScrollToBottom)
+                    Positioned(
+                      right: 16,
+                      bottom: 80,
+                      child: FloatingActionButton(
+                        mini: true,
+                        backgroundColor: primaryColor,
+                        child: const Icon(Icons.arrow_downward, color: Colors.white),
+                        onPressed: () {
+                          _scrollToBottom(milliseconds: 300);
+                        },
+                      ),
+                    ),
+                ],
+              );
+            },
+          )
+        : const Center(child: CircularProgressIndicator()),
     );
   }
 
@@ -354,11 +526,15 @@ class _ChatScreenState extends State<ChatScreen> {
               fillColor: Colors.grey[100],
               contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
             ),
-            enabled: !_isResponding,
+            enabled: !_isResponding && _isConversationReady,
           ),
         ),
         const SizedBox(width: 8),
-        IconButton(onPressed: _isResponding ? null : _handleSubmittedText, icon: Icon(Icons.send_rounded, color: primaryColor), tooltip: 'Send'),
+        IconButton(
+          onPressed: (!_isResponding && _isConversationReady) ? _handleSubmittedText : null,
+          icon: Icon(Icons.send_rounded, color: primaryColor),
+          tooltip: 'Send',
+        ),
       ])),
     );
   }
