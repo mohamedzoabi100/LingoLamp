@@ -137,7 +137,7 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     _scrollToBottom(milliseconds: 100);
   }
-
+  
   Future<void> _ensureConversationExists() async {
     if (_currentConversationId == null && _messages.isNotEmpty) {
       final now = DateTime.now();
@@ -190,40 +190,40 @@ class _ChatScreenState extends State<ChatScreen> {
       isUserMessage: true,
       timestamp: DateTime.now(),
     );
-    setState(() {
+    setState(() { 
       _messages.add(userMessage);
-      _isResponding = true;
+      _isResponding = true; 
     });
     _scrollToBottom();
-
+    
     final bool creatingNewConversation = (_currentConversationId == null);
     await _ensureConversationExists();
 
     if (!creatingNewConversation) {
-      final messageToSave = model.ChatMessage(
+    final messageToSave = model.ChatMessage(
         id: userMessage.id,
         conversationId: _currentConversationId!,
         text: userMessage.text,
         isUserMessage: userMessage.isUserMessage,
         timestamp: userMessage.timestamp,
       );
-      await _dbHelper.insertMessage(messageToSave);
+    await _dbHelper.insertMessage(messageToSave);
     }
-
+      
     final aiResponseText = await _aiChatService.sendMessage(text);
-
+    
     // Award XP for sending a chat message
     await _xpService.awardChatMessage();
-
+    
     final aiMessage = model.ChatMessage(
       id: const Uuid().v4(),
       conversationId: _currentConversationId!,
-      text: aiResponseText,
+        text: aiResponseText,
       isUserMessage: false,
       timestamp: DateTime.now(),
       originalQuery: text,
     );
-
+    
     await _dbHelper.insertMessage(aiMessage);
 
     setState(() {
@@ -247,49 +247,49 @@ class _ChatScreenState extends State<ChatScreen> {
     String appBarTitle = _currentConversation?.title ?? 'New Chat';
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBar( 
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(appBarTitle, overflow: TextOverflow.ellipsis),
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.history),
-            tooltip: 'Chat History',
-            onPressed: () async {
-              if (_inputController.text.isNotEmpty) {
-                final discard = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Discard unsent message?'),
-                    content: const Text('You have unsent input. Discard and continue?'),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-                      TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Discard')),
-                    ],
-                  ),
-                );
-                if (discard != true) return;
-              }
+         backgroundColor: primaryColor, 
+         foregroundColor: Colors.white, 
+         actions: [
+        IconButton(
+          icon: const Icon(Icons.history),
+          tooltip: 'Chat History',
+          onPressed: () async {
+            if (_inputController.text.isNotEmpty) {
+              final discard = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Discard unsent message?'),
+                  content: const Text('You have unsent input. Discard and continue?'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                    TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Discard')),
+                  ],
+                ),
+              );
+              if (discard != true) return;
+            }
               final selectedId = await Navigator.push<String?>(context, MaterialPageRoute(builder: (context) => const ChatHistoryScreen()));
-              if (selectedId != null && selectedId != _currentConversationId) {
-                _currentConversationId = selectedId;
-                _loadConversationAndMessages(selectedId);
-              }
-            },
-          ),
+            if (selectedId != null && selectedId != _currentConversationId) {
+              _currentConversationId = selectedId;
+              _loadConversationAndMessages(selectedId);
+            }
+          },
+        ),
           // PopupMenuButton removed
         ],
       ),
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(children: [
-        Expanded(
-            child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.all(16),
+                    Expanded(
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.all(16),
                 itemCount: _messages.length,
                 itemBuilder: (_, index) => _buildChatBubble(_messages[index]))),
         if (_isResponding)
@@ -460,7 +460,7 @@ class _ChatScreenState extends State<ChatScreen> {
     // 2. Visible JSON
     final visible =
         RegExp(r'\{"tool":"create_flashcard".*?\}', dotAll: true)
-            .firstMatch(text);
+        .firstMatch(text);
     if (visible != null) {
       print('✅ [CHAT] Found visible JSON: ${visible.group(0)}');
       return _parseJson(visible.group(0)!);

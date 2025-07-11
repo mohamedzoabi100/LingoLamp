@@ -46,9 +46,33 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('LingoLamp'),
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
+        title: Builder(
+          builder: (context) {
+            final authProvider = Provider.of<AuthProvider>(context, listen: false);
+            final user = authProvider.currentUser;
+            final displayName = user?.displayName ?? user?.email?.split('@')[0] ?? 'User';
+            return Align(
+              alignment: Alignment.centerLeft,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Welcome back!', style: TextStyle(fontSize: 15, color: Colors.white70)),
+                  Text(
+                    displayName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 26, // Increased font size
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
@@ -71,8 +95,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Welcome Section
-                _buildWelcomeSection(context, authProvider, userProvider),
+                // (Welcome section moved to app bar)
                 const SizedBox(height: 24),
                 // XP and Streak Panels (side by side on wide screens, stacked on narrow)
                 LayoutBuilder(
