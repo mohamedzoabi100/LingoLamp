@@ -6,14 +6,49 @@ import '../../../../core/providers/auth_provider.dart';
 import '../../../../core/providers/user_provider.dart';
 import '../../../../widgets/xp_display_widget.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _opacityAnim;
+  late Animation<Offset> _slideAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _opacityAnim = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    );
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _controller.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('LingoLamp'),
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
@@ -38,21 +73,93 @@ class HomeScreen extends StatelessWidget {
               children: [
                 // Welcome Section
                 _buildWelcomeSection(context, authProvider, userProvider),
-                
                 const SizedBox(height: 24),
-                
-                // Stats Cards
-                _buildStatsSection(context, userProvider),
-                
-                const SizedBox(height: 24),
-                
-                // Quick Actions
-                _buildQuickActionsSection(context),
-                
-                const SizedBox(height: 24),
-                
-                // Daily Goal
-                _buildDailyGoalSection(context),
+                // XP and Streak Panels (side by side on wide screens, stacked on narrow)
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth > 600) {
+                      return Row(
+                        children: [
+                          Expanded(child: XPDisplayWidget(showStreak: false)),
+                          const SizedBox(width: 24),
+                          Expanded(child: XPDisplayWidget(showStreak: true)),
+                        ],
+                      );
+                    } else {
+                      return Column(
+                        children: [
+                          XPDisplayWidget(showStreak: false),
+                          const SizedBox(height: 24),
+                          XPDisplayWidget(showStreak: true),
+                        ],
+                      );
+                    }
+                  },
+                ),
+                const SizedBox(height: 32),
+                // Animated Daily Task Panel
+                AnimatedBuilder(
+                  animation: _controller,
+                  builder: (context, child) {
+                    return AnimatedOpacity(
+                      opacity: _opacityAnim.value,
+                      duration: const Duration(milliseconds: 0),
+                      child: AnimatedSlide(
+                        offset: _slideAnim.value,
+                        duration: const Duration(milliseconds: 0),
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    color: Colors.blueGrey[50],
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.check_circle_outline, color: Colors.blue[700]),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Daily Tasks',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(context).primaryColor,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                '0/3 completed',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          Column(
+                            children: [
+                              _buildMockTaskTile('Practice with AI'),
+                              const Divider(height: 24, thickness: 1),
+                              _buildMockTaskTile('Review 5 flashcards'),
+                              const Divider(height: 24, thickness: 1),
+                              _buildMockTaskTile('Earn 20 XP'),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                // Removed Quick Actions and Daily Goal
               ],
             ),
           );
@@ -247,7 +354,7 @@ class HomeScreen extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Today\'s Goal',
+                  'XP earned today',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -282,4 +389,21 @@ class HomeScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+Widget _buildMockTaskTile(String task) {
+  return ListTile(
+    contentPadding: EdgeInsets.zero,
+    leading: Checkbox(
+      value: false,
+      onChanged: null,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+    ),
+    title: Text(
+      task,
+      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+    ),
+    dense: true,
+    visualDensity: VisualDensity.compact,
+  );
 } 

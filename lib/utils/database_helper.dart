@@ -86,6 +86,11 @@ class DatabaseHelper {
   static const String colRecommendedCreatedAt = 'created_at';
   static const String colRecommendedUpdatedAt = 'updated_at';
 
+  // Dismissed recommendations table
+  static const String tableDismissed = 'dismissed_recommendations';
+  static const String colDismissedTerm = 'term';
+  static const String colDismissedAt = 'dismissed_at';
+
   Future<Database> get database async {
     if (_database != null) return _database!;
     _database = await _initDatabase();
@@ -170,6 +175,13 @@ class DatabaseHelper {
         $colRecommendedWeight REAL NOT NULL,
         $colRecommendedCreatedAt TEXT NOT NULL,
         $colRecommendedUpdatedAt TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE $tableDismissed (
+        $colDismissedTerm TEXT PRIMARY KEY,
+        $colDismissedAt TEXT NOT NULL
       )
     ''');
   }
@@ -689,6 +701,8 @@ class DatabaseHelper {
 
   Future<void> addRecommendation(RecommendedFlashcard rec) async {
     final db = await database;
+    // Skip if dismissed
+    if (await isDismissedRecommendation(rec.term)) return;
     // Check if already exists (by term, not dismissed)
     final existing = await db.query(
       tableRecommended,
@@ -738,6 +752,26 @@ class DatabaseHelper {
   void updateChatStreamForConversation(String conversationId) async {
     final messages = await getMessagesForConversation(conversationId);
     _chatController.add(messages);
+  }
+
+  // Dismissed recommendations logic
+  Future<void> addDismissedRecommendation(String term) async {
+    final db = await database;
+    await db.insert(tableDismissed, {
+      colDismissedTerm: term,
+      colDismissedAt: DateTime.now().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> removeDismissedRecommendation(String term) async {
+    final db = await database;
+    await db.delete(tableDismissed, where: '$colDismissedTerm = ?', whereArgs: [term]);
+  }
+
+  Future<bool> isDismissedRecommendation(String term) async {
+    final db = await database;
+    final res = await db.query(tableDismissed, where: '$colDismissedTerm = ?', whereArgs: [term]);
+    return res.isNotEmpty;
   }
 
   void dispose() {

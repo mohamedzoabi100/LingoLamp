@@ -13,6 +13,8 @@ class RecommendationService {
     required String context,
     String source = 'chat',
   }) async {
+    // If this is a new translation event, remove from dismissed
+    await _db.removeDismissedRecommendation(term);
     final now = DateTime.now();
     final rec = RecommendedFlashcard(
       term: term,
@@ -30,6 +32,18 @@ class RecommendationService {
   }
 
   Future<void> dismissRecommendation(int id) async {
+    // Get the term for this recommendation
+    final recs = await getRecommendations();
+    RecommendedFlashcard? rec;
+    for (final r in recs) {
+      if (r.id == id) {
+        rec = r;
+        break;
+      }
+    }
+    if (rec != null) {
+      await _db.addDismissedRecommendation(rec.term);
+    }
     await _db.dismissRecommendation(id);
   }
 

@@ -84,47 +84,53 @@ class _XPDisplayWidgetState extends State<XPDisplayWidget> {
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Theme.of(context).primaryColor.withOpacity(0.1),
-            Theme.of(context).primaryColor.withOpacity(0.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Theme.of(context).primaryColor.withOpacity(0.2),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    if (!widget.showStreak) {
+      // XP Panel only
+      return Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.star, color: Colors.amber),
-              const SizedBox(width: 8),
-              Text(
-                'Experience Points',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).primaryColor,
-                ),
+              Row(
+                children: [
+                  Icon(Icons.star, color: Colors.amber),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Experience Points',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).primaryColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildStatItem('Total XP', '$totalXP', Icons.star, Colors.amber),
+                  _buildStatItem('XP earned today', '+$todayXP', Icons.today, Colors.green),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildStatItem('Total XP', '$totalXP', Icons.star, Colors.amber),
-              _buildStatItem('Today', '+$todayXP', Icons.today, Colors.green),
-            ],
-          ),
-          if (widget.showStreak) ...[
-            const SizedBox(height: 12),
+        ),
+      );
+    }
+
+    // Streak Panel only
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Row(
               children: [
                 Icon(Icons.local_fire_department, color: Colors.orange),
@@ -139,7 +145,7 @@ class _XPDisplayWidgetState extends State<XPDisplayWidget> {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -148,7 +154,7 @@ class _XPDisplayWidgetState extends State<XPDisplayWidget> {
               ],
             ),
           ],
-        ],
+        ),
       ),
     );
   }

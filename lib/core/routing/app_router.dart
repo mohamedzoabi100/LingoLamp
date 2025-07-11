@@ -212,7 +212,6 @@ class _MainAppShellState extends State<MainAppShell> {
           setState(() {
             _currentIndex = index;
           });
-          
           // Navigate to the selected route
           switch (index) {
             case 0:
@@ -230,25 +229,27 @@ class _MainAppShellState extends State<MainAppShell> {
           }
         },
         type: BottomNavigationBarType.fixed,
-        items: const [
+        selectedItemColor: Colors.teal[700],
+        unselectedItemColor: Colors.teal[200],
+        items: [
           BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home),
+            icon: Icon(Icons.home_outlined, color: Colors.blue[200]),
+            activeIcon: Icon(Icons.home, color: Colors.blue[700]),
             label: 'Home',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.chat_outlined),
-            activeIcon: Icon(Icons.chat),
+            icon: Icon(Icons.chat_outlined, color: Colors.green[200]),
+            activeIcon: Icon(Icons.chat, color: Colors.green[700]),
             label: 'Chat',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.auto_stories_outlined),
-            activeIcon: Icon(Icons.auto_stories),
+            icon: Icon(Icons.auto_stories_outlined, color: Colors.purple[200]),
+            activeIcon: Icon(Icons.auto_stories, color: Colors.purple[700]),
             label: 'Phrasebook',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.diamond_outlined),
-            activeIcon: Icon(Icons.diamond),
+            icon: Icon(Icons.diamond_outlined, color: Colors.teal[200]),
+            activeIcon: Icon(Icons.diamond, color: Colors.teal[700]),
             label: 'Flashcards',
           ),
         ],
