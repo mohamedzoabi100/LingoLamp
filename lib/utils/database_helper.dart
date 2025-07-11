@@ -685,6 +685,55 @@ class DatabaseHelper {
     return result;
   }
 
+  // === RECOMMENDATIONS LOGIC ===
+
+  Future<void> addRecommendation(RecommendedFlashcard rec) async {
+    final db = await database;
+    // Check if already exists (by term, not dismissed)
+    final existing = await db.query(
+      tableRecommended,
+      where: '$colRecommendedTerm = ? AND $colRecommendedSource = ? AND $colRecommendedContext = ?',
+      whereArgs: [rec.term, rec.source, rec.context],
+    );
+    if (existing.isNotEmpty) return;
+    // Enforce 10-item limit (delete oldest if needed)
+    final count = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM $tableRecommended')) ?? 0;
+    if (count >= 10) {
+      final oldest = await db.query(
+        tableRecommended,
+        orderBy: '$colRecommendedCreatedAt ASC',
+        limit: 1,
+      );
+      if (oldest.isNotEmpty) {
+        await db.delete(tableRecommended, where: 'id = ?', whereArgs: [oldest.first['id']]);
+      }
+    }
+    await db.insert(tableRecommended, rec.toMap());
+    _onRecommendedChanged();
+  }
+
+  Future<void> removeRecommendation(int id) async {
+    final db = await database;
+    await db.delete(tableRecommended, where: 'id = ?', whereArgs: [id]);
+    _onRecommendedChanged();
+  }
+
+  Future<void> dismissRecommendation(int id) async {
+    final db = await database;
+    await db.delete(tableRecommended, where: 'id = ?', whereArgs: [id]);
+    _onRecommendedChanged();
+  }
+
+  Future<List<RecommendedFlashcard>> getRecommendations() async {
+    final db = await database;
+    final maps = await db.query(
+      tableRecommended,
+      orderBy: '$colRecommendedCreatedAt DESC',
+      limit: 10,
+    );
+    return maps.map((m) => RecommendedFlashcard.fromMap(m)).toList();
+  }
+
   // Add this method to update the chat stream for a conversation
   void updateChatStreamForConversation(String conversationId) async {
     final messages = await getMessagesForConversation(conversationId);

@@ -15,8 +15,10 @@ import '../utils/database_helper.dart';
 import '../models/chat_message_model.dart' as model;
 import '../models/conversation_model.dart';
 import '../models/flashcard_model.dart';
+import '../models/recommended_flashcard_model.dart';
 import 'chat_history_screen.dart';
 import '../services/user_data_service.dart';
+import '../services/recommendation_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final VoidCallback? onBackToHome;
@@ -47,6 +49,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final XPService _xpService = XPService();
   late AiChatService _aiChatService;
   final FlutterTts _tts = FlutterTts();
+  final RecommendationService _recommendationService = RecommendationService();
 
   final List<model.ChatMessage> _messages = [];
   String? _currentConversationId;
@@ -315,11 +318,14 @@ class _ChatScreenState extends State<ChatScreen> {
     final primaryColor = Theme.of(context).colorScheme.primary;
 
     String textForDisplay;
+    FlashcardData? flashcardData;
     if (!isUser) {
-      final flashcardData = _extractFlashcardData(message.text);
+      flashcardData = _extractFlashcardData(message.text);
       if (flashcardData != null) {
         textForDisplay =
             "The translation for \"${flashcardData.front}\" is *${flashcardData.back}*.";
+        // Add to recommendations if not already a flashcard
+        _maybeRecommendFlashcard(flashcardData, message);
       } else {
         textForDisplay = message.text;
       }
@@ -505,6 +511,16 @@ class _ChatScreenState extends State<ChatScreen> {
     return const SizedBox.shrink();
   }
 
+  void _maybeRecommendFlashcard(FlashcardData data, model.ChatMessage message) async {
+    // Only add if not already a flashcard
+    if (await _dbHelper.flashcardExists(data.front, data.back)) return;
+    // Only add if not already in recommendations
+    final recs = await _recommendationService.getRecommendations();
+    if (recs.any((r) => r.term == data.front)) return;
+    // Add to recommendations (context = translation)
+    await _recommendationService.addRecommendation(term: data.front, context: data.back);
+  }
+
   Future<void> _addToFlashcards(
       String originalText, String translatedText) async {
     print('🔍 [CHAT] Starting _addToFlashcards with: "$originalText" -> "$translatedText"');
@@ -538,6 +554,18 @@ class _ChatScreenState extends State<ChatScreen> {
     final insertedId = await _dbHelper.insertFlashcard(flashcard);
     print('✅ [CHAT] Flashcard inserted with ID: $insertedId');
     
+    // Remove from recommendations if present
+    final recs = await _recommendationService.getRecommendations();
+    RecommendedFlashcard? rec;
+    for (final r in recs) {
+      if (r.term == originalText) {
+        rec = r;
+        break;
+      }
+    }
+    if (rec != null && rec.id != null) {
+      await _recommendationService.removeRecommendation(rec.id!);
+    }
     // Award XP for creating a flashcard from chat
     await _xpService.awardFlashcardCreated();
     
