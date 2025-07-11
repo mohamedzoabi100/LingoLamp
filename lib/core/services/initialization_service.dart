@@ -2,6 +2,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../services/xp_service.dart';
+import '../../services/daily_task_service.dart';
 
 class InitializationService {
   static Future<void> initialize() async {
@@ -41,6 +42,14 @@ class InitializationService {
       print('✅ XP service initialized successfully');
     } catch (e) {
       print('❌ XP service initialization failed: $e');
+    }
+    
+    // Initialize Daily Task service and load data from Firestore for authenticated users
+    try {
+      await DailyTaskService().loadFromFirestore();
+      print('✅ Daily Task service initialized successfully');
+    } catch (e) {
+      print('❌ Daily Task service initialization failed: $e');
     }
     
     // Initialize other services here

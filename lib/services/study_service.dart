@@ -3,6 +3,8 @@ import '../models/spaced_repetition_model.dart';
 import '../models/study_card_model.dart';
 import 'spaced_repetition_service.dart';
 import 'xp_event_tracker.dart';
+import 'daily_task_service.dart';
+import '../models/daily_task_model.dart' as daily_task;
 
 class StudyService {
   /// Create a study session with cards that are due for review
@@ -50,7 +52,7 @@ class StudyService {
   }
 
   /// Process a review and return updated study card
-  static StudyCard processReview(StudyCard studyCard, ReviewQuality quality) {
+  static Future<StudyCard> processReview(StudyCard studyCard, ReviewQuality quality) async {
     final updatedFlashcard = studyCard.flashcard.markAsStudied();
     
     SpacedRepetitionCard? updatedSpacedCard;
@@ -85,6 +87,10 @@ class StudyService {
         }
         break;
     }
+    
+    // Update daily task progress for flashcard review
+    final dailyTaskService = DailyTaskService();
+    await dailyTaskService.updateTaskProgress(daily_task.TaskType.reviewFlashcards, 1);
     
     return StudyCard(
       flashcard: updatedFlashcard,

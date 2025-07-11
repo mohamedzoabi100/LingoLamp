@@ -7,6 +7,8 @@ import '../models/phrase_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import './xp_event_tracker.dart';
 import './user_data_service.dart';
+import './daily_task_service.dart';
+import '../models/daily_task_model.dart' as daily_task;
 
 class PhraseService {
   static final PhraseService _instance = PhraseService._internal();
@@ -116,6 +118,10 @@ class PhraseService {
       // Award XP only when adding to favourites
       final xpTracker = XPEventTracker();
       xpTracker.addXP(XPEventTracker.favoriteAdded, 'Phrase added to favourites');
+      
+      // Update daily task progress for learning phrases
+      final dailyTaskService = DailyTaskService();
+      await dailyTaskService.updateTaskProgress(daily_task.TaskType.learnPhrases, 1);
     }
     await _saveFavorites();
     _updateStreams();
@@ -129,6 +135,11 @@ class PhraseService {
     await UserDataService().saveAiPhrasesLocally(aiPhrasesJson);
     UserDataService().scheduleAiPhrasesSync();
     debugPrint('[SYNC] AI phrases sync scheduled after add');
+    
+    // Update daily task progress for learning phrases
+    final dailyTaskService = DailyTaskService();
+    await dailyTaskService.updateTaskProgress(daily_task.TaskType.learnPhrases, 1);
+    
     _updateStreams();
   }
   

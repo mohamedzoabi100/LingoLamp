@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import '../models/phrase_model.dart';
 import 'ai_chat_service.dart';
 import 'xp_event_tracker.dart';
+import 'daily_task_service.dart';
+import '../models/daily_task_model.dart' as daily_task;
 
 class AiPhraseService {
   static final AiPhraseService _instance = AiPhraseService._internal();
@@ -94,6 +96,10 @@ class AiPhraseService {
             // Award XP for generating a new phrase
             final xpTracker = XPEventTracker();
             xpTracker.addXP(XPEventTracker.phraseLearned, 'New phrase generated');
+            
+            // Update daily task progress for learning phrases
+            final dailyTaskService = DailyTaskService();
+            await dailyTaskService.updateTaskProgress(daily_task.TaskType.learnPhrases, 1);
             
             return phrase;
           }

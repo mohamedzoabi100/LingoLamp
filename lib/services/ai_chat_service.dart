@@ -7,6 +7,8 @@ import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import '../config/api_keys.dart';
 import 'xp_event_tracker.dart';
+import 'daily_task_service.dart';
+import '../models/daily_task_model.dart' as daily_task;
 
 class AiChatService {
   final GenerativeModel _model;
@@ -68,36 +70,43 @@ class AiChatService {
         // Send system prompt as first message
         await _chatSession!.sendMessage(Content.text(_systemPrompt));
       }
-    debugPrint('[AI] sendMessage called with text: "$text"');
-    debugPrint('[AI] Using API key: ' + geminiApiKey.substring(0, 8) + '...');
-    // Award XP for sending a chat message
-    final xpTracker = XPEventTracker();
-    xpTracker.addXP(XPEventTracker.chatMessage, 'Chat message sent');
-    try {
-      debugPrint('[AI] Sending message to Gemini API...');
-      final response = await _chatSession!.sendMessage(Content.text(text))
-          .timeout(const Duration(seconds: 30), onTimeout: () {
-        debugPrint('[AI] Gemini API response timed out after 30 seconds');
-        throw TimeoutException('AI response timed out after 30 seconds');
-      });
-      debugPrint('[AI] Gemini API response received');
-      final aiResponse = response.text;
-      debugPrint('[AI] Gemini API response text: ${aiResponse ?? "<null>"}');
-      if (aiResponse == null || aiResponse.isEmpty) {
-        debugPrint('[AI] Empty or null response from Gemini API');
-        return "I'm sorry, I couldn't process that. Could you try rephrasing?";
-      }
-      return aiResponse;
-    } on TimeoutException {
-      debugPrint('[AI] Gemini API response timed out (caught in catch)');
-      return 'Sorry, I\'m taking too long to respond. Please try again.';
-    } on SocketException catch (e) {
-      debugPrint('[AI] Network error: $e');
-      return 'Sorry, I can\'t connect to the internet. Please check your connection and try again.';
-    } catch (e, s) {
-      debugPrint('[AI] Error sending message to Gemini API: $e');
-      debugPrint('[AI] Stack trace: $s');
-      return "Sorry, something went wrong. Please try again later.";
+      
+      debugPrint('[AI] sendMessage called with text: "$text"');
+      debugPrint('[AI] Using API key: ' + geminiApiKey.substring(0, 8) + '...');
+      
+      try {
+        debugPrint('[AI] Sending message to Gemini API...');
+        final response = await _chatSession!.sendMessage(Content.text(text))
+            .timeout(const Duration(seconds: 30), onTimeout: () {
+          debugPrint('[AI] Gemini API response timed out after 30 seconds');
+          throw TimeoutException('AI response timed out after 30 seconds');
+        });
+        debugPrint('[AI] Gemini API response received');
+        final aiResponse = response.text;
+        debugPrint('[AI] Gemini API response text: ${aiResponse ?? "<null>"}');
+        if (aiResponse == null || aiResponse.isEmpty) {
+          debugPrint('[AI] Empty or null response from Gemini API');
+          return "I'm sorry, I couldn't process that. Could you try rephrasing?";
+        }
+        
+        // Award XP and update daily task progress only after successful response
+        final xpTracker = XPEventTracker();
+        xpTracker.addXP(XPEventTracker.chatMessage, 'Chat message sent');
+        
+        final dailyTaskService = DailyTaskService();
+        await dailyTaskService.updateTaskProgress(daily_task.TaskType.chatWithAI, 1);
+        
+        return aiResponse;
+      } on TimeoutException {
+        debugPrint('[AI] Gemini API response timed out (caught in catch)');
+        return 'Sorry, I\'m taking too long to respond. Please try again.';
+      } on SocketException catch (e) {
+        debugPrint('[AI] Network error: $e');
+        return 'Sorry, I can\'t connect to the internet. Please check your connection and try again.';
+      } catch (e, s) {
+        debugPrint('[AI] Error sending message to Gemini API: $e');
+        debugPrint('[AI] Stack trace: $s');
+        return "Sorry, something went wrong. Please try again later.";
       }
     } else {
       // Send message directly, no system prompt, no chat session
