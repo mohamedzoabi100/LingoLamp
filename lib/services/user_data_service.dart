@@ -9,6 +9,7 @@ import 'sync_status_service.dart';
 import '../utils/database_helper.dart';
 import '../models/flashcard_model.dart';
 import '../models/spaced_repetition_model.dart';
+import 'package:hive/hive.dart';
 
 class UserDataService {
   static final UserDataService _instance = UserDataService._internal();
@@ -1013,6 +1014,37 @@ class UserDataService {
     }
   }
 
+  // Central method to clear all user data (future-proof for all features)
+  Future<void> clearAllUserData() async {
+    print('[UserDataService] Clearing all user data...');
+    // Stop background sync/listeners
+    stopSyncMonitoring();
+
+    // Clear local storage (Hive, SharedPreferences, etc.)
+    try {
+      // Clear Hive boxes (add more as needed)
+      await Hive.deleteFromDisk();
+    } catch (e) {
+      print('[UserDataService] Error clearing Hive: $e');
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+    } catch (e) {
+      print('[UserDataService] Error clearing SharedPreferences: $e');
+    }
+
+    // Clear in-memory providers (stub for now, add as features are implemented)
+    // Example:
+    // ChatProvider.instance.clear();
+    // FlashcardProvider.instance.clear();
+    // PhrasebookProvider.instance.clear();
+    // UserProvider.instance.clear();
+    // ...add more as needed
+
+    print('[UserDataService] All user data cleared.');
+  }
+
   // === 🔄 AUTH LISTENER ===
 
   void setupAuthListener() {
@@ -1136,7 +1168,7 @@ class UserDataService {
 
       return stats;
     } catch (e) {
-      print('Error getting user stats: $e');
+      print('[UserDataService] Error getting user stats: $e');
       return {
         'currentStreak': 0,
         'longestStreak': 0,

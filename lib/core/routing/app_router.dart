@@ -1,0 +1,233 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
+// Providers
+import '../providers/auth_provider.dart';
+import '../providers/user_provider.dart';
+
+// Screens
+import '../../features/auth/presentation/screens/sign_in_screen.dart';
+import '../../features/home/presentation/screens/home_screen.dart';
+import '../../screens/ai_chat_screen.dart';
+import '../../screens/chat_history_screen.dart';
+import '../../features/phrasebook/presentation/screens/phrasebook_screen.dart';
+import '../../features/flashcards_screen.dart';
+import '../../features/settings/presentation/screens/settings_screen.dart';
+
+class AppRouter {
+  static final List<RouteBase> routes = [
+    // Loading screen
+    GoRoute(
+      path: '/loading',
+      builder: (context, state) => const LoadingScreen(),
+    ),
+    // Error screen
+    GoRoute(
+      path: '/error',
+      builder: (context, state) => const ErrorScreen(),
+    ),
+    // Sign in screen
+    GoRoute(
+      path: '/signin',
+      builder: (context, state) => const SignInScreen(),
+    ),
+    // Main app routes
+    ShellRoute(
+      builder: (context, state, child) => MainAppShell(child: child),
+      routes: [
+        // Home screen
+        GoRoute(
+          path: '/',
+          builder: (context, state) => const HomeScreen(),
+        ),
+        // Chat routes
+        GoRoute(
+          path: '/chat',
+          builder: (context, state) => const AIChatScreen(),
+        ),
+        GoRoute(
+          path: '/chat/:conversationId',
+          builder: (context, state) => AIChatScreen(
+            conversationId: state.pathParameters['conversationId'],
+          ),
+        ),
+        GoRoute(
+          path: '/chat/history',
+          builder: (context, state) => const ChatHistoryScreen(),
+        ),
+        // Phrasebook routes
+        GoRoute(
+          path: '/phrasebook',
+          builder: (context, state) => const PhrasebookScreen(),
+        ),
+        GoRoute(
+          path: '/phrasebook/category/:categoryId',
+          builder: (context, state) => PhrasebookScreen(
+            categoryId: state.pathParameters['categoryId'],
+          ),
+        ),
+        // Flashcard routes
+        GoRoute(
+          path: '/flashcards',
+          builder: (context, state) => const FlashcardsScreen(),
+        ),
+        // Settings
+        GoRoute(
+          path: '/settings',
+          builder: (context, state) => const SettingsScreen(),
+        ),
+      ],
+    ),
+  ];
+}
+
+// Loading screen
+class LoadingScreen extends StatelessWidget {
+  const LoadingScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.primary,
+      body: const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: Colors.white),
+            SizedBox(height: 16),
+            Text(
+              'Loading LingoLamp...',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Error screen
+class ErrorScreen extends StatelessWidget {
+  const ErrorScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.primary,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                color: Colors.white,
+                size: 64,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Something went wrong',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Please try again or contact support if the problem persists.',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 16,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () {
+                  // Clear error and retry
+                  context.read<AuthProvider>().clearError();
+                },
+                child: const Text('Try Again'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Main app shell with bottom navigation
+class MainAppShell extends StatefulWidget {
+  final Widget child;
+
+  const MainAppShell({super.key, required this.child});
+
+  @override
+  State<MainAppShell> createState() => _MainAppShellState();
+}
+
+class _MainAppShellState extends State<MainAppShell> {
+  int _currentIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: widget.child,
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+          
+          // Navigate to the selected route
+          switch (index) {
+            case 0:
+              context.go('/');
+              break;
+            case 1:
+              context.go('/chat');
+              break;
+            case 2:
+              context.go('/phrasebook');
+              break;
+            case 3:
+              context.go('/flashcards');
+              break;
+          }
+        },
+        type: BottomNavigationBarType.fixed,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_outlined),
+            activeIcon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.chat_outlined),
+            activeIcon: Icon(Icons.chat),
+            label: 'Chat',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.auto_stories_outlined),
+            activeIcon: Icon(Icons.auto_stories),
+            label: 'Phrasebook',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.diamond_outlined),
+            activeIcon: Icon(Icons.diamond),
+            label: 'Flashcards',
+          ),
+        ],
+      ),
+    );
+  }
+} 

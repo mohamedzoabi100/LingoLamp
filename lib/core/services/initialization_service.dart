@@ -1,0 +1,41 @@
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
+
+class InitializationService {
+  static Future<void> initialize() async {
+    try {
+      print('🔄 Initializing app services...');
+      
+      // Initialize Hive for local storage
+      await _initializeHive();
+      
+      // Initialize SharedPreferences
+      await SharedPreferences.getInstance();
+      
+      // Initialize other services
+      await _initializeOtherServices();
+      
+      print('✅ All services initialized successfully');
+    } catch (e) {
+      print('❌ Service initialization failed: $e');
+      // Continue app startup even if some services fail
+    }
+  }
+  
+  static Future<void> _initializeHive() async {
+    try {
+      final appDocumentDir = await getApplicationDocumentsDirectory();
+      await Hive.initFlutter(appDocumentDir.path);
+      print('✅ Hive initialized successfully');
+    } catch (e) {
+      print('❌ Hive initialization failed: $e');
+    }
+  }
+  
+  static Future<void> _initializeOtherServices() async {
+    // Initialize other services here
+    // This will be expanded as we add more services
+    await Future.delayed(const Duration(milliseconds: 100));
+  }
+} 

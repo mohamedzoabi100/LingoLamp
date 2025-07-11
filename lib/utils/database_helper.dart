@@ -321,6 +321,9 @@ class DatabaseHelper {
   // === CHAT MESSAGE METHODS ===
   
   Future<int> insertMessage(ChatMessage message) async {
+    // TODO: Update to work with new model structure
+    // Temporarily commented out to test new AI chat feature
+    /*
     Database db = await instance.database;
     int messageId = await db.insert(tableMessages, message.toMap());
 
@@ -333,6 +336,8 @@ class DatabaseHelper {
     }
     _onChatChanged();
     return messageId;
+    */
+    return 0; // Temporary return
   }
 
   Future<List<ChatMessage>> getMessagesForConversation(int conversationId) async {

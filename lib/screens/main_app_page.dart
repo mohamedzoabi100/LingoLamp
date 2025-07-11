@@ -94,7 +94,7 @@ class _MainAppPageState extends State<MainAppPage> {
   Future<void> _loadUserData() async {
     final shouldShowSpinner = !_initialLoadDone;
     if (shouldShowSpinner && mounted) {
-      setState(() => _isLoading = true);
+    setState(() => _isLoading = true);
     }
     
     try {

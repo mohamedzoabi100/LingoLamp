@@ -14,6 +14,10 @@ class Flashcard {
   final bool isFavorite;
   final String? category; // For organizing cards into decks
   final List<String> tags; // For filtering and organizing
+  final DateTime? nextReview;
+  final int interval;
+  final double easeFactor;
+  final int repetitions;
 
   Flashcard({
     this.id,
@@ -29,6 +33,10 @@ class Flashcard {
     this.isFavorite = false,
     this.category,
     this.tags = const [],
+    this.nextReview,
+    this.interval = 1,
+    this.easeFactor = 2.5,
+    this.repetitions = 0,
   }) : uuid = uuid ?? const Uuid().v4();
 
   Map<String, dynamic> toMap() {
@@ -87,6 +95,10 @@ class Flashcard {
     bool? isFavorite,
     String? category,
     List<String>? tags,
+    DateTime? nextReview,
+    int? interval,
+    double? easeFactor,
+    int? repetitions,
   }) {
     return Flashcard(
       id: id ?? this.id,
@@ -102,6 +114,10 @@ class Flashcard {
       isFavorite: isFavorite ?? this.isFavorite,
       category: category ?? this.category,
       tags: tags ?? this.tags,
+      nextReview: nextReview ?? this.nextReview,
+      interval: interval ?? this.interval,
+      easeFactor: easeFactor ?? this.easeFactor,
+      repetitions: repetitions ?? this.repetitions,
     );
   }
 

@@ -70,21 +70,21 @@ class _RecommendationsScreenState extends State<RecommendationsScreen> {
         return;
       }
 
-      // Lookup translation from PhraseService
-      final phraseList = await PhraseService().allPhrasesStream.first;
-      PhraseModel? phrase;
-      try {
-        phrase = phraseList.firstWhere(
-          (p) => p.english.trim().toLowerCase() == rec.term.trim().toLowerCase(),
-        );
-      } catch (_) {
-        phrase = null;
-      }
-      String? translated = phrase?.spanish;
+    // Lookup translation from PhraseService
+    final phraseList = await PhraseService().allPhrasesStream.first;
+    PhraseModel? phrase;
+    try {
+      phrase = phraseList.firstWhere(
+        (p) => p.english.trim().toLowerCase() == rec.term.trim().toLowerCase(),
+      );
+    } catch (_) {
+      phrase = null;
+    }
+    String? translated = phrase?.spanish;
       print('[RECOMMENDATIONS] PhraseService translation: $translated');
 
       // If not found, try simple AI translation with shorter timeout
-      if (translated == null || translated.trim().isEmpty || translated.trim().toLowerCase() == rec.term.trim().toLowerCase()) {
+    if (translated == null || translated.trim().isEmpty || translated.trim().toLowerCase() == rec.term.trim().toLowerCase()) {
         print('[RECOMMENDATIONS] Trying simple AI translation...');
         try {
           // Use a simpler, faster approach
@@ -96,88 +96,88 @@ class _RecommendationsScreenState extends State<RecommendationsScreen> {
           }
         } catch (e) {
           print('[RECOMMENDATIONS] Simple AI translation failed: $e');
-        }
       }
+    }
 
-      // If still not found, prompt the user for a Spanish translation
-      if (translated == null || translated.trim().isEmpty || translated.trim().toLowerCase() == rec.term.trim().toLowerCase()) {
-        translated = await showDialog<String>(
-          context: context,
-          builder: (context) {
-            final controller = TextEditingController();
-            return AlertDialog(
-              title: const Text('Enter Spanish Translation'),
+    // If still not found, prompt the user for a Spanish translation
+    if (translated == null || translated.trim().isEmpty || translated.trim().toLowerCase() == rec.term.trim().toLowerCase()) {
+      translated = await showDialog<String>(
+        context: context,
+        builder: (context) {
+          final controller = TextEditingController();
+          return AlertDialog(
+            title: const Text('Enter Spanish Translation'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text('Please provide the Spanish translation for "${rec.term}"'),
                   const SizedBox(height: 16),
                   TextField(
-                    controller: controller,
+              controller: controller,
                     decoration: const InputDecoration(
                       labelText: 'Spanish translation',
                       hintText: 'Enter the Spanish translation...',
                       border: OutlineInputBorder(),
-                    ),
-                    autofocus: true,
+              ),
+              autofocus: true,
                     onSubmitted: (value) => Navigator.pop(context, value.trim()),
                   ),
                 ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, null),
+                child: const Text('Cancel'),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, null),
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(context, controller.text.trim()),
-                  child: const Text('Save'),
-                ),
-              ],
-            );
-          },
-        );
+              TextButton(
+                onPressed: () => Navigator.pop(context, controller.text.trim()),
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
+      );
         
-        if (translated == null || translated.isEmpty) {
-          // User cancelled or didn't enter anything
-          if (mounted) {
+      if (translated == null || translated.isEmpty) {
+        // User cancelled or didn't enter anything
+        if (mounted) {
             // Close loading dialog
             Navigator.of(context).pop();
             
-            ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Flashcard not added: Spanish translation required.'),
                 backgroundColor: Colors.red,
               ),
-            );
-          }
-          return;
+          );
         }
+        return;
       }
+    }
 
       // Create the flashcard with all required fields
-      final card = Flashcard(
-        originalText: rec.term,
-        translatedText: translated,
+    final card = Flashcard(
+      originalText: rec.term,
+      translatedText: translated,
         sourceLanguage: 'en-US',
         targetLanguage: 'es-ES',
-        createdAt: DateTime.now(),
-        lastStudied: DateTime.now(),
+      createdAt: DateTime.now(),
+      lastStudied: DateTime.now(),
         timesStudied: 0,
         difficulty: 2,
         isFavorite: false,
         category: 'Recommended',
         tags: ['recommended'],
-      );
+    );
 
       print('[RECOMMENDATIONS] Created flashcard: ${card.originalText} -> ${card.translatedText}');
 
       // Insert the flashcard
-      await _db.insertFlashcard(card);
+    await _db.insertFlashcard(card);
       print('[RECOMMENDATIONS] Flashcard inserted successfully');
       
       // Remove from recommendations
-      await _db.deleteRecommended(rec.id!);
+    await _db.deleteRecommended(rec.id!);
       
       if (mounted) {
         // Close loading dialog
@@ -192,16 +192,16 @@ class _RecommendationsScreenState extends State<RecommendationsScreen> {
       }
     } catch (e) {
       print('Error adding flashcard: $e');
-      if (mounted) {
+    if (mounted) {
         // Close loading dialog
         Navigator.of(context).pop();
         
-        ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error adding flashcard: $e'),
             backgroundColor: Colors.red,
           ),
-        );
+      );
       }
     }
   }

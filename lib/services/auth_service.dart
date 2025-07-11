@@ -5,9 +5,7 @@ import 'package:flutter/services.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: ['email', 'profile'],
-  );
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   // Get current user
   User? get currentUser => _auth.currentUser;
@@ -18,50 +16,41 @@ class AuthService {
   // Sign in with Google
   Future<UserCredential?> signInWithGoogle() async {
     try {
-      // Check if Google Play services is available
-      final bool isAvailable = await _googleSignIn.isSignedIn();
-      
       // Clear any existing sign-in state
       await _googleSignIn.signOut();
-      
+
       print('Attempting to sign in with Google...');
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      
+
       if (googleUser == null) {
         return null;
       }
-      
-      print('Google user signed in successfully: ${googleUser.email}');
-      print('Display name: ${googleUser.displayName}');
+
+      print('Google user signed in successfully:  {googleUser.email}');
+      print('Display name:  {googleUser.displayName}');
       print('Getting authentication details...');
 
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      
-      print('Access token: ${googleAuth.accessToken != null ? "Present (${googleAuth.accessToken!.substring(0, 20)}...)" : "Missing"}');
-      print('ID token: ${googleAuth.idToken != null ? "Present (${googleAuth.idToken!.substring(0, 20)}...)" : "Missing"}');
-      
-      if (googleAuth.accessToken == null || googleAuth.idToken == null) {
-        throw Exception('Failed to get authentication tokens from Google. This might be due to Google Play Services issues on the emulator.');
+
+      print('ID token:  {googleAuth.idToken != null ? "Present ( {googleAuth.idToken!.substring(0, 20)}...)" : "Missing"}');
+
+      if (googleAuth.idToken == null) {
+        throw Exception('Failed to get authentication ID token from Google.');
       }
-      
+
       final AuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
       print('Authenticating with Firebase...');
-      
-      // Add timeout for Firebase authentication
-      print('Starting Firebase authentication...');
       final UserCredential result = await _auth.signInWithCredential(credential);
-      
+
       print('Firebase sign-in successful!');
-      print('User: ${result.user?.email}');
-      print('Display name: ${result.user?.displayName}');
-      print('User ID: ${result.user?.uid}');
-      
+      print('User:  {result.user?.email}');
+      print('Display name:  {result.user?.displayName}');
+      print('User ID:  {result.user?.uid}');
+
       return result;
-      
     } on FirebaseAuthException catch (e) {
       // Handle network-specific errors
       if (e.code == 'network-request-failed') {
@@ -69,7 +58,6 @@ class AuthService {
       } else if (e.code == 'invalid-credential') {
         throw Exception('Authentication failed: Invalid credentials. This might be due to emulator limitations with Google Play Services.');
       }
-      
       rethrow;
     } on PlatformException catch (e) {
       // Handle specific Google Sign-In errors
@@ -82,19 +70,14 @@ class AuthService {
       } else if (e.code == 'sign_in_required') {
         throw Exception('Google Play Services sign-in required. This is common on emulators - try testing on a real device.');
       }
-      
       rethrow;
     } catch (e, stackTrace) {
-      // Handle timeout errors
       if (e.toString().contains('TimeoutException') || e.toString().contains('timed out')) {
         throw Exception('Connection timeout. Please check your internet connection and try again. If using an emulator, consider testing on a real device.');
       }
-      
-      // Handle emulator-specific issues
       if (e.toString().contains('Google Play Services') || e.toString().contains('emulator')) {
         throw Exception('Google Play Services issue detected. Android x86 emulators have limited Google Play Services support. Please test on a real device or use an ARM64 emulator with Google Play.');
       }
-      
       rethrow;
     }
   }
@@ -102,12 +85,8 @@ class AuthService {
   // Sign out
   Future<void> signOut() async {
     try {
-      // Sign out from Google
       await _googleSignIn.signOut();
-      
-      // Sign out from Firebase
       await _auth.signOut();
-      
     } catch (e) {
       rethrow;
     }

@@ -2,43 +2,45 @@
 // ** MODIFIED FILE **
 
 class ChatMessage {
-  final int? id;
-  int conversationId;
+  final String id;
+  final String conversationId;
+  final String sender; // 'user' or 'ai'
   final String text;
-  final bool isUserMessage;
   final DateTime timestamp;
-  // MODIFIED: Renamed 'translatedText' to 'originalQuery' for better clarity.
-  // This field will store the user's original text that the AI is responding to.
-  final String? originalQuery;
+  final bool isFavorite;
+  final bool isFlashcard;
+  final Map<String, dynamic>? extra;
 
   ChatMessage({
-    this.id,
+    required this.id,
     required this.conversationId,
+    required this.sender,
     required this.text,
-    required this.isUserMessage,
     required this.timestamp,
-    this.originalQuery,
+    this.isFavorite = false,
+    this.isFlashcard = false,
+    this.extra,
   });
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'conversation_id': conversationId,
-      'text': text,
-      'is_user_message': isUserMessage ? 1 : 0,
-      'timestamp': timestamp.toIso8601String(),
-      'original_query': originalQuery, // MODIFIED
-    };
-  }
+  factory ChatMessage.fromMap(Map<String, dynamic> map) => ChatMessage(
+    id: map['id'],
+    conversationId: map['conversationId'],
+    sender: map['sender'],
+    text: map['text'],
+    timestamp: DateTime.parse(map['timestamp']),
+    isFavorite: map['isFavorite'] ?? false,
+    isFlashcard: map['isFlashcard'] ?? false,
+    extra: map['extra'],
+  );
 
-  factory ChatMessage.fromMap(Map<String, dynamic> map) {
-    return ChatMessage(
-      id: map['id'] as int?,
-      conversationId: map['conversation_id'] as int,
-      text: map['text'] as String,
-      isUserMessage: (map['is_user_message'] as int) == 1,
-      timestamp: DateTime.parse(map['timestamp'] as String),
-      originalQuery: map['original_query'] as String?, // MODIFIED
-    );
-  }
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'conversationId': conversationId,
+    'sender': sender,
+    'text': text,
+    'timestamp': timestamp.toIso8601String(),
+    'isFavorite': isFavorite,
+    'isFlashcard': isFlashcard,
+    'extra': extra,
+  };
 }

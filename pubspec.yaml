@@ -1,93 +1,82 @@
-name: lingolampmainpage
-description: "A new Flutter project."
-# The following line prevents the package from being accidentally published to
-# pub.dev using `flutter pub publish`. This is preferred for private packages.
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+name: lingolamp
+description: "AI-powered language learning app with Google authentication"
+publish_to: 'none'
 
-# The following defines the version and build number for your application.
-# A version number is three numbers separated by dots, like 1.2.43
-# followed by an optional build number separated by a +.
-# Both the version and the builder number may be overridden in flutter
-# build by specifying --build-name and --build-number, respectively.
-# In Android, build-name is used as versionName while build-number used as versionCode.
-# Read more about Android versioning at https://developer.android.com/studio/publish/versioning
-# In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
-# Read more about iOS versioning at
-# https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
-# In Windows, build-name is used as the major, minor, and patch parts
-# of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+3
+version: 2.0.0+1
 
 environment:
-  sdk: ^3.7.0
+  sdk: '>=3.2.3 <4.0.0'
 
-# Dependencies specify other packages that your package needs in order to work.
-# To automatically upgrade your package dependencies to the latest versions
-# consider running `flutter pub upgrade --major-versions`. Alternatively,
-# dependencies can be manually updated by changing the version numbers below to
-# the latest version available on pub.dev. To see which dependencies have newer
-# versions available, run `flutter pub outdated`.
 dependencies:
-  # Core Flutter
   flutter:
     sdk: flutter
-  cloud_functions: ^4.7.6
-  firebase_core: ^2.32.0
-  firebase_auth: ^4.20.0
-  google_sign_in: ^6.2.1
-  # UI Icons
-  cupertino_icons: ^1.0.8
 
-  # ===== OFFLINE LANGUAGE FEATURES =====
-  #google_mlkit_translation: ^0.13.0  # Offline translation (English ↔ Spanish)
-  flutter_tts: ^3.8.5                # Text-to-speech (works offline)
- # permission_handler: ^11.3.0        # Microphone permission for STT
+  # State Management
+  provider: ^6.1.1
+  riverpod: ^2.4.9
+  flutter_riverpod: ^2.4.9
 
-  # ===== LOCAL DATA STORAGE =====
-  shared_preferences: ^2.2.2         # For favorites storage (offline)
-  sqflite: ^2.3.2                   # Local database for chat history (offline)
-  path: ^1.9.0                      # Path utilities for SQLite
+  # Navigation
+  go_router: ^12.1.3
 
-  # ===== UTILITIES =====
-  intl: ^0.19.0                     # Date formatting for chat timestamps
+  # Firebase
+  firebase_core: ^3.15.1
+  firebase_auth: ^5.6.2
+  cloud_firestore: ^5.6.11
+  google_sign_in: ^6.1.6
+  google_generative_ai: ^0.4.7
 
-  # ===== FIREBASE REMOVED =====
-  # firebase_core: ^3.6.0          
-  cloud_firestore: ^4.17.5  
+  # Local Storage
+  sqflite: ^2.3.0
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  shared_preferences: ^2.2.2
 
-  google_generative_ai: ^0.4.0
-  http: ^1.2.1    
-  flutter_markdown: ^0.7.1  
-  flutter_dotenv: ^5.1.0
-  provider: ^6.1.2
-  uuid: ^4.4.0
+  # UI & UX
+  cached_network_image: ^3.3.0
+  shimmer: ^3.0.0
+  flutter_markdown: ^0.6.18
+  flutter_tts: ^3.8.5
+  speech_to_text: ^7.1.0
+  intl: ^0.18.1
+
+  # AI & APIs
+  http: ^1.1.0
+
+  # Utils
+  connectivity_plus: ^5.0.2
+  path_provider: ^2.1.1
+  permission_handler: ^11.1.0
+  rxdart: ^0.27.7
+  path: ^1.8.3
+  uuid: ^4.2.1
+  csv: ^5.1.1
+
+  # Development
+  cupertino_icons: ^1.0.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  # The "flutter_lints" package below contains a set of recommended lints to
-  # encourage good coding practices. The lint set provided by the package is
-  # activated in the `analysis_options.yaml` file located at the root of your
-  # package. See that file for information about deactivating specific lint
-  # rules and activating additional ones.
-  flutter_lints: ^2.0.0
-  flutter_launcher_icons: ^0.13.1
-  rxdart: ^0.27.7
+  flutter_lints: ^3.0.0
+  mockito: ^5.4.4
+  build_runner: ^2.4.7
+  hive_generator: ^2.0.1
+  json_annotation: ^4.8.1
+  json_serializable: ^6.7.1
 
-# For information on the generic Dart part of this file, see the
-# following page: https://dart.dev/tools/pub/pubspec
-
-# The following section is specific to Flutter packages.
 flutter:
-
-  # The following line ensures that the Material Icons font is
-  # included with your application, so that you can use the icons in
-  # the material Icons class.
   uses-material-design: true
 
-  # ===== ASSETS (IMPORTANT FOR OFFLINE FUNCTIONALITY) =====
   assets:
-    - assets/images/              # App logo and UI images
-    - assets/data/                # CSV file with phrases (CRITICAL for offline)
+    - assets/images/
+    - assets/data/
 
+  # Removed assets/icons/ and Roboto font references because they do not exist
+  # fonts:
+  #   - family: Roboto
+  #     fonts:
+  #       - asset: assets/fonts/Roboto-Regular.ttf
+  #       - asset: assets/fonts/Roboto-Bold.ttf
+  #         weight: 700
     

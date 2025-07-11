@@ -1,32 +1,40 @@
 //lib/models/conversation_model.dart
 class Conversation {
-  final int? id; 
-  String? title; 
+  final String id;
+  final String title;
   final DateTime createdAt;
-  DateTime lastMessageTimestamp; //To sort conversations
+  final DateTime updatedAt;
+  final bool isArchived;
+  final bool isDeleted;
+  final Map<String, dynamic>? extra;
 
   Conversation({
-    this.id,
-    this.title,
+    required this.id,
+    required this.title,
     required this.createdAt,
-    required this.lastMessageTimestamp,
+    required this.updatedAt,
+    this.isArchived = false,
+    this.isDeleted = false,
+    this.extra,
   });
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'title': title,
-      'created_at': createdAt.toIso8601String(),
-      'last_message_timestamp': lastMessageTimestamp.toIso8601String(),
-    };
-  }
+  factory Conversation.fromMap(Map<String, dynamic> map) => Conversation(
+    id: map['id'],
+    title: map['title'],
+    createdAt: DateTime.parse(map['createdAt']),
+    updatedAt: DateTime.parse(map['updatedAt']),
+    isArchived: map['isArchived'] ?? false,
+    isDeleted: map['isDeleted'] ?? false,
+    extra: map['extra'],
+  );
 
-  factory Conversation.fromMap(Map<String, dynamic> map) {
-    return Conversation(
-      id: map['id'] as int?,
-      title: map['title'] as String?,
-      createdAt: DateTime.parse(map['created_at'] as String),
-      lastMessageTimestamp: DateTime.parse(map['last_message_timestamp'] as String),
-    );
-  }
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'title': title,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+    'isArchived': isArchived,
+    'isDeleted': isDeleted,
+    'extra': extra,
+  };
 }

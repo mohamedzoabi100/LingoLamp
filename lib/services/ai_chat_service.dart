@@ -16,8 +16,9 @@ class AiChatService {
       : _model = GenerativeModel(
           model: 'gemini-1.5-flash-latest',
           apiKey: geminiApiKey,
-          // Using your preferred detailed prompt with the updated data block rule.
-          systemInstruction: Content.system('''
+        );
+
+  static const String _systemPrompt = '''
             You are **Lingo**, a friendly, encouraging, and expert Spanish-language tutor.
 
             TASKS
@@ -46,8 +47,7 @@ class AiChatService {
             STYLE  
             • Be concise.  
             • End every reply with an engaging question to keep the conversation going.
-            '''),
-        );
+    ''';
 
   void startChat({List<Content>? history}) {
     _chatSession = _model.startChat(history: history);
@@ -57,6 +57,8 @@ class AiChatService {
     if (_chatSession == null) {
       debugPrint('[AI] Starting new chat session');
       startChat();
+      // Send system prompt as first message
+      await _chatSession!.sendMessage(Content.text(_systemPrompt));
     }
     debugPrint('[AI] sendMessage called with text: "$text"');
     debugPrint('[AI] Using API key: ' + geminiApiKey.substring(0, 8) + '...');

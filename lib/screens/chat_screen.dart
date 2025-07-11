@@ -18,6 +18,11 @@ import '../models/phrase_model.dart';
 import 'chat_history_screen.dart';
 import '../services/xp_event_tracker.dart';
 import '../services/user_data_service.dart';
+import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
+import '../providers/chat_provider.dart';
+import '../widgets/chat_message_bubble.dart';
+import '../widgets/chat_input_bar.dart';
 
 const targetLangCode = 'es-ES';
 
@@ -176,9 +181,14 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _ensureConversationExists() async {
     if (_currentConversationId == null && _messages.isNotEmpty) {
       final now = DateTime.now();
-      final firstUserMessage = _messages.firstWhere((m) => m.isUserMessage, orElse: () => _messages.first).text;
+      final firstUserMessage = _messages.firstWhere((m) => m.sender == 'user', orElse: () => _messages.first).text;
       final convoTitle = firstUserMessage.substring(0, firstUserMessage.length > 30 ? 30 : firstUserMessage.length);
-      Conversation newConvo = Conversation(title: convoTitle, createdAt: now, lastMessageTimestamp: now);
+      Conversation newConvo = Conversation(
+        id: UniqueKey().toString(),
+        title: convoTitle,
+        createdAt: now,
+        updatedAt: now,
+      );
       _currentConversationId = await _dbHelper.insertConversation(newConvo);
       _currentConversation = await _dbHelper.getConversation(_currentConversationId!);
       if (widget.onConversationIdChanged != null) {
@@ -187,7 +197,13 @@ class _ChatScreenState extends State<ChatScreen> {
       for (int i = 0; i < _messages.length; i++) {
         if (_messages[i].conversationId == -1) {
           final oldMsg = _messages[i];
-          final newMsg = model.ChatMessage(id: oldMsg.id, conversationId: _currentConversationId!, text: oldMsg.text, isUserMessage: oldMsg.isUserMessage, timestamp: oldMsg.timestamp, originalQuery: oldMsg.originalQuery);
+          final newMsg = model.ChatMessage(
+            id: oldMsg.id,
+            conversationId: _currentConversationId!.toString(),
+            sender: oldMsg.sender,
+            text: oldMsg.text,
+            timestamp: oldMsg.timestamp,
+          );
           _messages[i] = newMsg;
           await _dbHelper.insertMessage(newMsg);
         }
@@ -205,11 +221,12 @@ class _ChatScreenState extends State<ChatScreen> {
     _inputController.clear();
     FocusScope.of(context).unfocus();
     debugPrint('[CHAT] User submitted: $text');
-    
+
     final userMessage = model.ChatMessage(
-      conversationId: _currentConversationId ?? -1,
+      id: UniqueKey().toString(),
+      conversationId: (_currentConversationId ?? -1).toString(),
+      sender: 'user',
       text: text,
-      isUserMessage: true,
       timestamp: DateTime.now(),
     );
     
@@ -220,33 +237,34 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
     
     try {
-      await _ensureConversationExists();
-      
-      final messageToSave = model.ChatMessage(
-        conversationId: _currentConversationId!,
+    await _ensureConversationExists();
+
+    final messageToSave = model.ChatMessage(
+        id: UniqueKey().toString(),
+        conversationId: _currentConversationId!.toString(),
+        sender: 'user',
         text: userMessage.text,
-        isUserMessage: true,
         timestamp: userMessage.timestamp,
       );
-      
-      await _dbHelper.insertMessage(messageToSave);
+        
+    await _dbHelper.insertMessage(messageToSave);
       debugPrint('[CHAT] Message saved to DB');
       
       // Update chat stream
       _dbHelper.updateChatStreamForConversation(_currentConversationId!);
-      
+    
       final aiResponseText = await _aiChatService.sendMessage(messageToSave.text);
       debugPrint('[CHAT] AI response: $aiResponseText');
-      
-      final aiMessage = model.ChatMessage(
-        conversationId: _currentConversationId!,
-        text: aiResponseText,
-        isUserMessage: false,
-        timestamp: DateTime.now(),
-        originalQuery: messageToSave.text,
-      );
-      
-      await _dbHelper.insertMessage(aiMessage);
+    
+    final aiMessage = model.ChatMessage(
+      id: UniqueKey().toString(),
+      conversationId: _currentConversationId!.toString(),
+      sender: 'ai',
+      text: aiResponseText,
+      timestamp: DateTime.now(),
+    );
+    
+    await _dbHelper.insertMessage(aiMessage);
       // Update chat stream again
       _dbHelper.updateChatStreamForConversation(_currentConversationId!);
       
@@ -254,7 +272,7 @@ class _ChatScreenState extends State<ChatScreen> {
       
       if (mounted) {
         setState(() { _isResponding = false; });
-        _scrollToBottom();
+    _scrollToBottom();
       }
     } catch (e, st) {
       debugPrint('[CHAT] Error in _handleSubmittedText: $e\n$st');
@@ -389,7 +407,7 @@ class _ChatScreenState extends State<ChatScreen> {
               }
               // Confirm if the current chat has any messages (other than greeting)
               final currentMessages = await _dbHelper.getMessagesForConversation(_currentConversationId ?? -1);
-              final hasRealMessages = currentMessages.any((m) => m.isUserMessage || (m.text != "¡Hola! I'm Lingo, your personal Spanish tutor. How can I help you practice today?"));
+              final hasRealMessages = currentMessages.any((m) => m.sender == 'user' || (m.text != "¡Hola! I'm Lingo, your personal Spanish tutor. How can I help you practice today?"));
               if (hasRealMessages) {
                 final confirm = await showDialog<bool>(
                   context: context,
@@ -408,15 +426,17 @@ class _ChatScreenState extends State<ChatScreen> {
               final now = DateTime.now();
               final greeting = "¡Hola! I'm Lingo, your personal Spanish tutor. How can I help you practice today?";
               final newConvo = Conversation(
+                id: UniqueKey().toString(),
                 title: 'New Chat',
                 createdAt: now,
-                lastMessageTimestamp: now,
+                updatedAt: now,
               );
               final newId = await _dbHelper.insertConversation(newConvo);
               final greetingMsg = model.ChatMessage(
-                conversationId: newId,
+                id: UniqueKey().toString(),
+                conversationId: newId.toString(),
+                sender: 'ai',
                 text: greeting,
-                isUserMessage: false,
                 timestamp: now,
               );
               await _dbHelper.insertMessage(greetingMsg);
@@ -477,17 +497,17 @@ class _ChatScreenState extends State<ChatScreen> {
                         itemBuilder: (_, index) => _buildChatBubble(messages[index]),
                       ),
                     ),
-                    if (_isResponding)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-                        child: Row(children: [
-                          SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: primaryColor)),
-                          const SizedBox(width: 12),
-                          Text("Lingo is typing...", style: TextStyle(color: Colors.grey[600], fontStyle: FontStyle.italic)),
-                        ]),
-                      ),
-                    _buildInputRow(primaryColor),
-                  ]),
+        if (_isResponding)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+            child: Row(children: [
+              SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: primaryColor)),
+              const SizedBox(width: 12),
+              Text("Lingo is typing...", style: TextStyle(color: Colors.grey[600], fontStyle: FontStyle.italic)),
+            ]),
+          ),
+        _buildInputRow(primaryColor),
+      ]),
                   if (_showScrollToBottom)
                     Positioned(
                       right: 16,
@@ -545,7 +565,7 @@ class _ChatScreenState extends State<ChatScreen> {
 // REPLACE your _buildChatBubble function with this:
 
   Widget _buildChatBubble(model.ChatMessage message) {
-    final bool isUser = message.isUserMessage;
+    final bool isUser = message.sender == 'user';
     final primaryColor = Theme.of(context).colorScheme.primary;
 
     String textForDisplay;
