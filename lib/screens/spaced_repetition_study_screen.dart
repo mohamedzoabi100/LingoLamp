@@ -82,7 +82,7 @@ class _SpacedRepetitionStudyScreenState extends State<SpacedRepetitionStudyScree
     if (_dueCards.isEmpty) return;
 
     final currentCard = _dueCards[_currentIndex];
-    final updatedStudyCard = StudyService.processReview(currentCard, quality);
+    final updatedStudyCard = await StudyService.processReview(currentCard, quality);
 
     // Award XP based on review quality
     String difficulty = '';

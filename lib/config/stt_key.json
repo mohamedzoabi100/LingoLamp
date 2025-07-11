@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "lingolamp",
+  "private_key_id": "3f6f10188be95e3e3118738138b282701a9984b2",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDcGv95aU6DPmVw\nF9xJPDkOpx6wo3Nuz8u/ZsBPKKQcwSWKXZ1KMIwYxfSqPZG6Uy7KMRGF3sLB15mT\nGDcDmy5qWb71zvJv1EoycUAWs6I8vWiLUKlTuZYKu+3A8ZvcnHP1Ir0dTvLYHFN6\nzpkqRGIapEAWDvuTMe5PlSN8SQ3B4WbM8/80elmqW+sHjEA2HYIzl5PdZtA2LDTt\nv6pqHU3asviU4IBuv/WP3DfO1llfymdjBYtYrHaEl2bxKNPlv04mJa4lsByrkgAp\nC2CO4pGobbWn9Pg++o3YxjieFllNcVUv8hXAXxNOk+K2/kiEQm1xN77ByKRsJHR0\n6V/pbsfzAgMBAAECggEAbT65LnmmDl4Z2tj87RyG9U7dXK7DzGw2pHlLWf7B9cOn\n7lUojHosDt+x4A1PFzvSLWjNWbSG1c882lVaeN+82exRa4+bpQWpDgBH3vypuZwJ\nF5yhbnzei9Va3DkPMyA0LadgVfupbLoidQG149StHKwJYuls1FIkBjvvsPBRc7iQ\nOyosXLCxHXc1ILoUxaIrg2+3LlsWP5FRg+K2/uH3pSZzffYl8LvdvFJrtfDKkXV+\nh2ZX+EXMs4C5tIR0pLQUnv6leuX4/dZnIoDKk+AUY7HJ2EPTQwWPm6eeARM+llVN\ndwQ7nqnnfAhUTLpDXhxGPKUusHdL/Dh+e7q17l5lAQKBgQD9T8yClCtb7Lgfjq2O\nJ17hFDabYoqNzzBJW9xipwW7lXjyt2Ro4/aKvU3ry2iLxutEQRhE18nh51CT8Op3\n8Bi7xMoypvnTQ5PibGiunlSCz/khivgcZQCHB90C4xU6id2DmZuzcRTRPN7Kj89v\nGpYueaLFQFJ4DncJcWjION2LWwKBgQDecPvbxPmiFXfT2LP28Hf6W3s0byG7dKZp\nEsyHVxsr9yt5TRoX/d2Trsrtob2iQx45cfme6WsKh8OimwQ8qKS8Sci/avphTS0L\nySpWGwhjr/xXl2cL5l+gDcztYfetvH7CgWvFIsvIoiRH9rbYNq1YVU3dgaqVvDW1\nJg7/YNMRSQKBgQDpJqbE1V4nSPWbzjY+bkxs/K7aTFPc/IOkMdHiV3r2Uji1pkjc\nJl6JCn6K9njulpN7CjMtQjTGIaNP1+HnrO0G/rVg88FkS4H1WPTtLDv6/zN+RSvi\n7rASmRE6lAq5C6YAd8UQ35dakx048i7qQ11Rv5Eq3u5JJH86CNF54KVBmwKBgQDZ\nr6hKwtGqFWhXIdO87kf78lr4TWmtkdLpMUSHjm9A73rUEuheYkrdpEljlM2IZjbF\n8Qxgv/3JKGQEVcAnvMK6oVqcOY0ee/CBgDS2X24uYKOK9NgbhTA/6kGKbj19AOLs\nZsuY+RyFFGh9JKx7m8a4k4LIK4VNVAsbZEt5EMB+QQKBgFNuE8O1VtmTu8fi1xtZ\nsSCKuwOPBXgB43gaLgCpk6shnq0M68HYstQBkWPREiObhq6iX2Qk5c2gd+26KpBW\nKOE1V0HZXQc+6S6lZznqp3P4MgYp7108HyzkFzEj4VvmZwczgP70tugqs2owwMSe\nk+wi9AuTY00g6vQNvk0O7pPx\n-----END PRIVATE KEY-----\n",
+  "client_email": "lingolamp-stt@lingolamp.iam.gserviceaccount.com",
+  "client_id": "117933671792851328074",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/lingolamp-stt%40lingolamp.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

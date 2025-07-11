@@ -9,6 +9,7 @@ import '../../providers/chat_provider.dart';
 import 'flashcard_provider.dart';
 import 'phrasebook_provider.dart';
 import 'user_provider.dart';
+import 'daily_task_provider.dart';
 
 class AppProviders {
   static List<SingleChildWidget> get providers => [
@@ -35,6 +36,11 @@ class AppProviders {
     // Phrasebook provider
     ChangeNotifierProvider<PhrasebookProvider>(
       create: (context) => PhrasebookProvider(),
+    ),
+    
+    // Daily Task provider
+    ChangeNotifierProvider<DailyTaskProvider>(
+      create: (context) => DailyTaskProvider(),
     ),
   ];
 } 

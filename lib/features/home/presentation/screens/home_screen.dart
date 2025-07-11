@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'dart:async';
 
 import '../../../../core/providers/auth_provider.dart';
 import '../../../../core/providers/user_provider.dart';
+import '../../../../core/providers/daily_task_provider.dart';
 import '../../../../widgets/xp_display_widget.dart';
+import '../../../../models/daily_task_model.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,6 +20,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   late AnimationController _controller;
   late Animation<double> _opacityAnim;
   late Animation<Offset> _slideAnim;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
@@ -33,17 +37,38 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _controller.forward();
+      // Load daily tasks when screen initializes
+      final dailyTaskProvider = Provider.of<DailyTaskProvider>(context, listen: false);
+      dailyTaskProvider.loadDailyTasks();
+      
+      // Check and update tasks based on current activity
+      dailyTaskProvider.checkAndUpdateTasks();
+      
+      // Set up periodic refresh of tasks
+      _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+        if (mounted) {
+          dailyTaskProvider.checkAndUpdateTasks();
+        }
+      });
     });
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // Refresh tasks when screen becomes visible
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Provider.of<DailyTaskProvider>(context, listen: false).checkAndUpdateTasks();
+      }
+    });
+    
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).primaryColor,
@@ -82,9 +107,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
         ],
       ),
-      body: Consumer2<AuthProvider, UserProvider>(
-        builder: (context, authProvider, userProvider, child) {
-          if (userProvider.isLoading) {
+      body: Consumer3<AuthProvider, UserProvider, DailyTaskProvider>(
+        builder: (context, authProvider, userProvider, dailyTaskProvider, child) {
+          if (userProvider.isLoading || dailyTaskProvider.isLoading) {
             return const Center(
               child: CircularProgressIndicator(),
             );
@@ -134,53 +159,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       ),
                     );
                   },
-                  child: Card(
-                    elevation: 2,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    color: Colors.blueGrey[50],
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.check_circle_outline, color: Colors.blue[700]),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Daily Tasks',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Theme.of(context).primaryColor,
-                                  ),
-                                ),
-                              ),
-                              Text(
-                                '0/3 completed',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-                          Column(
-                            children: [
-                              _buildMockTaskTile('Practice with AI'),
-                              const Divider(height: 24, thickness: 1),
-                              _buildMockTaskTile('Review 5 flashcards'),
-                              const Divider(height: 24, thickness: 1),
-                              _buildMockTaskTile('Earn 20 XP'),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  child: _buildDailyTaskPanel(context, dailyTaskProvider),
                 ),
                 // Removed Quick Actions and Daily Goal
               ],
@@ -414,18 +393,94 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 }
 
-Widget _buildMockTaskTile(String task) {
+Widget _buildDailyTaskPanel(BuildContext context, DailyTaskProvider dailyTaskProvider) {
+  final taskSet = dailyTaskProvider.currentTaskSet;
+  if (taskSet == null) {
+    return const SizedBox.shrink();
+  }
+
+  return Card(
+    elevation: 2,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    color: Colors.blueGrey[50],
+    child: Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.check_circle_outline, color: Colors.blue[700]),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Daily Tasks',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                ),
+              ),
+              Text(
+                '${taskSet.completedTasksCount}/${taskSet.totalTasksCount} completed',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Column(
+            children: taskSet.tasks.map((task) {
+              return Column(
+                children: [
+                  _buildTaskTile(task),
+                  if (task != taskSet.tasks.last)
+                    const Divider(height: 24, thickness: 1),
+                ],
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _buildTaskTile(DailyTask task) {
   return ListTile(
     contentPadding: EdgeInsets.zero,
     leading: Checkbox(
-      value: false,
+      value: task.isCompleted,
       onChanged: null,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      activeColor: Colors.green,
     ),
     title: Text(
-      task,
-      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+      task.title,
+      style: TextStyle(
+        fontWeight: FontWeight.w600, 
+        fontSize: 16,
+        decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+        color: task.isCompleted ? Colors.grey[600] : null,
+      ),
     ),
+    subtitle: task.isInProgress ? Text(
+      '${task.currentValue}/${task.targetValue}',
+      style: TextStyle(
+        fontSize: 12,
+        color: Colors.blue[600],
+        fontWeight: FontWeight.w500,
+      ),
+    ) : null,
+    trailing: task.isCompleted ? Icon(
+      Icons.star,
+      color: Colors.amber[600],
+      size: 20,
+    ) : null,
     dense: true,
     visualDensity: VisualDensity.compact,
   );

@@ -405,7 +405,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
   }
 
   Future<void> _processReview(StudyCard card, ReviewQuality quality) async {
-    final updated = StudyService.processReview(card, quality);
+    final updated = await StudyService.processReview(card, quality);
 
     // Persist changes
     await _dbHelper.updateFlashcard(updated.flashcard);
