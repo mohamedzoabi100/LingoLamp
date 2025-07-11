@@ -9,11 +9,14 @@ import '../providers/user_provider.dart';
 // Screens
 import '../../features/auth/presentation/screens/sign_in_screen.dart';
 import '../../features/home/presentation/screens/home_screen.dart';
-import '../../screens/ai_chat_screen.dart';
+import '../../screens/chat_screen.dart';
 import '../../screens/chat_history_screen.dart';
 import '../../features/phrasebook/presentation/screens/phrasebook_screen.dart';
-import '../../features/flashcards_screen.dart';
+import '../../screens/flashcards_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
+import '../../models/phrasebook_theme.dart';
+import '../../features/phrasebook/presentation/screens/category_phrases_screen.dart';
+import '../../screens/recommendations_screen.dart';
 
 class AppRouter {
   static final List<RouteBase> routes = [
@@ -44,14 +47,19 @@ class AppRouter {
         // Chat routes
         GoRoute(
           path: '/chat',
-          builder: (context, state) => const AIChatScreen(),
+          builder: (context, state) => const ChatHistoryScreen(),
+        ),
+        GoRoute(
+          path: '/chat/new',
+          builder: (context, state) => const ChatScreen(),
         ),
         GoRoute(
           path: '/chat/:conversationId',
-          builder: (context, state) => AIChatScreen(
+          builder: (context, state) => ChatScreen(
             conversationId: state.pathParameters['conversationId'],
           ),
         ),
+        // Optionally, keep chat history route for direct access
         GoRoute(
           path: '/chat/history',
           builder: (context, state) => const ChatHistoryScreen(),
@@ -63,14 +71,31 @@ class AppRouter {
         ),
         GoRoute(
           path: '/phrasebook/category/:categoryId',
-          builder: (context, state) => PhrasebookScreen(
-            categoryId: state.pathParameters['categoryId'],
-          ),
+          builder: (context, state) {
+            final categoryId = state.pathParameters['categoryId'] ?? '';
+            final theme = _getThemeForCategory(categoryId);
+            if (theme == null) {
+              return Scaffold(
+                appBar: AppBar(title: const Text('Category Not Found')),
+                body: const Center(child: Text('Category not found.')),
+              );
+            }
+            return CategoryPhrasesScreen(
+              categoryTitle: theme.title,
+              categoryColor: theme.color,
+              categoryIcon: theme.icon,
+            );
+          },
         ),
         // Flashcard routes
         GoRoute(
           path: '/flashcards',
           builder: (context, state) => const FlashcardsScreen(),
+        ),
+        // Recommendations
+        GoRoute(
+          path: '/recommendations',
+          builder: (context, state) => const RecommendationsScreen(),
         ),
         // Settings
         GoRoute(
@@ -230,4 +255,59 @@ class _MainAppShellState extends State<MainAppShell> {
       ),
     );
   }
+} 
+
+// Helper to map categoryId to theme data
+PhrasebookTheme? _getThemeForCategory(String categoryId) {
+  final themes = [
+    PhrasebookTheme(
+      title: 'Food & Dining',
+      icon: Icons.restaurant,
+      color: Colors.orange,
+      phraseCount: 0,
+      description: '',
+    ),
+    PhrasebookTheme(
+      title: 'Transport',
+      icon: Icons.directions_car,
+      color: Colors.blue,
+      phraseCount: 0,
+      description: '',
+    ),
+    PhrasebookTheme(
+      title: 'Emergencies',
+      icon: Icons.local_hospital,
+      color: Colors.red,
+      phraseCount: 0,
+      description: '',
+    ),
+    PhrasebookTheme(
+      title: 'Greetings',
+      icon: Icons.waving_hand,
+      color: Colors.green,
+      phraseCount: 0,
+      description: '',
+    ),
+    PhrasebookTheme(
+      title: 'Shopping',
+      icon: Icons.shopping_bag,
+      color: Colors.purple,
+      phraseCount: 0,
+      description: '',
+    ),
+    PhrasebookTheme(
+      title: 'Accommodation',
+      icon: Icons.hotel,
+      color: Colors.brown,
+      phraseCount: 0,
+      description: '',
+    ),
+  ];
+  for (final t in themes) {
+    if (t.title.toLowerCase().replaceAll('&', '').replaceAll(' ', '').replaceAll('-', '') ==
+        categoryId.toLowerCase().replaceAll('&', '').replaceAll(' ', '').replaceAll('-', '')) {
+      return t;
+    }
+  }
+  return null;
 } 

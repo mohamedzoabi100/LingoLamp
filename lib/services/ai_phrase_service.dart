@@ -16,7 +16,7 @@ class AiPhraseService {
 
   Future<List<Map<String, String>>> generatePhrasesForTopic(String topic) async {
     final prompt = "Generate 5 common phrases for a tourist related to '$topic'. The response should be a list of English:Spanish pairs, one per line.";
-    final response = await _aiChatService.sendMessage(prompt);
+    final response = await _aiChatService.sendMessage(prompt, useSystemPrompt: false);
     debugPrint("AI Response for '$topic':\n$response");
     return _parsePhrasesFromResponse(response);
   }
@@ -24,7 +24,7 @@ class AiPhraseService {
   Future<List<Map<String, String>>> generateMorePhrasesForTopic(String topic, List<PhraseModel> existingPhrases) async {
     final existingPhrasesString = existingPhrases.map((p) => '- ${p.english}').join('\n');
     final prompt = "Generate 5 more common phrases for a tourist related to '$topic', avoiding repetition of the following:\n$existingPhrasesString\nThe response should be a list of English:Spanish pairs, one per line.";
-    final response = await _aiChatService.sendMessage(prompt);
+    final response = await _aiChatService.sendMessage(prompt, useSystemPrompt: false);
     debugPrint("AI Response for 'more $topic':\n$response");
     return _parsePhrasesFromResponse(response);
   }
@@ -83,7 +83,7 @@ class AiPhraseService {
       // 🆕 Add retry logic
       for (int attempt = 1; attempt <= 3; attempt++) {
         try {
-          final response = await _aiChatService.sendMessage(prompt);
+          final response = await _aiChatService.sendMessage(prompt, useSystemPrompt: false);
           
           if (response != null && response.isNotEmpty) {
             // 🆕 Improved parsing with better error handling

@@ -275,83 +275,13 @@ class _RecommendationsScreenState extends State<RecommendationsScreen> {
         title: const Text('Recommendations'),
         foregroundColor: Colors.white,
         backgroundColor: Theme.of(context).primaryColor,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.clear_all),
-            tooltip: 'Clear dismissed recommendations',
-            onPressed: () async {
-              final confirmed = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Clear Dismissed'),
-                  content: const Text('This will allow dismissed recommendations to reappear. Continue?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Cancel'),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text('Clear'),
-                    ),
-                  ],
-                ),
-              );
-              
-              if (confirmed == true) {
-                await _recommendationService.clearDismissedRecommendations();
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Cleared dismissed recommendations')),
-                  );
-                }
-              }
-            },
-          ),
-        ],
       ),
-      body: StreamBuilder<List<RecommendedFlashcard>>(
-        stream: _stream,
-        builder: (context, snapshot) {
-          print('[RECOMMENDATIONS] StreamBuilder: ${snapshot.connectionState}, hasData: ${snapshot.hasData}, error: ${snapshot.error}');
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final recs = snapshot.data!;
-          print('[RECOMMENDATIONS] Found ${recs.length} recommendations');
-          if (recs.isEmpty) {
-            return const Center(child: Text('No recommendations yet'));
-          }
-          return ListView.separated(
-            itemCount: recs.length,
-            separatorBuilder: (_, __) => const Divider(height: 0),
-            itemBuilder: (context, index) {
-              final rec = recs[index];
-              return ListTile(
-                leading: Icon(rec.source == 'chat' ? Icons.chat_bubble_outline : Icons.star_outline),
-                title: Text(rec.term, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text(rec.context, maxLines: 2, overflow: TextOverflow.ellipsis),
-                trailing: Wrap(
-                  spacing: 8,
-                  children: [
-                    IconButton(
-                      tooltip: 'Add',
-                      icon: const Icon(Icons.add),
-                      color: Colors.green,
-                      onPressed: () => _addFlashcard(rec),
-                    ),
-                    IconButton(
-                      tooltip: 'Dismiss',
-                      icon: const Icon(Icons.close),
-                      color: Colors.red,
-                      onPressed: () => _dismiss(rec),
-                    ),
-                  ],
-                ),
-              );
-            },
-          );
-        },
+      body: const Center(
+        child: Text(
+          'Recommendations will appear here soon.',
+          style: TextStyle(fontSize: 18, color: Colors.black54),
+          textAlign: TextAlign.center,
+        ),
       ),
     );
   }

@@ -1,9 +1,8 @@
 //lib/screens/chat_history_screen.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import '../providers/chat_provider.dart';
+import 'package:go_router/go_router.dart';
+import '../utils/database_helper.dart';
 import '../models/conversation_model.dart';
 
 class ChatHistoryScreen extends StatefulWidget {
@@ -14,300 +13,153 @@ class ChatHistoryScreen extends StatefulWidget {
 }
 
 class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
+  final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+  List<Conversation> _conversations = [];
+  bool _isLoading = true;
+  
+  // Spanish-only configuration
+  static const String _languageCode = 'es';
+
   @override
   void initState() {
     super.initState();
-    // Initialize chat provider if needed
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ChatProvider>().initialize();
-    });
+    _loadConversations();
+  }
+
+  Future<void> _loadConversations() async {
+    if (mounted) setState(() => _isLoading = true);
+    final conversations = await _dbHelper.getAllConversations();
+    if (mounted) {
+      setState(() {
+        _conversations = conversations;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _confirmAndDeleteConversation(Conversation conversation) async {
+    final bool? shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete Chat'),
+          content: Text(
+              'Are you sure you want to delete "${conversation.title ?? 'this chat'}"? This action cannot be undone.'),
+          actions: <Widget>[
+            TextButton(
+                child: const Text('Cancel'),
+                onPressed: () => Navigator.of(dialogContext).pop(false)),
+            TextButton(
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Delete'),
+                onPressed: () => Navigator.of(dialogContext).pop(true)),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete == true && conversation.id.isNotEmpty) {
+      await _dbHelper.deleteConversation(conversation.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Chat deleted successfully')));
+      }
+      _loadConversations();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chat History'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () => _startNewChat(context),
-            tooltip: 'New Chat',
-          ),
-        ],
+        automaticallyImplyLeading: false, // No arrow when reached from bottom-nav
+        title: const Text('Spanish Chats'),
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Colors.white,
       ),
-      body: Consumer<ChatProvider>(
-        builder: (context, chatProvider, child) {
-          if (chatProvider.isLoading) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          if (chatProvider.error != null) {
-            return _buildErrorState(chatProvider);
-          }
-
-          if (chatProvider.conversations.isEmpty) {
-            return _buildEmptyState(context);
-          }
-
-          return _buildConversationsList(chatProvider);
-        },
-      ),
-    );
-  }
-
-  Widget _buildErrorState(ChatProvider chatProvider) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.error_outline,
-            size: 64,
-            color: Theme.of(context).colorScheme.error,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Failed to load conversations',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            chatProvider.error!,
-            style: Theme.of(context).textTheme.bodyMedium,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: () => chatProvider.initialize(),
-            child: const Text('Retry'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.chat_bubble_outline,
-            size: 64,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No conversations yet',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Start your first conversation to begin learning!',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: () => _startNewChat(context),
-            icon: const Icon(Icons.add),
-            label: const Text('Start New Chat'),
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _conversations.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Text(
+                      'No Spanish chats yet.\nTap the "+" button to start a new conversation!',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 18, color: Colors.grey),
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: _conversations.length,
+                  itemBuilder: (context, index) {
+                    final conversation = _conversations[index];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      elevation: 2,
+                      child: ListTile(
+                        leading: PopupMenuButton<String>(
+                          icon: Icon(Icons.more_vert,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withOpacity(0.7)),
+                          onSelected: (value) {
+                            if (value == 'delete') {
+                              _confirmAndDeleteConversation(conversation);
+                            }
+                          },
+                          itemBuilder: (BuildContext context) => [
+                            const PopupMenuItem<String>(
+                              value: 'delete',
+                              child: Row(children: [
+                                Icon(Icons.delete_outline,
+                                    color: Colors.redAccent),
+                                SizedBox(width: 8),
+                                Text('Delete Chat',
+                                    style: TextStyle(color: Colors.redAccent))
+                              ]),
                             ),
                           ],
                         ),
-    );
-  }
-
-  Widget _buildConversationsList(ChatProvider chatProvider) {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: chatProvider.conversations.length,
-      itemBuilder: (context, index) {
-        final conversation = chatProvider.conversations[index];
-        return _buildConversationCard(chatProvider, conversation);
-      },
-    );
-  }
-
-  Widget _buildConversationCard(ChatProvider chatProvider, Conversation conversation) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        onTap: () => _openConversation(conversation),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              // Conversation icon
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.chat_bubble_outline,
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
-                ),
-              ),
-              
-              const SizedBox(width: 16),
-              
-              // Conversation details
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      conversation.title,
-                      style: Theme.of(context).textTheme.titleMedium,
+                        title: Text(
+                          conversation.title ?? 'Chat',
+                          style: const TextStyle(fontWeight: FontWeight.w500),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Created ${DateFormat('MMM dd, yyyy').format(conversation.createdAt)}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        subtitle: Text(
+                          'Last active: ${DateFormat.yMd().add_jm().format(conversation.updatedAt)}',
+                        ),
+                        trailing: Icon(
+                          Icons.arrow_forward_ios,
+                          size: 16,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withOpacity(0.6),
+                        ),
+                        onTap: () async {
+                          await context.push('/chat/${conversation.id}');
+                          // Refresh list when returning from chat
+                          _loadConversations();
+                        },
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Last updated ${DateFormat('MMM dd, HH:mm').format(conversation.updatedAt)}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
-              ),
-              
-              // Actions
-              PopupMenuButton<String>(
-                onSelected: (value) => _handleConversationAction(
-                  value, 
-                  chatProvider, 
-                  conversation,
-                ),
-                itemBuilder: (context) => [
-                  const PopupMenuItem(
-                    value: 'rename',
-                    child: Row(
-                      children: [
-                        Icon(Icons.edit),
-                        SizedBox(width: 8),
-                        Text('Rename'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'delete',
-                    child: Row(
-                      children: [
-                        Icon(Icons.delete, color: Colors.red),
-                        SizedBox(width: 8),
-                        Text('Delete', style: TextStyle(color: Colors.red)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'newChatFab',
+        onPressed: () async {
+          await context.push('/chat/new');
+          // Refresh list when returning from new chat
+          _loadConversations();
+        },
+        label: const Text('New Chat'),
+        icon: const Icon(Icons.add),
       ),
-    );
-  }
-
-  void _startNewChat(BuildContext context) {
-    context.read<ChatProvider>().clearCurrentConversation();
-    context.go('/chat');
-  }
-
-  void _openConversation(Conversation conversation) {
-    context.read<ChatProvider>().loadConversation(conversation.id);
-    context.go('/chat');
-  }
-
-  void _handleConversationAction(String action, ChatProvider chatProvider, Conversation conversation) {
-    switch (action) {
-      case 'rename':
-        _showRenameDialog(chatProvider, conversation);
-        break;
-      case 'delete':
-        _showDeleteDialog(chatProvider, conversation);
-        break;
-    }
-  }
-
-  void _showRenameDialog(ChatProvider chatProvider, Conversation conversation) {
-    final controller = TextEditingController(text: conversation.title);
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Rename Conversation'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Title',
-            border: OutlineInputBorder(),
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final newTitle = controller.text.trim();
-              if (newTitle.isNotEmpty) {
-                chatProvider.renameConversation(conversation.id, newTitle);
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('Rename'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showDeleteDialog(ChatProvider chatProvider, Conversation conversation) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Conversation'),
-        content: const Text(
-          'Are you sure you want to delete this conversation? This action cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              chatProvider.deleteConversation(conversation.id);
-              Navigator.pop(context);
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Theme.of(context).colorScheme.onError,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-                ),
     );
   }
 }

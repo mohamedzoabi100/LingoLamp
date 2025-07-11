@@ -5,18 +5,19 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/chat_message_model.dart';
 import '../core/providers/flashcard_provider.dart';
+import '../utils/flashcard_extractor.dart';
 
 class ChatMessageBubble extends StatefulWidget {
   final ChatMessage message;
-  final VoidCallback onToggleFavorite;
-  final VoidCallback onToggleFlashcard;
+  final VoidCallback? onToggleFavorite;
+  final VoidCallback? onToggleFlashcard;
   final VoidCallback onCopy;
 
   const ChatMessageBubble({
     super.key,
     required this.message,
-    required this.onToggleFavorite,
-    required this.onToggleFlashcard,
+    this.onToggleFavorite,
+    this.onToggleFlashcard,
     required this.onCopy,
   });
 
@@ -101,11 +102,43 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     return markdown.replaceAll(RegExp(r'[\*_`#\[\]()>-]'), '').replaceAll(RegExp(r'\n+'), ' ');
   }
 
+  String cleanMessageForDisplay(String text) {
+    // Remove visible JSON payloads
+    return text.replaceAll(RegExp(r'\{"tool":"create_flashcard".*?\}', dotAll: true), '').trim();
+  }
+
   void _showFlashcardDialog() async {
     final flashcardProvider = Provider.of<FlashcardProvider>(context, listen: false);
-    final isUser = widget.message.sender == 'user';
-    final front = isUser ? widget.message.text : '';
-    final back = isUser ? '' : widget.message.text;
+    final isUser = widget.message.isUserMessage;
+    
+    // Try to extract flashcard data from AI response
+    FlashcardData? extractedData;
+    if (!isUser) {
+      extractedData = FlashcardExtractor.extractFlashcardData(widget.message.text);
+    }
+    
+    final front = extractedData?.front ?? (isUser ? widget.message.text : '');
+    final back = extractedData?.back ?? (isUser ? '' : widget.message.text);
+    
+    // Check if flashcard already exists
+    if (extractedData != null) {
+      final exists = flashcardProvider.flashcards.any((card) =>
+          card.originalText.toLowerCase() == front.toLowerCase() &&
+          card.translatedText.toLowerCase() == back.toLowerCase());
+      
+      if (exists) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('This flashcard already exists!'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+    }
+    
     final controllerFront = TextEditingController(text: front);
     final controllerBack = TextEditingController(text: back);
 
@@ -119,7 +152,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
             TextField(
               controller: controllerFront,
               decoration: const InputDecoration(
-                labelText: 'Front (question/word)',
+                labelText: 'Front (English)',
                 border: OutlineInputBorder(),
               ),
               minLines: 1,
@@ -129,7 +162,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
             TextField(
               controller: controllerBack,
               decoration: const InputDecoration(
-                labelText: 'Back (answer/translation)',
+                labelText: 'Back (Spanish)',
                 border: OutlineInputBorder(),
               ),
               minLines: 1,
@@ -159,14 +192,18 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
 
     if (result == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Flashcard saved!')),
+        const SnackBar(
+          content: Text('Flashcard saved! 📚'),
+          backgroundColor: Colors.green,
+        ),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isUser = widget.message.sender == 'user';
+    final isUser = widget.message.isUserMessage;
+    final hasFlashcardData = !isUser && FlashcardExtractor.hasFlashcardData(widget.message.text);
     
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -180,7 +217,27 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
             child: Column(
               crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: [
-                _buildMessageBubble(context, isUser),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (hasFlashcardData) ...[
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Icon(
+                          Icons.translate,
+                          size: 12,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    Flexible(child: _buildMessageBubble(context, isUser)),
+                  ],
+                ),
                 const SizedBox(height: 4),
                 _buildMessageActions(context, isUser),
               ],
@@ -194,7 +251,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
   }
 
   Widget _buildAvatar(BuildContext context) {
-    final isUser = widget.message.sender == 'user';
+    final isUser = widget.message.isUserMessage;
     
     return CircleAvatar(
       radius: 16,
@@ -212,6 +269,8 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
   }
 
   Widget _buildMessageBubble(BuildContext context, bool isUser) {
+    final hasFlashcardData = !isUser && FlashcardExtractor.hasFlashcardData(widget.message.text);
+    
     return Container(
       constraints: BoxConstraints(
         maxWidth: MediaQuery.of(context).size.width * 0.75,
@@ -219,13 +278,21 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
       decoration: BoxDecoration(
         color: isUser
             ? Theme.of(context).colorScheme.primary
-            : Theme.of(context).colorScheme.surfaceVariant,
+            : hasFlashcardData
+                ? Theme.of(context).colorScheme.primary.withOpacity(0.05)
+                : Theme.of(context).colorScheme.surfaceVariant,
         borderRadius: BorderRadius.only(
           topLeft: const Radius.circular(16),
           topRight: const Radius.circular(16),
           bottomLeft: Radius.circular(isUser ? 16 : 4),
           bottomRight: Radius.circular(isUser ? 4 : 16),
         ),
+        border: hasFlashcardData
+            ? Border.all(
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                width: 1,
+              )
+            : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -246,7 +313,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                 ),
               )
             : MarkdownBody(
-                data: widget.message.text,
+                data: cleanMessageForDisplay(widget.message.text),
                 styleSheet: MarkdownStyleSheet(
                   p: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -269,10 +336,11 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
   }
 
   Widget _buildMessageActions(BuildContext context, bool isUser) {
+    final hasFlashcardData = !isUser && FlashcardExtractor.hasFlashcardData(widget.message.text);
+    
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Speaker button (only for AI messages)
         if (!isUser) ...[
           IconButton(
             onPressed: _isSpeaking ? _stopSpeaking : _speakText,
@@ -287,30 +355,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
           ),
           const SizedBox(width: 4),
         ],
-        // Flashcard button
-        IconButton(
-          onPressed: _showFlashcardDialog,
-          icon: Icon(
-            widget.message.isFlashcard ? Icons.style : Icons.style_outlined,
-            size: 16,
-            color: widget.message.isFlashcard 
-                ? Theme.of(context).colorScheme.primary 
-                : Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-          tooltip: widget.message.isFlashcard ? 'Remove from flashcards' : 'Add to flashcards',
-        ),
-        // Favorite button
-        IconButton(
-          onPressed: widget.onToggleFavorite,
-          icon: Icon(
-            widget.message.isFavorite ? Icons.favorite : Icons.favorite_border,
-            size: 16,
-            color: widget.message.isFavorite 
-                ? Colors.red 
-                : Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-          tooltip: widget.message.isFavorite ? 'Remove from favorites' : 'Add to favorites',
-        ),
+        // Only show flashcard button if you want to reimplement it via provider
         // Copy button
         IconButton(
           onPressed: widget.onCopy,
@@ -322,6 +367,48 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
           tooltip: 'Copy message',
         ),
       ],
+    );
+  }
+
+  Widget _buildFlashcardButton(BuildContext context, bool isTranslation) {
+    return Container(
+      margin: const EdgeInsets.only(right: 4),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _showFlashcardDialog,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.library_add_rounded,
+                  size: 14,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Save',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 } 

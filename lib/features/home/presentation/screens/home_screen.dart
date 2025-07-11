@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/providers/auth_provider.dart';
 import '../../../../core/providers/user_provider.dart';
+import '../../../../widgets/xp_display_widget.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -94,41 +95,17 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildStatsSection(BuildContext context, UserProvider userProvider) {
-    final stats = userProvider.userStats;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Today\'s Progress',
+          'Your Progress',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.bold,
           ),
         ),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _buildStatCard(
-                context,
-                '🔥 Streak',
-                '${stats.currentStreak} days',
-                Colors.orange,
-                Icons.local_fire_department,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildStatCard(
-                context,
-                '⭐ XP',
-                '${stats.todayXP}',
-                Colors.blue,
-                Icons.star,
-              ),
-            ),
-          ],
-        ),
+        const XPDisplayWidget(showStreak: true),
       ],
     );
   }
@@ -295,7 +272,7 @@ class HomeScreen extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
-                  // TODO: Navigate to phrasebook
+                  context.go('/phrasebook');
                 },
                 child: const Text('Start Learning'),
               ),

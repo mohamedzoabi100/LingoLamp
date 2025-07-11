@@ -4,6 +4,7 @@ import '../models/flashcard_model.dart';
 import '../models/spaced_repetition_model.dart';
 import '../models/study_card_model.dart';
 import '../services/study_service.dart';
+import '../services/xp_service.dart';
 import '../utils/database_helper.dart';
 
 class SpacedRepetitionStudyScreen extends StatefulWidget {
@@ -16,6 +17,7 @@ class SpacedRepetitionStudyScreen extends StatefulWidget {
 
 class _SpacedRepetitionStudyScreenState extends State<SpacedRepetitionStudyScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+  final XPService _xpService = XPService();
   
   List<StudyCard> _studyCards = [];
   List<StudyCard> _dueCards = [];
@@ -81,6 +83,24 @@ class _SpacedRepetitionStudyScreenState extends State<SpacedRepetitionStudyScree
 
     final currentCard = _dueCards[_currentIndex];
     final updatedStudyCard = StudyService.processReview(currentCard, quality);
+
+    // Award XP based on review quality
+    String difficulty = '';
+    switch (quality) {
+      case ReviewQuality.easy:
+        difficulty = 'easy';
+        break;
+      case ReviewQuality.good:
+        difficulty = 'good';
+        break;
+      case ReviewQuality.hard:
+        difficulty = 'hard';
+        break;
+      case ReviewQuality.again:
+        difficulty = 'again';
+        break;
+    }
+    await _xpService.awardFlashcardReview(difficulty);
 
     // Persist changes to the database
     await _dbHelper.updateFlashcard(updatedStudyCard.flashcard);

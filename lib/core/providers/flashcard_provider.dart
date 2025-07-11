@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../../models/flashcard_model.dart';
+import '../../services/xp_event_tracker.dart';
 
 class StudySession {
   final List<Flashcard> cards;
@@ -209,6 +210,10 @@ class FlashcardProvider extends ChangeNotifier {
       _flashcards.add(newCard);
       _generateStudyQueue();
       notifyListeners();
+      
+      // Award XP for creating a flashcard
+      final xpTracker = XPEventTracker();
+      xpTracker.addXP(XPEventTracker.flashcardCreatedFromChat, 'Flashcard created from chat');
       
       // TODO: Save to database
     } catch (e) {

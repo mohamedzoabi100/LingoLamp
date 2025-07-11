@@ -4,6 +4,7 @@ import 'chat_screen.dart';
 import 'phrasebook_screen.dart';
 import 'flashcards_screen.dart';
 import 'guest_settings_screen.dart';
+import 'chat_history_screen.dart';
 
 class GuestHomePage extends StatefulWidget {
   const GuestHomePage({super.key});
@@ -16,18 +17,10 @@ class _GuestHomePageState extends State<GuestHomePage> {
 /* ──────────────────────────  bottom-nav state  ────────────────────────── */
 
   int _selectedIndex = -1; // –1 = Home
-  int? _currentConversationId;
+  String? _currentConversationId;
 
   List<Widget> get _navPages => [
-    ChatScreen(
-      onBackToHome: _returnToHome,
-      conversationId: _currentConversationId,
-      onConversationIdChanged: (id) {
-        setState(() {
-          _currentConversationId = id;
-        });
-      },
-    ),
+    ChatHistoryScreen(),
     PhrasebookScreen(onBackToHome: _returnToHome),
     FlashcardsScreen(onBackToHome: _returnToHome),
   ];

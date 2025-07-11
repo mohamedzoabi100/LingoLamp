@@ -1,6 +1,7 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
+import '../../services/xp_service.dart';
 
 class InitializationService {
   static Future<void> initialize() async {
@@ -34,6 +35,14 @@ class InitializationService {
   }
   
   static Future<void> _initializeOtherServices() async {
+    // Initialize XP service and load data from Firestore for authenticated users
+    try {
+      await XPService().loadFromFirestore();
+      print('✅ XP service initialized successfully');
+    } catch (e) {
+      print('❌ XP service initialization failed: $e');
+    }
+    
     // Initialize other services here
     // This will be expanded as we add more services
     await Future.delayed(const Duration(milliseconds: 100));

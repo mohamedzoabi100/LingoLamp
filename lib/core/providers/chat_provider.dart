@@ -211,6 +211,21 @@ class ChatProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> deleteConversation(String conversationId) async {
+    try {
+      _conversations.removeWhere((conv) => conv.id == conversationId);
+      if (_currentConversation?.id == conversationId) {
+        _currentConversation = null;
+        _messages.clear();
+      }
+      // TODO: Delete from database if needed
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Failed to delete conversation: $e';
+      notifyListeners();
+    }
+  }
+
   void clearError() {
     _errorMessage = null;
     notifyListeners();

@@ -226,8 +226,6 @@ class _AIChatScreenState extends State<AIChatScreen> {
         
         return ChatMessageBubble(
           message: message,
-          onToggleFavorite: () => chatProvider.toggleMessageFavorite(message.id),
-          onToggleFlashcard: () => chatProvider.toggleMessageFlashcard(message.id),
           onCopy: () => _copyMessageToClipboard(message.text),
         );
       },

@@ -19,12 +19,12 @@ class Conversation {
   });
 
   factory Conversation.fromMap(Map<String, dynamic> map) => Conversation(
-    id: map['id'],
-    title: map['title'],
-    createdAt: DateTime.parse(map['createdAt']),
-    updatedAt: DateTime.parse(map['updatedAt']),
-    isArchived: map['isArchived'] ?? false,
-    isDeleted: map['isDeleted'] ?? false,
+    id: map['id']?.toString() ?? '',
+    title: map['title']?.toString() ?? 'Chat',
+    createdAt: DateTime.parse(map['createdAt'] ?? map['created_at']),
+    updatedAt: DateTime.parse(map['last_message_timestamp'] ?? map['updatedAt'] ?? map['updated_at'] ?? map['createdAt'] ?? map['created_at']),
+    isArchived: map['isArchived'] == true || map['is_archived'] == 1,
+    isDeleted: map['isDeleted'] == true || map['is_deleted'] == 1,
     extra: map['extra'],
   );
 

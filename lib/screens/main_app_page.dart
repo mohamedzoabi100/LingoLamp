@@ -11,6 +11,7 @@ import 'flashcards_screen.dart';
 import '../widgets/sync_status_bar.dart';
 import 'loggedin_settings_screen.dart';
 import 'dart:async';
+import 'chat_history_screen.dart';
 
 class MainAppPage extends StatefulWidget {
   const MainAppPage({super.key});
@@ -33,7 +34,7 @@ class _MainAppPageState extends State<MainAppPage> {
   bool _canNavigate = true; // Navigation guard
   User? _currentUser;
   Timer? _refreshTimer;
-  int? _currentConversationId;
+  String? _currentConversationId;
 
   Map<String, dynamic> _userStats = {
     'currentStreak': 0,
@@ -51,18 +52,7 @@ class _MainAppPageState extends State<MainAppPage> {
 
   List<Widget> get _pages => [
     _buildHomeScreen(),
-    ChatScreen(
-      key: ValueKey(_currentConversationId), // Force rebuild when conversation changes
-      onBackToHome: () => _onItemTapped(0),
-      conversationId: _currentConversationId,
-      onConversationIdChanged: (id) {
-        if (mounted) {
-          setState(() {
-            _currentConversationId = id;
-          });
-        }
-      },
-    ),
+    ChatHistoryScreen(),
     PhrasebookScreen(onBackToHome: () => _onItemTapped(0)),
     FlashcardsScreen(onBackToHome: () => _onItemTapped(0)),
   ];

@@ -223,7 +223,6 @@ class ChatProvider with ChangeNotifier {
       // Add user message
       final userMessage = await _addMessage(
         conversationId: _currentConversation!.id,
-        sender: 'user',
         text: text.trim(),
       );
 
@@ -233,7 +232,6 @@ class ChatProvider with ChangeNotifier {
       // Add AI message
       final aiMessage = await _addMessage(
         conversationId: _currentConversation!.id,
-        sender: 'ai',
         text: aiResponse,
       );
 
@@ -255,7 +253,6 @@ class ChatProvider with ChangeNotifier {
   // Add message to Firestore
   Future<ChatMessage> _addMessage({
     required String conversationId,
-    required String sender,
     required String text,
   }) async {
     final userId = _auth.currentUser?.uid;
@@ -264,7 +261,7 @@ class ChatProvider with ChangeNotifier {
     final message = ChatMessage(
       id: '',
       conversationId: conversationId,
-      sender: sender,
+      isUserMessage: true,
       text: text,
       timestamp: DateTime.now(),
     );
@@ -280,7 +277,7 @@ class ChatProvider with ChangeNotifier {
     final newMessage = ChatMessage(
       id: docRef.id,
       conversationId: conversationId,
-      sender: sender,
+      isUserMessage: true,
       text: text,
       timestamp: message.timestamp,
     );
@@ -351,74 +348,6 @@ class ChatProvider with ChangeNotifier {
       
       notifyListeners();
     }
-  }
-
-  // Toggle message favorite
-  Future<void> toggleMessageFavorite(String messageId) async {
-    final userId = _auth.currentUser?.uid;
-    if (userId == null) return;
-
-    final messageIndex = _currentMessages.indexWhere((m) => m.id == messageId);
-    if (messageIndex == -1) return;
-
-    final message = _currentMessages[messageIndex];
-    final newFavoriteState = !message.isFavorite;
-
-    await _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('conversations')
-        .doc(message.conversationId)
-        .collection('messages')
-        .doc(messageId)
-        .update({'isFavorite': newFavoriteState});
-
-    _currentMessages[messageIndex] = ChatMessage(
-      id: message.id,
-      conversationId: message.conversationId,
-      sender: message.sender,
-      text: message.text,
-      timestamp: message.timestamp,
-      isFavorite: newFavoriteState,
-      isFlashcard: message.isFlashcard,
-      extra: message.extra,
-    );
-
-    notifyListeners();
-  }
-
-  // Toggle message flashcard
-  Future<void> toggleMessageFlashcard(String messageId) async {
-    final userId = _auth.currentUser?.uid;
-    if (userId == null) return;
-
-    final messageIndex = _currentMessages.indexWhere((m) => m.id == messageId);
-    if (messageIndex == -1) return;
-
-    final message = _currentMessages[messageIndex];
-    final newFlashcardState = !message.isFlashcard;
-
-    await _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('conversations')
-        .doc(message.conversationId)
-        .collection('messages')
-        .doc(messageId)
-        .update({'isFlashcard': newFlashcardState});
-
-    _currentMessages[messageIndex] = ChatMessage(
-      id: message.id,
-      conversationId: message.conversationId,
-      sender: message.sender,
-      text: message.text,
-      timestamp: message.timestamp,
-      isFavorite: message.isFavorite,
-      isFlashcard: newFlashcardState,
-      extra: message.extra,
-    );
-
-    notifyListeners();
   }
 
   // Rename conversation

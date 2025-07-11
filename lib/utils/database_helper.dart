@@ -109,7 +109,7 @@ class DatabaseHelper {
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
       CREATE TABLE $tableConversations (
-        $colConversationId INTEGER PRIMARY KEY AUTOINCREMENT,
+        $colConversationId TEXT PRIMARY KEY,
         $colConversationTitle TEXT,
         $colConversationCreatedAt TEXT NOT NULL,
         $colConversationLastMessageTimestamp TEXT NOT NULL
@@ -118,8 +118,8 @@ class DatabaseHelper {
 
     await db.execute('''
       CREATE TABLE $tableMessages (
-        $colMessageId INTEGER PRIMARY KEY AUTOINCREMENT,
-        $colMessageConversationId INTEGER NOT NULL,
+        $colMessageId TEXT PRIMARY KEY,
+        $colMessageConversationId TEXT NOT NULL,
         $colMessageText TEXT NOT NULL,
         $colMessageIsUser INTEGER NOT NULL, 
         $colMessageTimestamp TEXT NOT NULL,
@@ -248,8 +248,15 @@ class DatabaseHelper {
   }
 
   Future<void> _onFlashcardsChanged() async {
+    print('🔄 [DB] _onFlashcardsChanged starting...');
     final flashcards = await getAllFlashcards();
+    print('📊 [DB] Retrieved ${flashcards.length} flashcards from database');
+    if (flashcards.isNotEmpty) {
+      print('📝 [DB] First flashcard: ${flashcards.first.toMap()}');
+      print('📝 [DB] Last flashcard: ${flashcards.last.toMap()}');
+    }
     _flashcardsController.add(flashcards);
+    print('📡 [DB] Added ${flashcards.length} flashcards to stream');
   }
 
   Future<void> _onRecommendedChanged() async {
@@ -269,9 +276,16 @@ class DatabaseHelper {
 
   // === CONVERSATION METHODS ===
   
-  Future<int> insertConversation(Conversation conversation) async {
+  Future<String> insertConversation(Conversation conversation) async {
     Database db = await instance.database;
-    return await db.insert(tableConversations, conversation.toMap());
+    final id = conversation.id.isNotEmpty ? conversation.id : const Uuid().v4();
+    await db.insert(tableConversations, {
+      colConversationId: id,
+      colConversationTitle: conversation.title,
+      colConversationCreatedAt: conversation.createdAt.toIso8601String(),
+      colConversationLastMessageTimestamp: conversation.updatedAt.toIso8601String(),
+    });
+    return id;
   }
 
   Future<List<Conversation>> getAllConversations() async {
@@ -289,13 +303,18 @@ class DatabaseHelper {
     Database db = await instance.database;
     return await db.update(
       tableConversations,
-      conversation.toMap(),
+      {
+        colConversationId: conversation.id,
+        colConversationTitle: conversation.title,
+        colConversationCreatedAt: conversation.createdAt.toIso8601String(),
+        colConversationLastMessageTimestamp: conversation.updatedAt.toIso8601String(),
+      },
       where: '$colConversationId = ?',
       whereArgs: [conversation.id],
     );
   }
 
-  Future<Conversation?> getConversation(int id) async {
+  Future<Conversation?> getConversation(String id) async {
     Database db = await instance.database;
     List<Map<String, dynamic>> maps = await db.query(
       tableConversations,
@@ -309,9 +328,9 @@ class DatabaseHelper {
     return null;
   }
 
-  Future<int> deleteConversation(int id) async {
+  Future<void> deleteConversation(String id) async {
     Database db = await instance.database;
-    return await db.delete(
+    await db.delete(
       tableConversations,
       where: '$colConversationId = ?',
       whereArgs: [id],
@@ -320,27 +339,30 @@ class DatabaseHelper {
 
   // === CHAT MESSAGE METHODS ===
   
-  Future<int> insertMessage(ChatMessage message) async {
-    // TODO: Update to work with new model structure
-    // Temporarily commented out to test new AI chat feature
-    /*
+  Future<String> insertMessage(ChatMessage message) async {
     Database db = await instance.database;
-    int messageId = await db.insert(tableMessages, message.toMap());
+    final messageId = await db.insert(tableMessages, message.toMap());
 
     if (messageId > 0) {
       Conversation? convo = await getConversation(message.conversationId);
       if (convo != null) {
-        convo.lastMessageTimestamp = message.timestamp;
-        await updateConversation(convo);
+        final updatedConvo = Conversation(
+          id: convo.id,
+          title: convo.title,
+          createdAt: convo.createdAt,
+          updatedAt: message.timestamp,
+          isArchived: convo.isArchived,
+          isDeleted: convo.isDeleted,
+          extra: convo.extra,
+        );
+        await updateConversation(updatedConvo);
       }
     }
     _onChatChanged();
-    return messageId;
-    */
-    return 0; // Temporary return
+    return messageId.toString();
   }
 
-  Future<List<ChatMessage>> getMessagesForConversation(int conversationId) async {
+  Future<List<ChatMessage>> getMessagesForConversation(String conversationId) async {
     Database db = await instance.database;
     final List<Map<String, dynamic>> maps = await db.query(
       tableMessages,
@@ -353,27 +375,47 @@ class DatabaseHelper {
     });
   }
 
+  Future<void> deleteMessage(String id) async {
+    Database db = await instance.database;
+    await db.delete(
+      tableMessages,
+      where: '$colMessageId = ?',
+      whereArgs: [id],
+    );
+  }
+
   // === FLASHCARD METHODS ===
   
   Future<int> insertFlashcard(Flashcard flashcard) async {
+    print('🗄️ [DB] insertFlashcard called with: ${flashcard.toMap()}');
     Database db = await instance.database;
     final id = await db.insert(tableFlashcards, flashcard.toMap());
+    print('✅ [DB] Flashcard inserted with ID: $id');
     _onFlashcardsChanged();
+    print('🔄 [DB] _onFlashcardsChanged called after insert');
     return id;
   }
 
   Future<List<Flashcard>> getAllFlashcards() async {
     try {
+      print('🔍 [DB] getAllFlashcards called');
       Database db = await instance.database;
       final List<Map<String, dynamic>> maps = await db.query(
         tableFlashcards,
         orderBy: '$colFlashcardCreatedAt DESC',
       );
-      return List.generate(maps.length, (i) {
+      print('📊 [DB] Raw database query returned ${maps.length} rows');
+      if (maps.isNotEmpty) {
+        print('📝 [DB] First raw row: ${maps.first}');
+        print('📝 [DB] Last raw row: ${maps.last}');
+      }
+      final flashcards = List.generate(maps.length, (i) {
         return Flashcard.fromMap(maps[i]);
       });
+      print('✅ [DB] getAllFlashcards returning ${flashcards.length} flashcards');
+      return flashcards;
     } catch (e) {
-      print('❌ Error getting all flashcards: $e');
+      print('❌ [DB] Error getting all flashcards: $e');
       return [];
     }
   }
@@ -644,7 +686,7 @@ class DatabaseHelper {
   }
 
   // Add this method to update the chat stream for a conversation
-  void updateChatStreamForConversation(int conversationId) async {
+  void updateChatStreamForConversation(String conversationId) async {
     final messages = await getMessagesForConversation(conversationId);
     _chatController.add(messages);
   }

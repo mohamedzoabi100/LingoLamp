@@ -273,174 +273,115 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
     final studyCard = _reviewQueue[_currentIndex];
     final flashcard = studyCard.flashcard;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Review (${_currentIndex + 1}/${_reviewQueue.length})'),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (widget.onBackToHome != null) {
-              widget.onBackToHome!();
-            } else {
-              Navigator.pop(context);
-            }
-          },
-        ),
-        actions: [
-          StreamBuilder<List<RecommendedFlashcard>>(
-            stream: _recommendedStream,
-            builder: (context, snap) {
-              final count = snap.data?.length ?? 0;
-              return IconButton(
-                tooltip: 'Recommendations',
-                icon: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    const Icon(Icons.lightbulb_outline),
-                    if (count > 0)
-                      Positioned(
-                        right: -2,
-                        top: -2,
-                        child: Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                          ),
-                          constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                          child: Text(
-                            '$count',
-                            style: const TextStyle(color: Colors.white, fontSize: 10),
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            GestureDetector(
+              onTap: () {
+                setState(() => _showAnswer = !_showAnswer);
+              },
+              child: Card(
+                elevation: 8,
+                color: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(
+                    color: Theme.of(context).primaryColor,
+                    width: 3,
+                  ),
+                ),
+                child: Container(
+                  width: double.infinity,
+                  height: 300,
+                  padding: const EdgeInsets.all(32),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (!_showAnswer) ...[
+                          Text(
+                            flashcard.originalText,
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
                             textAlign: TextAlign.center,
                           ),
-                        ),
-                      ),
-                  ],
-                ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const RecommendationsScreen()),
-                  );
-                },
-              );
-            },
-          ),
-        ],
-      ),
-      backgroundColor: Colors.white,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              GestureDetector(
-                onTap: () {
-                  setState(() => _showAnswer = !_showAnswer);
-                },
-                child: Card(
-                  elevation: 8,
-                  color: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(
-                      color: Theme.of(context).primaryColor,
-                      width: 3,
-                    ),
-                  ),
-                  child: Container(
-                    width: double.infinity,
-                    height: 300,
-                    padding: const EdgeInsets.all(32),
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (!_showAnswer) ...[
-                            Text(
-                              flashcard.originalText,
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                              textAlign: TextAlign.center,
+                          const SizedBox(height: 16),
+                          IconButton(
+                            icon: Icon(Icons.volume_up, size: 32, color: Theme.of(context).primaryColor),
+                            onPressed: () => _speakText(flashcard.originalText, flashcard.sourceLanguage),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Tap card to see translation',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Theme.of(context).primaryColor,
+                              fontStyle: FontStyle.italic,
                             ),
-                            const SizedBox(height: 16),
-                            IconButton(
-                              icon: Icon(Icons.volume_up, size: 32, color: Theme.of(context).primaryColor),
-                              onPressed: () => _speakText(flashcard.originalText, flashcard.sourceLanguage),
+                          ),
+                        ] else ...[
+                          Text(
+                            flashcard.originalText,
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.grey[600],
                             ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Tap card to see translation',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Theme.of(context).primaryColor,
-                                fontStyle: FontStyle.italic,
-                              ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 20),
+                          Divider(color: Theme.of(context).primaryColor, thickness: 2),
+                          const SizedBox(height: 20),
+                          Text(
+                            flashcard.translatedText,
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).primaryColor,
                             ),
-                          ] else ...[
-                            Text(
-                              flashcard.originalText,
-                              style: TextStyle(
-                                fontSize: 18,
-                                color: Colors.grey[600],
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 20),
-                            Divider(color: Theme.of(context).primaryColor, thickness: 2),
-                            const SizedBox(height: 20),
-                            Text(
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          IconButton(
+                            icon: Icon(Icons.volume_up, size: 32, color: Theme.of(context).primaryColor),
+                            onPressed: () => _speakText(
                               flashcard.translatedText,
-                              style: TextStyle(
-                                fontSize: 26,
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).primaryColor,
-                              ),
-                              textAlign: TextAlign.center,
+                              flashcard.targetLanguage,
                             ),
-                            const SizedBox(height: 16),
-                            IconButton(
-                              icon: Icon(Icons.volume_up, size: 32, color: Theme.of(context).primaryColor),
-                              onPressed: () => _speakText(
-                                flashcard.translatedText,
-                                flashcard.targetLanguage,
-                              ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Tap card to flip back',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Theme.of(context).primaryColor,
+                              fontStyle: FontStyle.italic,
                             ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Tap card to flip back',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Theme.of(context).primaryColor,
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
-                          ],
+                          ),
                         ],
-                      ),
+                      ],
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 32),
-              if (_showAnswer)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildReviewBtn('Again', Colors.red, ReviewQuality.again),
-                    _buildReviewBtn('Hard', Colors.orange, ReviewQuality.hard),
-                    _buildReviewBtn('Good', Colors.green, ReviewQuality.good),
-                    _buildReviewBtn('Easy', Colors.blue, ReviewQuality.easy),
-                  ],
-                ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 32),
+            if (_showAnswer)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildReviewBtn('Again', Colors.red, ReviewQuality.again),
+                  _buildReviewBtn('Hard', Colors.orange, ReviewQuality.hard),
+                  _buildReviewBtn('Good', Colors.green, ReviewQuality.good),
+                  _buildReviewBtn('Easy', Colors.blue, ReviewQuality.easy),
+                ],
+              ),
+          ],
         ),
       ),
     );
@@ -510,31 +451,29 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
     return StreamBuilder<List<Flashcard>>(
       stream: _flashcardsStream,
       builder: (context, snapshot) {
+        print('🔄 [FLASHCARDS] StreamBuilder update - hasData: ${snapshot.hasData}, dataLength: ${snapshot.data?.length ?? 0}');
         if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
 
         if (snapshot.hasError) {
+          print('❌ [FLASHCARDS] Stream error: ${snapshot.error}');
           return Center(child: Text('Error: ${snapshot.error}'));
         }
 
         final allFlashcards = snapshot.data ?? [];
+        print('📊 [FLASHCARDS] Received ${allFlashcards.length} flashcards from stream');
+        if (allFlashcards.isNotEmpty) {
+          print('📝 [FLASHCARDS] First flashcard: ${allFlashcards.first.toMap()}');
+          print('📝 [FLASHCARDS] Last flashcard: ${allFlashcards.last.toMap()}');
+        }
         final filteredFlashcards = allFlashcards;
 
         return DefaultTabController(
           length: 2,
           child: Scaffold(
             appBar: AppBar(
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () {
-                  if (widget.onBackToHome != null) {
-                    widget.onBackToHome!();
-                  } else {
-                    Navigator.pop(context);
-                  }
-                },
-              ),
+              leading: null,
               title: const Text('Flashcards'),
               backgroundColor: Theme.of(context).primaryColor,
               foregroundColor: Colors.white,
