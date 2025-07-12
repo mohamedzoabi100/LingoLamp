@@ -1,7 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:convert';
-import 'ai_chat_service.dart';
 
 class DailyMotivation {
   final String spanishQuote;
@@ -73,6 +72,14 @@ class DailyMotivationService {
       'spanish': '¡Tu esfuerzo de hoy construye tu futuro!',
       'english': 'Your effort today builds your future!'
     },
+    {
+      'spanish': '¡La confianza viene con el conocimiento!',
+      'english': 'Confidence comes with knowledge!'
+    },
+    {
+      'spanish': '¡Cada error es una lección valiosa!',
+      'english': 'Every mistake is a valuable lesson!'
+    },
   ];
 
   /// Get today's motivation quote
@@ -110,112 +117,17 @@ class DailyMotivationService {
 
   /// Generate daily motivation using AI or fallback
   Future<DailyMotivation> _generateDailyMotivation() async {
-    try {
-      // Try to generate with AI - use a single instance to avoid conflicts
-      final aiService = AiChatService();
-      
-      // Create a more diverse and random prompt
-      final randomThemes = [
-        'learning progress',
-        'overcoming challenges', 
-        'daily practice',
-        'language confidence',
-        'personal growth',
-        'achieving goals',
-        'staying motivated',
-        'building skills',
-        'embracing mistakes',
-        'celebrating small wins'
-      ];
-      
-      final randomEmotions = [
-        'energetic',
-        'calm and focused',
-        'determined',
-        'optimistic',
-        'confident',
-        'inspired',
-        'resilient',
-        'enthusiastic'
-      ];
-      
-      final randomTone = [
-        'encouraging',
-        'inspiring',
-        'motivational',
-        'uplifting',
-        'empowering',
-        'positive'
-      ];
-      
-      final selectedTheme = randomThemes[DateTime.now().millisecondsSinceEpoch % randomThemes.length];
-      final selectedEmotion = randomEmotions[DateTime.now().millisecondsSinceEpoch % randomEmotions.length];
-      final selectedTone = randomTone[DateTime.now().millisecondsSinceEpoch % randomTone.length];
-      
-      final prompt = '''
-Generate a unique, ${selectedTone} quote in Spanish for language learners. 
-Focus on the theme of ${selectedTheme} with a ${selectedEmotion} feeling.
-Make it completely different from typical motivational quotes.
-Keep it simple, under 60 characters, and very specific to language learning.
-
-Format your response exactly like this:
-SPANISH: [the Spanish quote]
-ENGLISH: [the English translation]
-
-Be creative and avoid generic phrases. Make it feel personal and unique.
-''';
-
-      // Use direct model call to avoid chat session conflicts
-      final response = await aiService.sendMessage(prompt, useSystemPrompt: false);
-      
-      if (response != null && response.isNotEmpty) {
-        final parsed = _parseMotivationResponse(response);
-        if (parsed != null) {
-          return parsed;
-        }
-      }
-    } catch (e) {
-      print('AI motivation generation failed: $e');
-      // Don't rethrow - fall back to pre-defined quotes
-    }
-
-    // Enhanced fallback with more variety
-    final random = DateTime.now().millisecondsSinceEpoch % _fallbackQuotes.length;
-    final quote = _fallbackQuotes[random];
+    // Use fixed quotes instead of AI - select based on day of year for variety
+    final now = DateTime.now();
+    final dayOfYear = now.difference(DateTime(now.year, 1, 1)).inDays;
+    final quoteIndex = dayOfYear % _fallbackQuotes.length;
+    final quote = _fallbackQuotes[quoteIndex];
     
     return DailyMotivation(
       spanishQuote: quote['spanish']!,
       englishTranslation: quote['english']!,
       date: DateTime.now(),
     );
-  }
-
-  /// Parse AI response for motivation
-  DailyMotivation? _parseMotivationResponse(String response) {
-    try {
-      final cleanResponse = response.trim();
-      
-      final spanishMatch = RegExp(r'SPANISH:\s*(.+)', caseSensitive: false).firstMatch(cleanResponse);
-      final englishMatch = RegExp(r'ENGLISH:\s*(.+)', caseSensitive: false).firstMatch(cleanResponse);
-      
-      if (spanishMatch != null && englishMatch != null) {
-        final spanish = spanishMatch.group(1)?.trim() ?? '';
-        final english = englishMatch.group(1)?.trim() ?? '';
-        
-        if (spanish.isNotEmpty && english.isNotEmpty) {
-          return DailyMotivation(
-            spanishQuote: spanish,
-            englishTranslation: english,
-            date: DateTime.now(),
-          );
-        }
-      }
-      
-      return null;
-    } catch (e) {
-      print('Error parsing motivation response: $e');
-      return null;
-    }
   }
 
   /// Save motivation to local storage

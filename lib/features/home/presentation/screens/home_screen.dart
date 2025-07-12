@@ -51,7 +51,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       _loadDailyMotivation();
       
       // Set up periodic refresh of tasks
-      _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      _refreshTimer = Timer.periodic(const Duration(minutes: 5), (_) {
         if (mounted) {
           dailyTaskProvider.checkAndUpdateTasks();
         }
@@ -90,13 +90,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
-    // Refresh tasks when screen becomes visible
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        Provider.of<DailyTaskProvider>(context, listen: false).checkAndUpdateTasks();
-      }
-    });
-    
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).primaryColor,

@@ -116,9 +116,22 @@ class XPService {
 
     print('🔥 Streak updated: $currentStreak days (Longest: $longestStreak)');
 
-    // Award XP for maintaining streak (only on consecutive days)
+    // Award XP for maintaining streak (only on consecutive days) - FIXED: Don't call addXP recursively
     if (currentStreak > 1) {
-      await addXP(dailyStreak, 'Daily streak maintained');
+      // Directly update XP without calling addXP to avoid infinite loop
+      final totalXP = prefs.getInt(_totalXPKey) ?? 0;
+      final todayXP = prefs.getInt(_todayXPKey) ?? 0;
+      
+      await prefs.setInt(_totalXPKey, totalXP + dailyStreak);
+      await prefs.setInt(_todayXPKey, todayXP + dailyStreak);
+      
+      print('🎉 +$dailyStreak XP for Daily streak maintained (Total: ${totalXP + dailyStreak}, Today: ${todayXP + dailyStreak})');
+      
+      // Sync to Firestore if authenticated
+      await _syncToFirestore(totalXP + dailyStreak, todayXP + dailyStreak, today);
+      
+      // Notify listeners for UI update
+      _notifyXPListeners();
     }
   }
 

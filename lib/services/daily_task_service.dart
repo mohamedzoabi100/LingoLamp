@@ -152,14 +152,48 @@ class DailyTaskService {
       final xpStats = await XPService().getXPStats();
       final todayXP = xpStats['todayXP'] ?? 0;
       
-      // Update XP task
-      await updateTaskProgress(TaskType.earnXP, todayXP);
+      // Update XP task without awarding XP (just check progress)
+      await _updateTaskProgressWithoutXP(TaskType.earnXP, todayXP);
       
       // TODO: Add other task type updates based on user activity
       // This will be expanded as we integrate with other services
       
     } catch (e) {
       print('Error checking task progress: $e');
+    }
+  }
+
+  /// Update task progress without awarding XP (for checking progress only)
+  Future<void> _updateTaskProgressWithoutXP(TaskType taskType, int progress) async {
+    final taskSet = await getCurrentTaskSet();
+    final updatedTasks = <DailyTask>[];
+    bool hasChanges = false;
+
+    for (final task in taskSet.tasks) {
+      if (task.type == taskType && !task.isCompleted) {
+        final newCurrentValue = task.currentValue + progress;
+        final newStatus = newCurrentValue >= task.targetValue 
+            ? TaskStatus.completed 
+            : TaskStatus.inProgress;
+        
+        final updatedTask = task.copyWith(
+          currentValue: newCurrentValue,
+          status: newStatus,
+          completedAt: newStatus == TaskStatus.completed ? DateTime.now() : null,
+        );
+        
+        updatedTasks.add(updatedTask);
+        hasChanges = true;
+      } else {
+        updatedTasks.add(task);
+      }
+    }
+
+    // Only save and notify if there were changes
+    if (hasChanges) {
+      final updatedTaskSet = taskSet.copyWith(tasks: updatedTasks);
+      await _saveTaskSet(updatedTaskSet);
+      _notifyTaskListeners();
     }
   }
 
