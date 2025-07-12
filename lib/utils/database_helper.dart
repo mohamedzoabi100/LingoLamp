@@ -32,7 +32,7 @@ class DatabaseHelper {
 
   // Database version incremented to handle schema change
   static const String _dbName = 'lingolamp_chat.db';
-  static const int _dbVersion = 7;
+  static const int _dbVersion = 8;
 
   static const String tableConversations = 'conversations';
   static const String colConversationId = 'id';
@@ -246,7 +246,7 @@ class DatabaseHelper {
     }
     if (oldVersion < 7) {
       await db.execute('''
-        CREATE TABLE $tableRecommended (
+        CREATE TABLE IF NOT EXISTS $tableRecommended (
           $colRecommendedId INTEGER PRIMARY KEY AUTOINCREMENT,
           $colRecommendedTerm TEXT NOT NULL,
           $colRecommendedContext TEXT NOT NULL,
@@ -254,6 +254,12 @@ class DatabaseHelper {
           $colRecommendedWeight REAL NOT NULL,
           $colRecommendedCreatedAt TEXT NOT NULL,
           $colRecommendedUpdatedAt TEXT NOT NULL
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $tableDismissed (
+          $colDismissedTerm TEXT PRIMARY KEY,
+          $colDismissedAt TEXT NOT NULL
         )
       ''');
     }

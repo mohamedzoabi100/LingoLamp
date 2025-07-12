@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 
 // Providers
 import '../providers/auth_provider.dart';
-import '../providers/user_provider.dart';
 
 // Screens
 import '../../features/auth/presentation/screens/sign_in_screen.dart';
@@ -13,7 +12,6 @@ import '../../screens/chat_screen.dart';
 import '../../screens/chat_history_screen.dart';
 import '../../features/phrasebook/presentation/screens/phrasebook_screen.dart';
 import '../../screens/flashcards_screen.dart';
-import '../../features/settings/presentation/screens/settings_screen.dart';
 import '../../models/phrasebook_theme.dart';
 import '../../features/phrasebook/presentation/screens/category_phrases_screen.dart';
 import '../../screens/recommendations_screen.dart';
@@ -97,11 +95,7 @@ class AppRouter {
           path: '/recommendations',
           builder: (context, state) => const RecommendationsScreen(),
         ),
-        // Settings
-        GoRoute(
-          path: '/settings',
-          builder: (context, state) => const SettingsScreen(),
-        ),
+
       ],
     ),
   ];

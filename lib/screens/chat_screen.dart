@@ -447,40 +447,34 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   FlashcardData? _extractFlashcardData(String text) {
-    print('🔍 [CHAT] _extractFlashcardData called with text: "${text.substring(0, text.length > 100 ? 100 : text.length)}..."');
-    
-    // 1. Hidden payload
-    final hidden =
-        RegExp(r'\u200B(\{.*?\})\u200C', dotAll: true).firstMatch(text);
-    if (hidden != null) {
-      print('✅ [CHAT] Found hidden payload: ${hidden.group(1)}');
-      return _parseJson(hidden.group(1)!);
-    }
-
-    // 2. Visible JSON
-    final visible =
-        RegExp(r'\{"tool":"create_flashcard".*?\}', dotAll: true)
-        .firstMatch(text);
-    if (visible != null) {
-      print('✅ [CHAT] Found visible JSON: ${visible.group(0)}');
-      return _parseJson(visible.group(0)!);
-    }
-
-    // 3. Fallback Regex
-    final visSentence = RegExp(
-      r'The Spanish (?:word|translation) for .?[""]?([^""]+?)[""]? .?\\(.+?)\\',
-      caseSensitive: false,
-    ).firstMatch(text);
-    if (visSentence != null) {
-      print('✅ [CHAT] Found fallback regex match: "${visSentence.group(1)}" -> "${visSentence.group(2)}"');
-      return FlashcardData(
-          front: visSentence.group(1)!.trim(),
-          back: visSentence.group(2)!.trim());
-    }
-    
-    print('❌ [CHAT] No flashcard data found in text');
-    return null;
+  print('🔍 [CHAT] _extractFlashcardData called with text: "${text.substring(0, text.length > 100 ? 100 : text.length)}..."');
+  // 1. Hidden payload
+  final hidden = RegExp(r'\u200B(\{.*?\})\u200C', dotAll: true).firstMatch(text);
+  if (hidden != null) {
+    print('✅ [CHAT] Found hidden payload: ${hidden.group(1)}');
+    return _parseJson(hidden.group(1)!);
   }
+  // 2. Visible JSON
+  final visible = RegExp(r'\{"tool":"create_flashcard".*?\}', dotAll: true).firstMatch(text);
+  if (visible != null) {
+    print('✅ [CHAT] Found visible JSON: ${visible.group(0)}');
+    return _parseJson(visible.group(0)!);
+  }
+  // 3. Fallback Regex - Updated to match AI's actual format
+  final visSentence = RegExp(
+    'The translation of ["\']?([^"\']+)["\']? in Spanish is ([^.]+)\\.',
+    caseSensitive: false,
+  ).firstMatch(text);
+  if (visSentence != null) {
+    print('✅ [CHAT] Found fallback regex match: "${visSentence.group(1)}" -> "${visSentence.group(2)}"');
+    return FlashcardData(
+      front: visSentence.group(1)!.trim(),
+      back: visSentence.group(2)!.trim(),
+    );
+  }
+  print('❌ [CHAT] No flashcard data found in text');
+  return null;
+}
 
   // BUG FIX: This method now correctly parses the JSON from the AI.
   FlashcardData? _parseJson(String jsonStr) {

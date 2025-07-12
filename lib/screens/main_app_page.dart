@@ -1,15 +1,15 @@
 // lib/screens/main_app_page.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 
 import '../services/auth_service.dart';
 import '../services/user_data_service.dart';
 import '../services/xp_event_tracker.dart';
-import 'chat_screen.dart';
+import '../core/providers/auth_provider.dart' as app_auth;
 import 'phrasebook_screen.dart';
 import 'flashcards_screen.dart';
 import '../widgets/sync_status_bar.dart';
-import 'loggedin_settings_screen.dart';
 import 'dart:async';
 import 'chat_history_screen.dart';
 
@@ -134,6 +134,104 @@ class _MainAppPageState extends State<MainAppPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error signing out: $e')),
+        );
+      }
+    }
+  }
+
+  void _showSignOutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _signOut();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteAccountDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Account'),
+        content: const Text('This will permanently delete your account and all data. This action cannot be undone. Are you sure?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _deleteAccount();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAboutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('About LingoLamp'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('LingoLamp is your AI-powered language learning companion.'),
+            SizedBox(height: 8),
+            Text('Version: 1.0.0'),
+            SizedBox(height: 8),
+            Text('Features:'),
+            Text('• AI Chat for conversation practice'),
+            Text('• Smart Flashcards with spaced repetition'),
+            Text('• Phrasebook with AI suggestions'),
+            Text('• Progress tracking and XP system'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteAccount() async {
+    try {
+      // Use the AuthProvider to delete the account
+      final authProvider = Provider.of<app_auth.AuthProvider>(context, listen: false);
+      await authProvider.deleteAccount();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deleting account: $e')),
         );
       }
     }
@@ -453,22 +551,28 @@ class _MainAppPageState extends State<MainAppPage> {
                 ),
               ]),
               PopupMenuButton<String>(
-                icon: const Icon(Icons.account_circle, size: 32, color: Colors.white),
+                icon: const Icon(Icons.settings, size: 32, color: Colors.white),
                 onSelected: (value) {
-                  if (value == 'settings') {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
-                  } else if (value == 'signout') {
-                    _signOut();
+                  if (value == 'signout') {
+                    _showSignOutDialog(context);
+                  } else if (value == 'deleteaccount') {
+                    _showDeleteAccountDialog(context);
+                  } else if (value == 'about') {
+                    _showAboutDialog(context);
                   }
                 },
                 itemBuilder: (_) => [
                   const PopupMenuItem(
-                    value: 'settings',
-                    child: Row(children: [Icon(Icons.settings), SizedBox(width: 8), Text('Settings')]),
+                    value: 'about',
+                    child: Row(children: [Icon(Icons.info_outline), SizedBox(width: 8), Text('About')]),
                   ),
                   const PopupMenuItem(
                     value: 'signout',
                     child: Row(children: [Icon(Icons.logout, color: Colors.red), SizedBox(width: 8), Text('Sign Out', style: TextStyle(color: Colors.red))]),
+                  ),
+                  const PopupMenuItem(
+                    value: 'deleteaccount',
+                    child: Row(children: [Icon(Icons.delete_forever, color: Colors.red), SizedBox(width: 8), Text('Delete Account', style: TextStyle(color: Colors.red))]),
                   ),
                 ],
               )

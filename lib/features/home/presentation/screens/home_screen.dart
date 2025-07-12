@@ -127,11 +127,103 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           },
         ),
         actions: [
-          IconButton(
+          PopupMenuButton<String>(
             icon: const Icon(Icons.settings),
+            onSelected: (value) {
+              if (value == 'signout') {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Sign Out'),
+                    content: const Text('Are you sure you want to sign out?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Cancel'),
+                      ),
+                      ElevatedButton(
             onPressed: () {
-              context.push('/settings');
+                          Navigator.of(context).pop();
+                          context.read<AuthProvider>().signOut();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Sign Out'),
+                      ),
+                    ],
+                  ),
+                );
+              } else if (value == 'deleteaccount') {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Delete Account'),
+                    content: const Text('This will permanently delete your account and all data. This action cannot be undone. Are you sure?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Cancel'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () async {
+                          Navigator.of(context).pop();
+                          await context.read<AuthProvider>().deleteAccount();
             },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Delete'),
+                      ),
+                    ],
+                  ),
+                );
+              } else if (value == 'about') {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('About LingoLamp'),
+                    content: const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('LingoLamp is your AI-powered language learning companion.'),
+                        SizedBox(height: 8),
+                        Text('Version: 1.0.0'),
+                        SizedBox(height: 8),
+                        Text('Features:'),
+                        Text('• AI Chat for conversation practice'),
+                        Text('• Smart Flashcards with spaced repetition'),
+                        Text('• Phrasebook with AI suggestions'),
+                        Text('• Progress tracking and XP system'),
+                      ],
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Close'),
+                      ),
+                    ],
+                  ),
+                );
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'about',
+                child: Row(children: [Icon(Icons.info_outline), SizedBox(width: 8), Text('About')]),
+              ),
+              const PopupMenuItem(
+                value: 'signout',
+                child: Row(children: [Icon(Icons.logout, color: Colors.red), SizedBox(width: 8), Text('Sign Out', style: TextStyle(color: Colors.red))]),
+              ),
+              const PopupMenuItem(
+                value: 'deleteaccount',
+                child: Row(children: [Icon(Icons.delete_forever, color: Colors.red), SizedBox(width: 8), Text('Delete Account', style: TextStyle(color: Colors.red))]),
+              ),
+            ],
           ),
         ],
       ),
