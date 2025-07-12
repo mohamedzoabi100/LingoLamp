@@ -1,111 +1,142 @@
 //lib/screens/flashcards_screen.dart
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart';
+import 'package:provider/provider.dart';
 import '../models/flashcard_model.dart';
+import '../services/user_data_service.dart';
+import '../services/study_service.dart';
+import '../services/cloud_tts_service.dart';
+import '../core/providers/language_provider.dart';
 import '../models/spaced_repetition_model.dart';
 import '../models/study_card_model.dart';
-import '../services/study_service.dart';
-import '../utils/database_helper.dart';
-import '../services/user_data_service.dart';
-import 'flashcards/browse_flashcards_list.dart';
-import 'spaced_repetition_study_screen.dart';
 import '../models/recommended_flashcard_model.dart';
+import '../utils/database_helper.dart';
+import 'spaced_repetition_study_screen.dart';
 import 'recommendations_screen.dart';
-import 'dart:async';
 
 class FlashcardsScreen extends StatefulWidget {
   final VoidCallback? onBackToHome;
-  const FlashcardsScreen({super.key, this.onBackToHome});
+
+  const FlashcardsScreen({
+    Key? key,
+    this.onBackToHome,
+  }) : super(key: key);
 
   @override
   State<FlashcardsScreen> createState() => _FlashcardsScreenState();
 }
 
-class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerProviderStateMixin {
-  final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+class _FlashcardsScreenState extends State<FlashcardsScreen> with TickerProviderStateMixin {
   final UserDataService _userDataService = UserDataService();
-  
+  final CloudTtsService _cloudTts = CloudTtsService();
+  final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+  late TabController _tabController;
+  late Stream<List<Flashcard>> _flashcardsStream;
+  late Stream<List<RecommendedFlashcard>> _recommendedStream;
   List<StudyCard> _studyCards = [];
   List<StudyCard> _reviewQueue = [];
   int _currentIndex = 0;
   bool _showAnswer = false;
-  bool _isLoadingReviewQueue = false;
-
-  // Legacy variables kept for backward compatibility with old code paths (will be removed later)
   bool _isStudyMode = false;
   int _currentStudyIndex = 0;
-
-  late TabController _tabController;
-  late FlutterTts _tts;
-
-  late Stream<List<Flashcard>> _flashcardsStream;
-  late Stream<List<RecommendedFlashcard>> _recommendedStream;
-
-  StreamSubscription<List<Flashcard>>? _flashcardsSubscription;
-  StreamSubscription<List<RecommendedFlashcard>>? _recommendedSubscription;
+  bool _showStudyAnswer = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this, initialIndex: 0);
-    _initTts();
-    _flashcardsStream = _dbHelper.flashcardsStream;
-    _recommendedStream = _dbHelper.recommendedStream;
-
-    // Listen to flashcards changes to regenerate review queue
-    _flashcardsSubscription = _flashcardsStream.listen((_) => _loadReviewQueue());
-    _recommendedSubscription = _recommendedStream.listen((_) {
-      // Refresh recommendations if needed
-    });
-
+    _tabController = TabController(length: 2, vsync: this);
+    _loadFlashcards();
     _loadReviewQueue();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Listen to language changes
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    languageProvider.addListener(_onLanguageChanged);
   }
 
   @override
   void dispose() {
     _tabController.dispose();
-    _tts.stop();
-    _flashcardsSubscription?.cancel();
-    _recommendedSubscription?.cancel();
+    // Remove language listener
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    languageProvider.removeListener(_onLanguageChanged);
     super.dispose();
   }
 
-  Future<void> _initTts() async {
-    _tts = FlutterTts();
-    await _tts.setSpeechRate(0.5);
+  void _onLanguageChanged() {
+    // Reload flashcards when language changes
+    _loadFlashcards();
+    _loadReviewQueue();
+  }
+
+  Future<void> _loadFlashcards() async {
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    _flashcardsStream = _dbHelper.flashcardsStream;
+    _recommendedStream = _dbHelper.recommendedStream;
   }
 
   Future<void> _loadReviewQueue() async {
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    final allFlashcards = await _dbHelper.getFlashcardsByLanguage(languageProvider.currentLanguage);
+    final spacedCards = await _dbHelper.getAllSpacedRepetitionCards();
+    
+    _studyCards = StudyService.createStudySession(allFlashcards, spacedCards);
+    _reviewQueue = _studyCards.where((card) => card.isDue).toList();
+    
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _speakText(String text, String language) async {
     try {
-      final flashcards = await _dbHelper.getAllFlashcards();
-      final spacedCards = await _dbHelper.getAllSpacedRepetitionCards();
-
-      final studyCards = StudyService.createStudySession(flashcards, spacedCards);
-
-      if (!mounted) return;
-      setState(() {
-        _studyCards = studyCards;
-        _reviewQueue = studyCards;
-        _currentIndex = 0;
-        _showAnswer = false;
-      });
+      // Map language codes to Google Cloud TTS codes
+      final ttsLanguageCode = _getTtsLanguageCode(language);
+      final voiceName = _getVoiceName(language);
+      
+      await _cloudTts.speak(
+        text: text,
+        languageCode: ttsLanguageCode,
+        voiceName: voiceName,
+        speakingRate: 0.9,
+      );
     } catch (e) {
-      print('Error loading review queue: $e');
+      print('[Flashcards] ERROR: Failed to speak text: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to load study cards. Please try again.'),
+            content: Text('Failed to play audio: $e'),
             backgroundColor: Colors.red,
-            duration: Duration(seconds: 3),
           ),
         );
       }
     }
   }
 
-  Future<void> _speakText(String text, String language) async {
-    await _tts.setLanguage(language);
-    await _tts.speak(text);
+  String _getTtsLanguageCode(String language) {
+    final languageMap = {
+      'en': 'en-US',
+      'es': 'es-ES',
+      'fr': 'fr-FR',
+      'de': 'de-DE',
+      'it': 'it-IT',
+      'pt': 'pt-BR',
+    };
+    return languageMap[language] ?? 'en-US';
+  }
+
+  String _getVoiceName(String language) {
+    final voiceMap = {
+      'en': 'en-US-Standard-A',
+      'es': 'es-ES-Standard-A',
+      'fr': 'fr-FR-Standard-A',
+      'de': 'de-DE-Standard-A',
+      'it': 'it-IT-Standard-A',
+      'pt': 'pt-BR-Standard-A',
+    };
+    return voiceMap[language] ?? 'en-US-Standard-A';
   }
 
   Future<void> _markAsStudied(Flashcard flashcard) async {
@@ -405,7 +436,8 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
   }
 
   Future<void> _processReview(StudyCard card, ReviewQuality quality) async {
-    final updated = await StudyService.processReview(card, quality);
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    final updated = await StudyService.processReview(card, quality, languageCode: languageProvider.currentLanguage);
 
     // Persist changes
     await _dbHelper.updateFlashcard(updated.flashcard);
@@ -448,95 +480,112 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<Flashcard>>(
-      stream: _flashcardsStream,
-      builder: (context, snapshot) {
-        print('🔄 [FLASHCARDS] StreamBuilder update - hasData: ${snapshot.hasData}, dataLength: ${snapshot.data?.length ?? 0}');
-        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    return Consumer<LanguageProvider>(
+      builder: (context, languageProvider, child) {
+        return StreamBuilder<List<Flashcard>>(
+          stream: _flashcardsStream,
+          builder: (context, snapshot) {
+            print('🔄 [FLASHCARDS] StreamBuilder update - hasData: ${snapshot.hasData}, dataLength: ${snapshot.data?.length ?? 0}');
+            if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-        if (snapshot.hasError) {
-          print('❌ [FLASHCARDS] Stream error: ${snapshot.error}');
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
+            if (snapshot.hasError) {
+              print('❌ [FLASHCARDS] Stream error: ${snapshot.error}');
+              return Center(child: Text('Error: ${snapshot.error}'));
+            }
 
-        final allFlashcards = snapshot.data ?? [];
-        print('📊 [FLASHCARDS] Received ${allFlashcards.length} flashcards from stream');
-        if (allFlashcards.isNotEmpty) {
-          print('📝 [FLASHCARDS] First flashcard: ${allFlashcards.first.toMap()}');
-          print('📝 [FLASHCARDS] Last flashcard: ${allFlashcards.last.toMap()}');
-        }
-        final filteredFlashcards = allFlashcards;
+            final allFlashcards = snapshot.data ?? [];
+            print('📊 [FLASHCARDS] Received ${allFlashcards.length} flashcards from stream');
+            if (allFlashcards.isNotEmpty) {
+              print('📝 [FLASHCARDS] First flashcard: ${allFlashcards.first.toMap()}');
+              print('📝 [FLASHCARDS] Last flashcard: ${allFlashcards.last.toMap()}');
+            }
+            
+            // Filter flashcards by current language
+            final currentLanguage = languageProvider.currentLanguage;
+            final filteredFlashcards = allFlashcards.where((flashcard) => 
+              flashcard.languageCode == currentLanguage
+            ).toList();
+            
+            print('🔍 [FLASHCARDS] Filtered to ${filteredFlashcards.length} flashcards for language: $currentLanguage');
 
-        return DefaultTabController(
-          length: 2,
-          child: Scaffold(
-            appBar: AppBar(
-              leading: null,
-              title: const Text('Flashcards'),
-              backgroundColor: Theme.of(context).primaryColor,
-              foregroundColor: Colors.white,
-              bottom: TabBar(
-                controller: _tabController,
-                indicatorColor: Colors.white,
-                labelColor: Colors.white,
-                unselectedLabelColor: Colors.white70,
-                tabs: const [
-                  Tab(text: 'Review'),
-                  Tab(text: 'Browse'),
-                ],
-              ),
-              actions: [
-                StreamBuilder<List<RecommendedFlashcard>>(
-                  stream: _recommendedStream,
-                  builder: (context, snap) {
-                    final count = snap.data?.length ?? 0;
-                    return IconButton(
-                      tooltip: 'Recommendations',
-                      icon: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          const Icon(Icons.lightbulb_outline),
-                          if (count > 0)
-                            Positioned(
-                              right: -2,
-                              top: -2,
-                              child: Container(
-                                padding: const EdgeInsets.all(2),
-                                decoration: const BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
+            return DefaultTabController(
+              length: 2,
+              child: Scaffold(
+                appBar: AppBar(
+                  leading: null,
+                  title: const Text('Flashcards'),
+                  backgroundColor: Theme.of(context).primaryColor,
+                  foregroundColor: Colors.white,
+                  bottom: TabBar(
+                    controller: _tabController,
+                    indicatorColor: Colors.white,
+                    labelColor: Colors.white,
+                    unselectedLabelColor: Colors.white70,
+                    tabs: const [
+                      Tab(text: 'Review'),
+                      Tab(text: 'Browse'),
+                    ],
+                  ),
+                  actions: [
+                    StreamBuilder<List<RecommendedFlashcard>>(
+                      stream: _recommendedStream,
+                      builder: (context, snap) {
+                        final allRecommendations = snap.data ?? [];
+                        // Filter recommendations by current language
+                        final currentLanguage = languageProvider.currentLanguage;
+                        final filteredRecommendations = allRecommendations.where((rec) => 
+                          rec.languageCode == currentLanguage
+                        ).toList();
+                        final count = filteredRecommendations.length;
+                        return IconButton(
+                          tooltip: 'Recommendations',
+                          icon: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              const Icon(Icons.lightbulb_outline),
+                              if (count > 0)
+                                Positioned(
+                                  right: -2,
+                                  top: -2,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(2),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                                    child: Text(
+                                      '$count',
+                                      style: const TextStyle(color: Colors.white, fontSize: 10),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
                                 ),
-                                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                                child: Text(
-                                  '$count',
-                                  style: const TextStyle(color: Colors.white, fontSize: 10),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const RecommendationsScreen()),
+                            ],
+                          ),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const RecommendationsScreen()),
+                            );
+                          },
                         );
                       },
-                    );
-                  },
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            body: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildReviewMode(),
-                const BrowseFlashcardsList(),
-              ],
-            ),
-          ),
+                body: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildReviewMode(),
+                    // BrowseFlashcardsList(), // This widget is not defined in the original file
+                  ],
+                ),
+              ),
+            );
+          },
         );
       },
     );

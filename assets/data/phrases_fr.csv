@@ -1,0 +1,121 @@
+english,translation,category,difficulty
+Hello,Bonjour,Greetings,beginner
+Good morning,Bonjour,Greetings,beginner
+Good afternoon,Bon après-midi,Greetings,beginner
+Good evening,Bonsoir,Greetings,beginner
+Please,S'il vous plaît,Greetings,beginner
+Thank you,Merci,Greetings,beginner
+You're welcome,Je vous en prie,Greetings,beginner
+Excuse me,Excusez-moi,Greetings,beginner
+I'm sorry,Je suis désolé(e),Greetings,beginner
+My name is...,Je m'appelle...,Greetings,beginner
+What's your name?,Comment vous appelez-vous ?,Greetings,beginner
+Nice to meet you,Enchanté(e),Greetings,beginner
+How are you?,Comment allez-vous ?,Greetings,beginner
+I'm fine,Je vais bien,Greetings,beginner
+Goodbye,Au revoir,Greetings,beginner
+See you later,À plus tard,Greetings,beginner
+Have a good day,Bonne journée,Greetings,beginner
+Do you speak English?,Parlez-vous anglais ?,Greetings,intermediate
+I don't speak Spanish well,Je ne parle pas bien français,Greetings,intermediate
+Can you help me?,Pouvez-vous m'aider ?,Greetings,intermediate
+I would like...,Je voudrais...,Food & Dining,beginner
+The menu please,La carte, s'il vous plaît,Food & Dining,beginner
+What do you recommend?,Qu'est-ce que vous recommandez ?,Food & Dining,beginner
+I'm vegetarian,Je suis végétarien/ne,Food & Dining,beginner
+I'm allergic to...,Je suis allergique à...,Food & Dining,intermediate
+The check please,L'addition, s'il vous plaît,Food & Dining,beginner
+How much is this?,Combien ça coûte ?,Food & Dining,beginner
+Is service included?,Le service est-il inclus ?,Food & Dining,intermediate
+Can I have this to go?,Je peux l'emporter ?,Food & Dining,intermediate
+Do you have a children's menu?,Avez-vous un menu pour enfants ?,Food & Dining,intermediate
+I need a table for two,Je voudrais une table pour deux,Food & Dining,beginner
+Can we sit outside?,On peut s'installer dehors ?,Food & Dining,intermediate
+What's the special today?,Quel est le plat du jour ?,Food & Dining,intermediate
+Is this spicy?,Est-ce que c'est épicé ?,Food & Dining,beginner
+Can I have water please?,Puis-je avoir de l'eau, s'il vous plaît ?,Food & Dining,beginner
+The food is delicious,La nourriture est délicieuse,Food & Dining,beginner
+Can you bring me the wine list?,Pouvez-vous m'apporter la carte des vins ?,Food & Dining,intermediate
+I'd like to make a reservation,Je voudrais faire une réservation,Food & Dining,intermediate
+Do you accept credit cards?,Acceptez-vous les cartes de crédit ?,Food & Dining,beginner
+Can I have the recipe?,Puis-je avoir la recette ?,Food & Dining,intermediate
+Where is the bus station?,Où est la gare routière ?,Transport,beginner
+How much is a ticket to...?,Combien coûte un billet pour... ?,Transport,beginner
+What time does the train leave?,À quelle heure part le train ?,Transport,beginner
+Where is platform number...?,Où se trouve le quai numéro... ?,Transport,intermediate
+I need a taxi,J'ai besoin d'un taxi,Transport,beginner
+Take me to the airport,Emmenez-moi à l'aéroport,Transport,beginner
+How long does it take?,Combien de temps ça prend ?,Transport,beginner
+Stop here please,Arrêtez-vous ici, s'il vous plaît,Transport,beginner
+Can I buy a ticket here?,Puis-je acheter un billet ici ?,Transport,beginner
+Is this seat taken?,Cette place est-elle occupée ?,Transport,beginner
+Where do I change trains?,Où est-ce que je dois changer de train ?,Transport,intermediate
+What time is the next bus?,À quelle heure est le prochain bus ?,Transport,intermediate
+Can you call me a taxi?,Pouvez-vous m'appeler un taxi ?,Transport,beginner
+How much is the fare?,Quel est le tarif ?,Transport,beginner
+Is there a direct flight?,Y a-t-il un vol direct ?,Transport,intermediate
+My flight is delayed,Mon vol est en retard,Transport,intermediate
+Where is the baggage claim?,Où se trouve la récupération des bagages ?,Transport,intermediate
+Can I reserve a seat?,Puis-je réserver une place ?,Transport,intermediate
+Is there WiFi on the bus?,Y a-t-il le WiFi dans le bus ?,Transport,intermediate
+Arrival time,Heure d'arrivée,Transport,intermediate
+Help!,Au secours !,Emergencies,beginner
+Call the police!,Appelez la police !,Emergencies,beginner
+I need a doctor,J'ai besoin d'un médecin,Emergencies,beginner
+Where is the hospital?,Où est l'hôpital ?,Emergencies,beginner
+I'm lost,Je suis perdu(e),Emergencies,beginner
+Can you help me?,Pouvez-vous m'aider ?,Emergencies,beginner
+I don't feel well,Je ne me sens pas bien,Emergencies,beginner
+Call an ambulance,Appelez une ambulance,Emergencies,intermediate
+I've been robbed,On m'a volé,Emergencies,intermediate
+I need the embassy,J'ai besoin d'aller à l'ambassade,Emergencies,intermediate
+My passport is missing,J'ai perdu mon passeport,Emergencies,intermediate
+I need a pharmacy,J'ai besoin d'une pharmacie,Emergencies,beginner
+It's an emergency,C'est une urgence,Emergencies,beginner
+I'm allergic to...,Je suis allergique à...,Emergencies,intermediate
+Please call my family,S'il vous plaît, appelez ma famille,Emergencies,intermediate
+Where is the police station?,Où est le commissariat ?,Emergencies,intermediate
+I need to make a phone call,Je dois passer un coup de fil,Emergencies,beginner
+My car broke down,Ma voiture est en panne,Emergencies,intermediate
+I have insurance,J'ai une assurance,Emergencies,intermediate
+Can you speak slower?,Pouvez-vous parler plus lentement ?,Emergencies,beginner
+How much does this cost?,Combien ça coûte ?,Shopping,beginner
+Can I try this on?,Puis-je l'essayer ?,Shopping,beginner
+Do you have this in another size?,Vous avez ça dans une autre taille ?,Shopping,beginner
+What size do you have?,Quelles tailles avez-vous ?,Shopping,beginner
+Can I have a discount?,Puis-je avoir une réduction ?,Shopping,beginner
+Is this on sale?,Est-ce que c'est en solde ?,Shopping,beginner
+Can I pay by card?,Puis-je payer par carte ?,Shopping,beginner
+Do you accept dollars?,Acceptez-vous les dollars ?,Shopping,beginner
+Where is the fitting room?,Où sont les cabines d'essayage ?,Shopping,beginner
+I'm just looking,Je ne fais que regarder,Shopping,beginner
+Can I have a receipt?,Puis-je avoir un reçu ?,Shopping,beginner
+What's your return policy?,Quelle est votre politique de retour ?,Shopping,intermediate
+Do you have this in other colors?,Vous avez ceci en d'autres couleurs ?,Shopping,beginner
+Is this the best price?,C'est le meilleur prix ?,Shopping,intermediate
+Can I exchange this?,Puis-je échanger cet article ?,Shopping,intermediate
+Where can I find...?,Où puis-je trouver... ?,Shopping,beginner
+What time do you close?,À quelle heure fermez-vous ?,Shopping,beginner
+Do you have a bigger size?,Avez-vous une taille plus grande ?,Shopping,beginner
+This is too expensive,C'est trop cher,Shopping,beginner
+I'll take it,Je le prends,Shopping,beginner
+I need a room for tonight,J'ai besoin d'une chambre pour ce soir,Accommodation,beginner
+Do you have availability?,Avez-vous des disponibilités ?,Accommodation,beginner
+How much per night?,Combien coûte la nuit ?,Accommodation,beginner
+I have a reservation,J'ai une réservation,Accommodation,beginner
+Can I see the room first?,Puis-je voir la chambre d'abord ?,Accommodation,intermediate
+Is breakfast included?,Le petit-déjeuner est-il inclus ?,Accommodation,beginner
+What time is check-out?,À quelle heure est le check-out ?,Accommodation,beginner
+Can I have a wake-up call?,Puis-je avoir un réveil par téléphone ?,Accommodation,intermediate
+Is there WiFi?,Y a-t-il le WiFi ?,Accommodation,beginner
+What's the WiFi password?,Quel est le mot de passe du WiFi ?,Accommodation,beginner
+Can I have extra towels?,Puis-je avoir des serviettes supplémentaires ?,Accommodation,beginner
+The air conditioning doesn't work,La climatisation ne fonctionne pas,Accommodation,intermediate
+Can I change rooms?,Puis-je changer de chambre ?,Accommodation,intermediate
+Is there a safe in the room?,Y a-t-il un coffre-fort dans la chambre ?,Accommodation,intermediate
+What time does the pool close?,À quelle heure ferme la piscine ?,Accommodation,intermediate
+Can I extend my stay?,Puis-je prolonger mon séjour ?,Accommodation,intermediate
+Is there room service?,Y a-t-il un service de chambre ?,Accommodation,intermediate
+Can you call me a taxi?,Pouvez-vous m'appeler un taxi ?,Accommodation,beginner
+Where can I park?,Où puis-je me garer ?,Accommodation,beginner
+Can I have the key?,Puis-je avoir la clé ?,Accommodation,beginner

@@ -102,6 +102,50 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     return markdown.replaceAll(RegExp(r'[\*_`#\[\]()>-]'), '').replaceAll(RegExp(r'\n+'), ' ');
   }
 
+  String _detectLanguage(String text) {
+    // Simple language detection based on common patterns
+    if (text.contains('¿') || text.contains('á') || text.contains('é') || text.contains('í') || text.contains('ó') || text.contains('ú')) {
+      return 'es';
+    }
+    if (text.contains('à') || text.contains('â') || text.contains('é') || text.contains('è') || text.contains('ê') || text.contains('î') || text.contains('ô') || text.contains('û')) {
+      return 'fr';
+    }
+    if (text.contains('ä') || text.contains('ö') || text.contains('ü') || text.contains('ß')) {
+      return 'de';
+    }
+    if (text.contains('à') || text.contains('è') || text.contains('é') || text.contains('ì') || text.contains('ò') || text.contains('ù')) {
+      return 'it';
+    }
+    if (text.contains('ã') || text.contains('õ') || text.contains('ç')) {
+      return 'pt';
+    }
+    return 'en'; // Default to English
+  }
+
+  String _getTtsLanguageCode(String language) {
+    final languageMap = {
+      'en': 'en-US',
+      'es': 'es-ES',
+      'fr': 'fr-FR',
+      'de': 'de-DE',
+      'it': 'it-IT',
+      'pt': 'pt-BR',
+    };
+    return languageMap[language] ?? 'en-US';
+  }
+
+  String _getVoiceName(String language) {
+    final voiceMap = {
+      'en': 'en-US-Standard-A',
+      'es': 'es-ES-Standard-A',
+      'fr': 'fr-FR-Standard-A',
+      'de': 'de-DE-Standard-A',
+      'it': 'it-IT-Standard-A',
+      'pt': 'pt-BR-Standard-A',
+    };
+    return voiceMap[language] ?? 'en-US-Standard-A';
+  }
+
   String cleanMessageForDisplay(String text) {
     // Remove visible JSON payloads
     return text.replaceAll(RegExp(r'\{"tool":"create_flashcard".*?\}', dotAll: true), '').trim();

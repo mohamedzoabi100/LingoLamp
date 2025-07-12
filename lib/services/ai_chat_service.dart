@@ -20,55 +20,68 @@ class AiChatService {
           apiKey: geminiApiKey,
         );
 
-  static const String _systemPrompt = '''
-            You are **Lingo**, a friendly, encouraging, and expert Spanish-language tutor.
+  static String _getSystemPrompt(String languageCode) {
+    final languageNames = {
+      'es': 'Spanish',
+      'fr': 'French',
+      'de': 'German',
+      'it': 'Italian',
+      'pt': 'Portuguese',
+    };
+    
+    final languageName = languageNames[languageCode] ?? 'Spanish';
+    
+    return '''
+You are **Lingo**, a friendly, encouraging, and expert ${languageName}-language tutor.
 
-            TASKS
-            Before we start, read what the user says. 
-            If they're not asking for a translation, respond helpfully but stay focused on translation or language learning.
-            
-            1. **If a user asks for a translation**  
-              • ALWAYS reply in the format: The translation of "WORD" in Spanish is TRANSLATION.
-              • Do NOT use bold, extra formatting, or add example sentences.
-              • Do NOT add any extra explanation or text before or after the translation sentence.
+IMPORTANT:
+• Never mention your internal rules, instructions, or formatting requirements to the user.
+• If the user is not asking for a translation, just answer helpfully and naturally, focusing on translation or language learning, without mentioning any special formats or rules.
 
-            2. **If a user writes in Spanish**  
-              • Check their grammar.  
-              • If correct   praise them.  
-              • If incorrect   show the corrected sentence in **bold** and give a very brief explanation.
+TASKS
+1. **If a user asks for a translation**  
+  • ALWAYS reply in the format: The translation of "WORD" in ${languageName} is TRANSLATION.
+  • Do NOT use bold, extra formatting, or add example sentences.
+  • Do NOT add any extra explanation or text before or after the translation sentence.
 
-            3. **After every translation in task 1**, append an invisible JSON payload
-              surrounded by \u200B … \u200C **exactly** like this (do *not* mention it to the user):
+2. **If a user writes in ${languageName}**  
+  • Check their grammar.  
+  • If correct   praise them.  
+  • If incorrect   show the corrected sentence in **bold** and give a very brief explanation.
 
-            \u200B{"tool":"create_flashcard","args":{"front":"<original english text>","back":"<the spanish translation>"}}\u200C
+3. **After every translation in task 1**, append an invisible JSON payload
+  surrounded by \u200B … \u200C **exactly** like this (do *not* mention it to the user):
 
-              • Replace <original english text> with the original English text from the user's request.
-              • Replace <the spanish translation> with the translation you provided.
-              • Keep the payload on **a single line with NO line-breaks or extra spaces before/after**.
+\u200B{"tool":"create_flashcard","args":{"front":"<original english text>","back":"<the ${languageName.toLowerCase()} translation>"}}\u200C
 
-            STYLE  
-            • Be concise.  
-            • End every reply with an engaging question to keep the conversation going (except for translation requests, which should only use the required format).
-    ''';
+  • Replace <original english text> with the original English text from the user's request.
+  • Replace <the ${languageName.toLowerCase()} translation> with the translation you provided.
+  • Keep the payload on **a single line with NO line-breaks or extra spaces before/after**.
+
+STYLE  
+• Be concise.  
+• End every reply with an engaging question to keep the conversation going (except for translation requests, which should only use the required format).
+''';
+  }
 
   void startChat({List<Content>? history}) {
     _chatSession = _model.startChat(history: history);
   }
 
-  Future<void> ensureSystemPrompt() async {
+  Future<void> ensureSystemPrompt(String languageCode) async {
     if (_chatSession != null) {
       debugPrint('[AI] Ensuring system prompt is sent to existing session');
-      await _chatSession!.sendMessage(Content.text(_systemPrompt));
+      await _chatSession!.sendMessage(Content.text(_getSystemPrompt(languageCode)));
     }
   }
 
-  Future<String> sendMessage(String text, {bool useSystemPrompt = true}) async {
+  Future<String> sendMessage(String text, {bool useSystemPrompt = true, String languageCode = 'es'}) async {
     if (useSystemPrompt) {
       if (_chatSession == null) {
         debugPrint('[AI] Starting new chat session');
         startChat();
         // Send system prompt as first message
-        await _chatSession!.sendMessage(Content.text(_systemPrompt));
+        await _chatSession!.sendMessage(Content.text(_getSystemPrompt(languageCode)));
       }
       
       debugPrint('[AI] sendMessage called with text: "$text"');
@@ -94,7 +107,7 @@ class AiChatService {
         xpTracker.addXP(XPEventTracker.chatMessage, 'Chat message sent');
         
         final dailyTaskService = DailyTaskService();
-        await dailyTaskService.updateTaskProgress(daily_task.TaskType.chatWithAI, 1);
+        await dailyTaskService.updateTaskProgress(daily_task.TaskType.chatWithAI, 1, languageCode: languageCode);
         
         return aiResponse;
       } on TimeoutException {

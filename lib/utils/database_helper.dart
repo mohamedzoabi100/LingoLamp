@@ -32,13 +32,14 @@ class DatabaseHelper {
 
   // Database version incremented to handle schema change
   static const String _dbName = 'lingolamp_chat.db';
-  static const int _dbVersion = 8;
+  static const int _dbVersion = 11; // Incremented to handle new schema
 
   static const String tableConversations = 'conversations';
   static const String colConversationId = 'id';
   static const String colConversationTitle = 'title';
   static const String colConversationCreatedAt = 'created_at';
   static const String colConversationLastMessageTimestamp = 'last_message_timestamp';
+  static const String colConversationLanguageCode = 'language_code';
 
   static const String tableMessages = 'messages';
   static const String colMessageId = 'id';
@@ -63,6 +64,7 @@ class DatabaseHelper {
   static const String colFlashcardIsFavorite = 'is_favorite';
   static const String colFlashcardCategory = 'category';
   static const String colFlashcardTags = 'tags';
+  static const String colFlashcardLanguageCode = 'language_code';
 
   // Spaced repetition table constants
   static const String tableSpacedRepetition = 'spaced_repetition';
@@ -85,6 +87,7 @@ class DatabaseHelper {
   static const String colRecommendedWeight = 'weight';
   static const String colRecommendedCreatedAt = 'created_at';
   static const String colRecommendedUpdatedAt = 'updated_at';
+  static const String colRecommendedLanguageCode = 'language_code'; // NEW
 
   // Dismissed recommendations table
   static const String tableDismissed = 'dismissed_recommendations';
@@ -117,7 +120,8 @@ class DatabaseHelper {
         $colConversationId TEXT PRIMARY KEY,
         $colConversationTitle TEXT,
         $colConversationCreatedAt TEXT NOT NULL,
-        $colConversationLastMessageTimestamp TEXT NOT NULL
+        $colConversationLastMessageTimestamp TEXT NOT NULL,
+        $colConversationLanguageCode TEXT NOT NULL
       )
     ''');
 
@@ -147,7 +151,8 @@ class DatabaseHelper {
         $colFlashcardDifficulty INTEGER DEFAULT 2,
         $colFlashcardIsFavorite INTEGER DEFAULT 0,
         $colFlashcardCategory TEXT,
-        $colFlashcardTags TEXT
+        $colFlashcardTags TEXT,
+        $colFlashcardLanguageCode TEXT NOT NULL
       )
     ''');
 
@@ -174,7 +179,8 @@ class DatabaseHelper {
         $colRecommendedSource TEXT NOT NULL,
         $colRecommendedWeight REAL NOT NULL,
         $colRecommendedCreatedAt TEXT NOT NULL,
-        $colRecommendedUpdatedAt TEXT NOT NULL
+        $colRecommendedUpdatedAt TEXT NOT NULL,
+        $colRecommendedLanguageCode TEXT NOT NULL DEFAULT "es" -- NEW
       )
     ''');
 
@@ -263,6 +269,15 @@ class DatabaseHelper {
         )
       ''');
     }
+    if (oldVersion < 9) {
+      await db.execute('ALTER TABLE $tableConversations ADD COLUMN $colConversationLanguageCode TEXT NOT NULL DEFAULT "es"');
+    }
+    if (oldVersion < 10) {
+      await db.execute('ALTER TABLE $tableFlashcards ADD COLUMN $colFlashcardLanguageCode TEXT NOT NULL DEFAULT "es"');
+    }
+    if (oldVersion < 11) {
+      await db.execute('ALTER TABLE $tableRecommended ADD COLUMN $colRecommendedLanguageCode TEXT NOT NULL DEFAULT "es"');
+    }
   }
 
   Future<void> _onFlashcardsChanged() async {
@@ -302,6 +317,7 @@ class DatabaseHelper {
       colConversationTitle: conversation.title,
       colConversationCreatedAt: conversation.createdAt.toIso8601String(),
       colConversationLastMessageTimestamp: conversation.updatedAt.toIso8601String(),
+      colConversationLanguageCode: conversation.languageCode,
     });
     return id;
   }
@@ -326,6 +342,7 @@ class DatabaseHelper {
         colConversationTitle: conversation.title,
         colConversationCreatedAt: conversation.createdAt.toIso8601String(),
         colConversationLastMessageTimestamp: conversation.updatedAt.toIso8601String(),
+        colConversationLanguageCode: conversation.languageCode,
       },
       where: '$colConversationId = ?',
       whereArgs: [conversation.id],
@@ -372,6 +389,7 @@ class DatabaseHelper {
           isArchived: convo.isArchived,
           isDeleted: convo.isDeleted,
           extra: convo.extra,
+          languageCode: convo.languageCode,
         );
         await updateConversation(updatedConvo);
       }
@@ -438,6 +456,29 @@ class DatabaseHelper {
     }
   }
 
+  // NEW METHOD - Get flashcards by language code
+  Future<List<Flashcard>> getFlashcardsByLanguage(String languageCode) async {
+    try {
+      print('🔍 [DB] getFlashcardsByLanguage called with languageCode: $languageCode');
+      Database db = await instance.database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        tableFlashcards,
+        where: '$colFlashcardLanguageCode = ?',
+        whereArgs: [languageCode],
+        orderBy: '$colFlashcardCreatedAt DESC',
+      );
+      print('📊 [DB] Language query returned ${maps.length} rows for language: $languageCode');
+      final flashcards = List.generate(maps.length, (i) {
+        return Flashcard.fromMap(maps[i]);
+      });
+      print('✅ [DB] getFlashcardsByLanguage returning ${flashcards.length} flashcards for language: $languageCode');
+      return flashcards;
+    } catch (e) {
+      print('❌ [DB] Error getting flashcards by language: $e');
+      return [];
+    }
+  }
+
   Future<List<Flashcard>> getFlashcardsPaginated({required int limit, required int offset}) async {
     Database db = await instance.database;
     final List<Map<String, dynamic>> maps = await db.query(
@@ -449,6 +490,35 @@ class DatabaseHelper {
     return List.generate(maps.length, (i) {
       return Flashcard.fromMap(maps[i]);
     });
+  }
+
+  // NEW METHOD - Get flashcards paginated by language code
+  Future<List<Flashcard>> getFlashcardsPaginatedByLanguage({
+    required int limit, 
+    required int offset, 
+    required String languageCode
+  }) async {
+    try {
+      print('🔍 [DB] getFlashcardsPaginatedByLanguage called with languageCode: $languageCode, limit: $limit, offset: $offset');
+      Database db = await instance.database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        tableFlashcards,
+        where: '$colFlashcardLanguageCode = ?',
+        whereArgs: [languageCode],
+        orderBy: '$colFlashcardCreatedAt DESC',
+        limit: limit,
+        offset: offset,
+      );
+      print('📊 [DB] Paginated language query returned ${maps.length} rows for language: $languageCode');
+      final flashcards = List.generate(maps.length, (i) {
+        return Flashcard.fromMap(maps[i]);
+      });
+      print('✅ [DB] getFlashcardsPaginatedByLanguage returning ${flashcards.length} flashcards for language: $languageCode');
+      return flashcards;
+    } catch (e) {
+      print('❌ [DB] Error getting flashcards paginated by language: $e');
+      return [];
+    }
   }
 
   Future<int> updateFlashcard(Flashcard flashcard) async {
@@ -778,6 +848,18 @@ class DatabaseHelper {
     final db = await database;
     final res = await db.query(tableDismissed, where: '$colDismissedTerm = ?', whereArgs: [term]);
     return res.isNotEmpty;
+  }
+
+  // NEW METHOD - Get recommendations by language code
+  Future<List<RecommendedFlashcard>> getRecommendationsByLanguage(String languageCode) async {
+    final db = await database;
+    final maps = await db.query(
+      tableRecommended,
+      where: '$colRecommendedLanguageCode = ?',
+      whereArgs: [languageCode],
+      orderBy: '$colRecommendedWeight DESC',
+    );
+    return maps.map(RecommendedFlashcard.fromMap).toList();
   }
 
   void dispose() {

@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart';
+import 'package:provider/provider.dart';
 import '../models/flashcard_model.dart';
 import '../models/spaced_repetition_model.dart';
 import '../models/study_card_model.dart';
 import '../services/study_service.dart';
+import '../services/cloud_tts_service.dart';
 import '../services/xp_service.dart';
+import '../core/providers/language_provider.dart';
 import '../utils/database_helper.dart';
 
 class SpacedRepetitionStudyScreen extends StatefulWidget {
   final VoidCallback? onBackToHome;
-  const SpacedRepetitionStudyScreen({super.key, this.onBackToHome});
+
+  const SpacedRepetitionStudyScreen({
+    Key? key,
+    this.onBackToHome,
+  }) : super(key: key);
 
   @override
   State<SpacedRepetitionStudyScreen> createState() => _SpacedRepetitionStudyScreenState();
@@ -17,72 +23,118 @@ class SpacedRepetitionStudyScreen extends StatefulWidget {
 
 class _SpacedRepetitionStudyScreenState extends State<SpacedRepetitionStudyScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+  final CloudTtsService _cloudTts = CloudTtsService();
   final XPService _xpService = XPService();
-  
-  List<StudyCard> _studyCards = [];
   List<StudyCard> _dueCards = [];
   int _currentIndex = 0;
   bool _showAnswer = false;
-  bool _isLoading = true;
-  late FlutterTts _tts;
+  DateTime _sessionStartTime = DateTime.now();
+  int _totalAnswered = 0;
+  int _correctAnswers = 0;
 
   @override
   void initState() {
     super.initState();
-    _initTts();
-    _loadStudyCards();
+    _loadDueCards();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Listen to language changes
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    languageProvider.addListener(_onLanguageChanged);
   }
 
   @override
   void dispose() {
-    _tts.stop();
+    // Remove language listener
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    languageProvider.removeListener(_onLanguageChanged);
     super.dispose();
   }
 
-  Future<void> _initTts() async {
-    _tts = FlutterTts();
-    await _tts.setSpeechRate(0.5);
+  void _onLanguageChanged() {
+    // Reload due cards when language changes
+    _loadDueCards();
   }
 
-  Future<void> _loadStudyCards() async {
-    setState(() => _isLoading = true);
+  Future<void> _loadDueCards() async {
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    final flashcards = await _dbHelper.getFlashcardsByLanguage(languageProvider.currentLanguage);
+    final spacedCards = await _dbHelper.getAllSpacedRepetitionCards();
     
-    try {
-      List<Flashcard> flashcards = await _dbHelper.getAllFlashcards();
-      List<SpacedRepetitionCard> spacedCards = await _dbHelper.getAllSpacedRepetitionCards();
-      
-      _studyCards = StudyService.createStudySession(flashcards, spacedCards);
-      _dueCards = _studyCards.where((card) => card.isDue).toList();
-      
+    final studyCards = StudyService.createStudySession(flashcards, spacedCards);
+    final dueCards = studyCards.where((card) => card.isDue).toList();
+    
+    if (mounted) {
       setState(() {
-        _isLoading = false;
+        _dueCards = dueCards;
         _currentIndex = 0;
         _showAnswer = false;
       });
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading study cards: $e')),
-        );
-      }
     }
-  }
-
-  Future<void> _speakText(String text, String language) async {
-    await _tts.setLanguage(language);
-    await _tts.speak(text);
   }
 
   void _toggleAnswer() {
     setState(() => _showAnswer = !_showAnswer);
   }
 
+  Future<void> _speakText(String text, String language) async {
+    try {
+      // Map language codes to Google Cloud TTS codes
+      final ttsLanguageCode = _getTtsLanguageCode(language);
+      final voiceName = _getVoiceName(language);
+      
+      await _cloudTts.speak(
+        text: text,
+        languageCode: ttsLanguageCode,
+        voiceName: voiceName,
+        speakingRate: 0.9,
+      );
+    } catch (e) {
+      print('[SpacedRepetition] ERROR: Failed to speak text: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to play audio: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  String _getTtsLanguageCode(String language) {
+    final languageMap = {
+      'en': 'en-US',
+      'es': 'es-ES',
+      'fr': 'fr-FR',
+      'de': 'de-DE',
+      'it': 'it-IT',
+      'pt': 'pt-BR',
+    };
+    return languageMap[language] ?? 'en-US';
+  }
+
+  String _getVoiceName(String language) {
+    final voiceMap = {
+      'en': 'en-US-Standard-A',
+      'es': 'es-ES-Standard-A',
+      'fr': 'fr-FR-Standard-A',
+      'de': 'de-DE-Standard-A',
+      'it': 'it-IT-Standard-A',
+      'pt': 'pt-BR-Standard-A',
+    };
+    return voiceMap[language] ?? 'en-US-Standard-A';
+  }
+
   Future<void> _processReview(ReviewQuality quality) async {
     if (_dueCards.isEmpty) return;
 
     final currentCard = _dueCards[_currentIndex];
-    final updatedStudyCard = await StudyService.processReview(currentCard, quality);
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    final updatedStudyCard = await StudyService.processReview(currentCard, quality, languageCode: languageProvider.currentLanguage);
 
     // Award XP based on review quality
     String difficulty = '';
@@ -418,7 +470,7 @@ class _SpacedRepetitionStudyScreenState extends State<SpacedRepetitionStudyScree
         foregroundColor: Colors.white,
       ),
       backgroundColor: Colors.white,
-      body: _isLoading
+      body: _dueCards.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [

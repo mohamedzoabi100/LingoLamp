@@ -124,7 +124,7 @@ class _CategoryPhrasesScreenState extends State<CategoryPhrasesScreen> {
 
   Future<void> _toggleFavorite(PhraseModel phrase) async {
     // The service handles state changes and the stream updates the UI.
-    await _phraseService.toggleFavorite(phrase.id);
+    await _phraseService.toggleFavorite(phrase.id, phrase.languageCode);
   }
 
   @override

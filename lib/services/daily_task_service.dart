@@ -33,45 +33,46 @@ class DailyTaskService {
   }
 
   /// Get current daily task set, creating new one if needed
-  Future<DailyTaskSet> getCurrentTaskSet() async {
+  Future<DailyTaskSet> getCurrentTaskSet({String? languageCode}) async {
     final prefs = await SharedPreferences.getInstance();
     final today = DateTime.now();
     final todayString = _formatDate(today);
+    final targetLanguage = languageCode ?? 'es'; // Default to Spanish
     
     // Check if we need to reset tasks for a new day or version update
-    final lastResetDate = prefs.getString(_lastTaskResetDateKey);
-    final currentVersion = prefs.getInt(_taskVersionKey) ?? 1;
+    final lastResetDate = prefs.getString('${_lastTaskResetDateKey}_$targetLanguage');
+    final currentVersion = prefs.getInt('${_taskVersionKey}_$targetLanguage') ?? 1;
     
     if (lastResetDate != todayString || currentVersion != _currentTaskVersion) {
       // New day or version update, create fresh task set
-      final newTaskSet = _generateDailyTasks(today);
-      await _saveTaskSet(newTaskSet);
-      await prefs.setString(_lastTaskResetDateKey, todayString);
-      await prefs.setInt(_taskVersionKey, _currentTaskVersion);
-      print('🔄 Daily tasks reset: ${currentVersion != _currentTaskVersion ? "version update" : "new day"}');
+      final newTaskSet = _generateDailyTasks(today, languageCode: targetLanguage);
+      await _saveTaskSet(newTaskSet, languageCode: targetLanguage);
+      await prefs.setString('${_lastTaskResetDateKey}_$targetLanguage', todayString);
+      await prefs.setInt('${_taskVersionKey}_$targetLanguage', _currentTaskVersion);
+      print('🔄 Daily tasks reset for $targetLanguage: ${currentVersion != _currentTaskVersion ? "version update" : "new day"}');
       return newTaskSet;
     }
 
     // Load existing task set
-    final taskSetJson = prefs.getString(_currentTaskSetKey);
+    final taskSetJson = prefs.getString('${_currentTaskSetKey}_$targetLanguage');
     if (taskSetJson != null) {
       try {
         final taskSet = DailyTaskSet.fromJson(jsonDecode(taskSetJson));
         return taskSet;
       } catch (e) {
-        print('Error loading task set: $e');
+        print('Error loading task set for $targetLanguage: $e');
       }
     }
 
     // Fallback: create new task set
-    final newTaskSet = _generateDailyTasks(today);
-    await _saveTaskSet(newTaskSet);
-    await prefs.setString(_lastTaskResetDateKey, todayString);
+    final newTaskSet = _generateDailyTasks(today, languageCode: targetLanguage);
+    await _saveTaskSet(newTaskSet, languageCode: targetLanguage);
+    await prefs.setString('${_lastTaskResetDateKey}_$targetLanguage', todayString);
     return newTaskSet;
   }
 
   /// Generate daily tasks based on user level and preferences
-  DailyTaskSet _generateDailyTasks(DateTime date) {
+  DailyTaskSet _generateDailyTasks(DateTime date, {String? languageCode}) {
     final taskId = _formatDate(date);
     final tasks = [
       DailyTask(
@@ -102,8 +103,8 @@ class DailyTaskService {
   }
 
   /// Update task progress based on user activity
-  Future<void> updateTaskProgress(TaskType taskType, int progress) async {
-    final taskSet = await getCurrentTaskSet();
+  Future<void> updateTaskProgress(TaskType taskType, int progress, {String? languageCode}) async {
+    final taskSet = await getCurrentTaskSet(languageCode: languageCode);
     final updatedTasks = <DailyTask>[];
     bool hasChanges = false;
 
@@ -123,7 +124,7 @@ class DailyTaskService {
         updatedTasks.add(updatedTask);
         
         if (newStatus == TaskStatus.completed) {
-          // Award XP for task completion
+          // Award XP for task completion (XP remains global)
           await XPService().addXP(task.xpReward, 'Daily task completed: ${task.title}');
           hasChanges = true;
           
@@ -142,18 +143,18 @@ class DailyTaskService {
 
     // Always notify listeners when task progress is updated
     final updatedTaskSet = taskSet.copyWith(tasks: updatedTasks);
-    await _saveTaskSet(updatedTaskSet);
+    await _saveTaskSet(updatedTaskSet, languageCode: languageCode);
     _notifyTaskListeners();
   }
 
   /// Check and update task progress based on current user stats
-  Future<void> checkAndUpdateTasks() async {
+  Future<void> checkAndUpdateTasks({String? languageCode}) async {
     try {
       final xpStats = await XPService().getXPStats();
       final todayXP = xpStats['todayXP'] ?? 0;
       
       // Update XP task without awarding XP (just check progress)
-      await _updateTaskProgressWithoutXP(TaskType.earnXP, todayXP);
+      await _updateTaskProgressWithoutXP(TaskType.earnXP, todayXP, languageCode: languageCode);
       
       // TODO: Add other task type updates based on user activity
       // This will be expanded as we integrate with other services
@@ -164,8 +165,8 @@ class DailyTaskService {
   }
 
   /// Update task progress without awarding XP (for checking progress only)
-  Future<void> _updateTaskProgressWithoutXP(TaskType taskType, int progress) async {
-    final taskSet = await getCurrentTaskSet();
+  Future<void> _updateTaskProgressWithoutXP(TaskType taskType, int progress, {String? languageCode}) async {
+    final taskSet = await getCurrentTaskSet(languageCode: languageCode);
     final updatedTasks = <DailyTask>[];
     bool hasChanges = false;
 
@@ -192,15 +193,15 @@ class DailyTaskService {
     // Only save and notify if there were changes
     if (hasChanges) {
       final updatedTaskSet = taskSet.copyWith(tasks: updatedTasks);
-      await _saveTaskSet(updatedTaskSet);
+      await _saveTaskSet(updatedTaskSet, languageCode: languageCode);
       _notifyTaskListeners();
     }
   }
 
   /// Save task set to local storage
-  Future<void> _saveTaskSet(DailyTaskSet taskSet) async {
+  Future<void> _saveTaskSet(DailyTaskSet taskSet, {String? languageCode}) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_currentTaskSetKey, jsonEncode(taskSet.toJson()));
+    await prefs.setString('${_currentTaskSetKey}_$languageCode', jsonEncode(taskSet.toJson()));
   }
 
   /// Sync tasks to Firestore for authenticated users
@@ -254,8 +255,8 @@ class DailyTaskService {
   }
 
   /// Get task completion statistics
-  Future<Map<String, dynamic>> getTaskStats() async {
-    final taskSet = await getCurrentTaskSet();
+  Future<Map<String, dynamic>> getTaskStats({String? languageCode}) async {
+    final taskSet = await getCurrentTaskSet(languageCode: languageCode);
     return {
       'completedTasks': taskSet.completedTasksCount,
       'totalTasks': taskSet.totalTasksCount,

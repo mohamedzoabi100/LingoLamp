@@ -16,41 +16,45 @@ class AiPhraseService {
     return ['Travel', 'Dining', 'Shopping', 'Business', 'Emergency'];
   }
 
-  Future<List<Map<String, String>>> generatePhrasesForTopic(String topic) async {
-    final prompt = "Generate 5 common phrases for a tourist related to '$topic'. The response should be a list of English:Spanish pairs, one per line.";
-    final response = await _aiChatService.sendMessage(prompt, useSystemPrompt: false);
+  Future<List<Map<String, String>>> generatePhrasesForTopic(String topic, {required String languageCode}) async {
+    final languageName = _getLanguageName(languageCode);
+    final prompt = "Generate 5 common phrases for a tourist related to '$topic'. The response should be a list of English:$languageName pairs, one per line.";
+    final response = await _aiChatService.sendMessage(prompt, useSystemPrompt: false, languageCode: languageCode);
     debugPrint("AI Response for '$topic':\n$response");
-    return _parsePhrasesFromResponse(response);
+    return _parsePhrasesFromResponse(response, languageCode);
   }
   
-  Future<List<Map<String, String>>> generateMorePhrasesForTopic(String topic, List<PhraseModel> existingPhrases) async {
+  Future<List<Map<String, String>>> generateMorePhrasesForTopic(String topic, List<PhraseModel> existingPhrases, {required String languageCode}) async {
+    final languageName = _getLanguageName(languageCode);
     final existingPhrasesString = existingPhrases.map((p) => '- ${p.english}').join('\n');
-    final prompt = "Generate 5 more common phrases for a tourist related to '$topic', avoiding repetition of the following:\n$existingPhrasesString\nThe response should be a list of English:Spanish pairs, one per line.";
-    final response = await _aiChatService.sendMessage(prompt, useSystemPrompt: false);
+    final prompt = "Generate 5 more common phrases for a tourist related to '$topic', avoiding repetition of the following:\n$existingPhrasesString\nThe response should be a list of English:$languageName pairs, one per line.";
+    final response = await _aiChatService.sendMessage(prompt, useSystemPrompt: false, languageCode: languageCode);
     debugPrint("AI Response for 'more $topic':\n$response");
-    return _parsePhrasesFromResponse(response);
+    return _parsePhrasesFromResponse(response, languageCode);
   }
 
   List<PhraseModel> aiPhrasesToPhraseModels({
     required List<Map<String, String>> aiPhrases, 
     required String category,
+    required String languageCode,
   }) {
     return aiPhrases.map((phraseMap) {
       final english = phraseMap['english']!;
-      final spanish = phraseMap['spanish']!;
+      final translation = phraseMap['translation']!;
       return PhraseModel(
-        id: 'ai_${english.hashCode}_${spanish.hashCode}',
+        id: 'ai_${english.hashCode}_${translation.hashCode}_$languageCode',
         english: english,
-        spanish: spanish,
+        translation: translation,
         category: category,
         difficulty: 'beginner',
         createdAt: DateTime.now(),
         isAiGenerated: true,
+        languageCode: languageCode,
       );
     }).toList();
   }
 
-  List<Map<String, String>> _parsePhrasesFromResponse(String response) {
+  List<Map<String, String>> _parsePhrasesFromResponse(String response, String languageCode) {
     final phrases = <Map<String, String>>[];
     final lines = response.split('\n');
     for (final line in lines) {
@@ -58,9 +62,9 @@ class AiPhraseService {
         final parts = line.split(':');
         if (parts.length >= 2) {
           final english = parts[0].replaceAll(RegExp(r'^\d+\.\s*'), '').trim();
-          final spanish = parts.sublist(1).join(':').trim();
-          if (english.isNotEmpty && spanish.isNotEmpty) {
-            phrases.add({'english': english, 'spanish': spanish});
+          final translation = parts.sublist(1).join(':').trim();
+          if (english.isNotEmpty && translation.isNotEmpty) {
+            phrases.add({'english': english, 'translation': translation});
           }
         }
       }
@@ -71,25 +75,37 @@ class AiPhraseService {
     return phrases;
   }
 
+  String _getLanguageName(String languageCode) {
+    final languageNames = {
+      'es': 'Spanish',
+      'fr': 'French',
+      'de': 'German',
+      'it': 'Italian',
+      'pt': 'Portuguese',
+    };
+    return languageNames[languageCode] ?? 'Spanish';
+  }
+
   /// Generate a new phrase using AI
   /// Returns null if generation fails
   Future<PhraseModel?> generatePhrase({
     String? topic,
     String? difficulty = 'beginner',
     String? context,
+    required String languageCode,
   }) async {
     try {
       // 🆕 Improved prompt engineering
-      final prompt = _buildPrompt(topic: topic, difficulty: difficulty, context: context);
+      final prompt = _buildPrompt(topic: topic, difficulty: difficulty, context: context, languageCode: languageCode);
       
       // 🆕 Add retry logic
       for (int attempt = 1; attempt <= 3; attempt++) {
         try {
-          final response = await _aiChatService.sendMessage(prompt, useSystemPrompt: false);
+          final response = await _aiChatService.sendMessage(prompt, useSystemPrompt: false, languageCode: languageCode);
           
           if (response != null && response.isNotEmpty) {
             // 🆕 Improved parsing with better error handling
-            final phrase = _parsePhraseResponse(response);
+            final phrase = _parsePhraseResponse(response, languageCode);
                       if (phrase != null) {
             print('✅ AI phrase generated successfully: ${phrase.english}');
             
@@ -99,7 +115,7 @@ class AiPhraseService {
             
             // Update daily task progress for learning phrases
             final dailyTaskService = DailyTaskService();
-            await dailyTaskService.updateTaskProgress(daily_task.TaskType.learnPhrases, 1);
+            await dailyTaskService.updateTaskProgress(daily_task.TaskType.learnPhrases, 1, languageCode: languageCode);
             
             return phrase;
           }
@@ -130,7 +146,9 @@ class AiPhraseService {
     String? topic,
     String? difficulty,
     String? context,
+    required String languageCode,
   }) {
+    final languageName = _getLanguageName(languageCode);
     final topicText = topic?.isNotEmpty == true ? ' about $topic' : '';
     final contextText = context?.isNotEmpty == true ? ' in the context of: $context' : '';
     final difficultyText = difficulty?.isNotEmpty == true ? ' at $difficulty level' : '';
@@ -145,74 +163,87 @@ Requirements:
 
 Please respond with ONLY the phrase in this exact format:
 ENGLISH: [the English phrase]
-SPANISH: [the Spanish translation]
+$languageName: [the $languageName translation]
 
 Example:
 ENGLISH: How are you today?
-SPANISH: ¿Cómo estás hoy?
+$languageName: ${_getExampleTranslation(languageCode)}
 
 Now generate your phrase:
 ''';
   }
 
+  String _getExampleTranslation(String languageCode) {
+    final examples = {
+      'es': '¿Cómo estás hoy?',
+      'fr': 'Comment allez-vous aujourd\'hui?',
+      'de': 'Wie geht es dir heute?',
+      'it': 'Come stai oggi?',
+      'pt': 'Como você está hoje?',
+    };
+    return examples[languageCode] ?? '¿Cómo estás hoy?';
+  }
+
   /// 🆕 Improved response parsing
-  PhraseModel? _parsePhraseResponse(String response) {
+  PhraseModel? _parsePhraseResponse(String response, String languageCode) {
     try {
       // Clean up the response
       final cleanResponse = response.trim();
+      final languageName = _getLanguageName(languageCode);
       
       // Look for the pattern
       final englishMatch = RegExp(r'ENGLISH:\s*(.+)', caseSensitive: false).firstMatch(cleanResponse);
-      final spanishMatch = RegExp(r'SPANISH:\s*(.+)', caseSensitive: false).firstMatch(cleanResponse);
+      final translationMatch = RegExp(r'$languageName:\s*(.+)', caseSensitive: false).firstMatch(cleanResponse);
       
-      if (englishMatch != null && spanishMatch != null) {
+      if (englishMatch != null && translationMatch != null) {
         final english = englishMatch.group(1)?.trim() ?? '';
-        final spanish = spanishMatch.group(1)?.trim() ?? '';
+        final translation = translationMatch.group(1)?.trim() ?? '';
         
         // Validate the phrases
-        if (english.isNotEmpty && spanish.isNotEmpty && 
-            english.length > 2 && spanish.length > 2) {
+        if (english.isNotEmpty && translation.isNotEmpty && 
+            english.length > 2 && translation.length > 2) {
           return PhraseModel(
             id: DateTime.now().millisecondsSinceEpoch.toString(),
             english: english,
-            spanish: spanish,
+            translation: translation,
             category: 'AI Generated',
             difficulty: 'beginner',
             createdAt: DateTime.now(),
             isFavorite: false,
             isAiGenerated: true,
+            languageCode: languageCode,
           );
         }
       }
       
       // 🆕 Fallback parsing for different formats
       final lines = cleanResponse.split('\n');
-      String? english, spanish;
+      String? english, translation;
       
       for (final line in lines) {
         final trimmed = line.trim();
         if (trimmed.startsWith('ENGLISH:') || trimmed.startsWith('English:')) {
           english = trimmed.substring(trimmed.indexOf(':') + 1).trim();
-        } else if (trimmed.startsWith('SPANISH:') || trimmed.startsWith('Spanish:')) {
-          spanish = trimmed.substring(trimmed.indexOf(':') + 1).trim();
+        } else if (trimmed.startsWith('$languageName:') || trimmed.startsWith('${languageName.toLowerCase()}:')) {
+          translation = trimmed.substring(trimmed.indexOf(':') + 1).trim();
         }
       }
       
-      if (english != null && spanish != null && 
-          english.isNotEmpty && spanish.isNotEmpty) {
+      if (english != null && translation != null && 
+          english.isNotEmpty && translation.isNotEmpty) {
         return PhraseModel(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
           english: english,
-          spanish: spanish,
+          translation: translation,
           category: 'AI Generated',
           difficulty: 'beginner',
           createdAt: DateTime.now(),
           isFavorite: false,
           isAiGenerated: true,
+          languageCode: languageCode,
         );
       }
       
-      print('⚠️ Could not parse response: $cleanResponse');
       return null;
     } catch (e) {
       print('❌ Error parsing phrase response: $e');
@@ -225,6 +256,7 @@ Now generate your phrase:
     int count = 5,
     String? topic,
     String? difficulty = 'beginner',
+    required String languageCode,
   }) async {
     final phrases = <PhraseModel>[];
     
@@ -232,6 +264,7 @@ Now generate your phrase:
       final phrase = await generatePhrase(
         topic: topic,
         difficulty: difficulty,
+        languageCode: languageCode,
       );
       
       if (phrase != null) {

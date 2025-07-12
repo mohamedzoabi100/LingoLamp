@@ -1,59 +1,124 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/providers/phrasebook_provider.dart';
 import '../../../../models/phrase_model.dart';
+import '../../../../core/providers/language_provider.dart';
+import '../../../../services/cloud_tts_service.dart';
 import '../../../../services/ai_phrase_service.dart';
 import '../../../../services/xp_service.dart';
 
 class AiSuggestionsScreen extends StatefulWidget {
-  const AiSuggestionsScreen({super.key});
+  const AiSuggestionsScreen({Key? key}) : super(key: key);
 
   @override
-  State<AiSuggestionsScreen> createState() => _AiSuggestionsScreenState();
+  _AiSuggestionsScreenState createState() => _AiSuggestionsScreenState();
 }
 
 class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
-  final TextEditingController _topicController = TextEditingController();
+  final CloudTtsService _cloudTts = CloudTtsService();
   final AiPhraseService _aiPhraseService = AiPhraseService();
   final XPService _xpService = XPService();
-  late FlutterTts _tts;
-  bool _ttsReady = false;
+  final TextEditingController _topicController = TextEditingController();
+  final TextEditingController _contextController = TextEditingController();
+  String _selectedDifficulty = 'beginner';
+  List<PhraseModel> _generatedPhrases = [];
+  bool _isGenerating = false;
   bool _isLoading = false;
   bool _isGeneratingMore = false;
-  List<PhraseModel> _generatedPhrases = [];
   String _currentTopic = '';
   String? _errorMessage;
   Set<String> _favoriteIds = {};
 
   @override
-  void initState() {
-    super.initState();
-    _initTts();
-  }
-
-  Future<void> _initTts() async {
-    _tts = FlutterTts();
-    await _tts.setSpeechRate(0.5);
-    await _tts.setVolume(1.0);
-    await _tts.setPitch(1.0);
-    
-    _tts.setCompletionHandler(() {
-      debugPrint("TTS completed");
-    });
-    
-    _tts.setErrorHandler((msg) {
-      debugPrint("TTS Error: $msg");
-    });
-    
-    setState(() => _ttsReady = true);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Listen to language changes
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    languageProvider.addListener(_onLanguageChanged);
   }
 
   @override
   void dispose() {
-    _tts.stop();
     _topicController.dispose();
+    _contextController.dispose();
+    // Remove language listener
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    languageProvider.removeListener(_onLanguageChanged);
     super.dispose();
+  }
+
+  void _onLanguageChanged() {
+    // Reinitialize phrase service with new language
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    context.read<PhrasebookProvider>().onLanguageChanged(languageProvider.currentLanguage);
+  }
+
+  Future<void> _speakEnglish(String text) async {
+    try {
+      await _cloudTts.speak(
+        text: text,
+        languageCode: 'en-US',
+        voiceName: 'en-US-Standard-A',
+        speakingRate: 0.9,
+      );
+    } catch (e) {
+      print('[AiSuggestions] ERROR: Failed to speak English: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to play audio: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _speakTranslation(String text, String languageCode) async {
+    try {
+      // Map language codes to Google Cloud TTS codes
+      final ttsLanguageCode = _getTtsLanguageCode(languageCode);
+      final voiceName = _getVoiceName(languageCode);
+      
+      await _cloudTts.speak(
+        text: text,
+        languageCode: ttsLanguageCode,
+        voiceName: voiceName,
+        speakingRate: 0.9,
+      );
+    } catch (e) {
+      print('[AiSuggestions] ERROR: Failed to speak translation: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to play audio: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  String _getTtsLanguageCode(String languageCode) {
+    final languageMap = {
+      'es': 'es-ES',
+      'fr': 'fr-FR',
+      'de': 'de-DE',
+      'it': 'it-IT',
+      'pt': 'pt-BR',
+    };
+    return languageMap[languageCode] ?? 'es-ES';
+  }
+
+  String _getVoiceName(String languageCode) {
+    final voiceMap = {
+      'es': 'es-ES-Standard-A',
+      'fr': 'fr-FR-Standard-A',
+      'de': 'de-DE-Standard-A',
+      'it': 'it-IT-Standard-A',
+      'pt': 'pt-BR-Standard-A',
+    };
+    return voiceMap[languageCode] ?? 'es-ES-Standard-A';
   }
 
   Future<void> _generatePhrases() async {
@@ -73,10 +138,15 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
     });
 
     try {
-      final aiPhrases = await _aiPhraseService.generatePhrasesForTopic(topic);
+      // Get current language from provider
+      final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+      final currentLanguage = languageProvider.currentLanguage;
+      
+      final aiPhrases = await _aiPhraseService.generatePhrasesForTopic(topic, languageCode: currentLanguage);
       final phraseModels = _aiPhraseService.aiPhrasesToPhraseModels(
         aiPhrases: aiPhrases,
         category: topic,
+        languageCode: currentLanguage,
       );
       
       for (final model in phraseModels) {
@@ -88,6 +158,8 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
       
       setState(() {
         _isLoading = false;
+        _errorMessage = null;
+        _currentTopic = topic;
       });
 
       FocusScope.of(context).unfocus();
@@ -101,45 +173,35 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
   }
 
   Future<void> _generateMorePhrases() async {
-    if (_currentTopic.isEmpty || _isGeneratingMore || _isLoading) return;
-
-    setState(() {
-      _isGeneratingMore = true;
-      _errorMessage = null;
-    });
-
+    if (_isGeneratingMore) return;
+    
     try {
-      final stopwatch = Stopwatch()..start();
+      setState(() {
+        _isGeneratingMore = true;
+        _errorMessage = null;
+      });
       
-      debugPrint('🔄 Generating MORE phrases for topic: $_currentTopic');
-      debugPrint('🔄 Current phrases count: ${_generatedPhrases.length}');
-      
-      final moreAiPhrases = await _aiPhraseService.generateMorePhrasesForTopic(
-        _currentTopic,
-        _generatedPhrases,
+      final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+      final newPhrases = await _aiPhraseService.generateMultiplePhrases(
+        count: 3,
+        topic: _currentTopic,
+        difficulty: _selectedDifficulty,
+        languageCode: languageProvider.currentLanguage,
       );
       
-      final morePhraseModels = _aiPhraseService.aiPhrasesToPhraseModels(
-        aiPhrases: moreAiPhrases,
-        category: _currentTopic,
-      );
-      
-      for (final model in morePhraseModels) {
-        await context.read<PhrasebookProvider>().addAiPhrase(model);
-      }
+      setState(() {
+        _generatedPhrases.addAll(newPhrases);
+        _isGeneratingMore = false;
+      });
       
       // Award XP for learning more phrases
       await _xpService.awardPhraseLearned();
       
-      setState(() {
-        _isGeneratingMore = false;
-      });
-
       // Show success message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✨ Generated ${moreAiPhrases.length} more phrases!'),
+            content: Text('✨ Generated ${newPhrases.length} more phrases!'),
             backgroundColor: Theme.of(context).colorScheme.primary,
             duration: const Duration(seconds: 2),
           ),
@@ -165,51 +227,9 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
     }
   }
 
-  Future<void> _speakSpanish(String text) async {
-    if (_ttsReady) {
-      try {
-        await _tts.stop();
-        var result = await _tts.setLanguage('es-ES');
-        if (result == 1) {
-          await _tts.speak(text);
-        } else {
-          result = await _tts.setLanguage('es-MX');
-          if (result == 1) {
-            await _tts.speak(text);
-          } else {
-            await _tts.speak(text);
-          }
-        }
-      } catch (e) {
-        await _tts.speak(text);
-      }
-    }
-  }
-
-  Future<void> _speakEnglish(String text) async {
-    if (_ttsReady) {
-      try {
-        await _tts.stop();
-        var result = await _tts.setLanguage('en-US');
-        if (result == 1) {
-          await _tts.speak(text);
-        } else {
-          result = await _tts.setLanguage('en-GB');
-          if (result == 1) {
-            await _tts.speak(text);
-          } else {
-            await _tts.speak(text);
-          }
-        }
-      } catch (e) {
-        await _tts.speak(text);
-      }
-    }
-  }
-
   Future<void> _toggleFavorite(PhraseModel phrase) async {
     try {
-      await context.read<PhrasebookProvider>().toggleFavorite(phrase.id);
+      await context.read<PhrasebookProvider>().toggleFavorite(phrase.id, phrase.languageCode);
       
       if (mounted) {
         final isNowFavorite = !_favoriteIds.contains(phrase.id);
@@ -227,7 +247,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error updating favorites: $e'),
+            content: Text('Error updating favorite: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -856,9 +876,9 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                 
                 const SizedBox(height: 8),
                 
-                // Spanish phrase
+                // Translation phrase
                 GestureDetector(
-                  onTap: () => _speakSpanish(phrase.spanish),
+                  onTap: () => _speakTranslation(phrase.translation, phrase.languageCode),
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
@@ -879,7 +899,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
-                            'ES',
+                            phrase.languageCode.toUpperCase(),
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
@@ -890,7 +910,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            phrase.spanish,
+                            phrase.translation,
                             style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w500,

@@ -1,117 +1,113 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/providers/phrasebook_provider.dart';
 import '../../../../models/phrase_model.dart';
+import '../../../../core/providers/language_provider.dart';
+import '../../../../services/cloud_tts_service.dart';
 
 class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({Key? key}) : super(key: key);
 
   @override
-  State<FavoritesScreen> createState() => _FavoritesScreenState();
+  _FavoritesScreenState createState() => _FavoritesScreenState();
 }
 
 class _FavoritesScreenState extends State<FavoritesScreen> {
-  late FlutterTts _tts;
-  bool _ttsReady = false;
+  final CloudTtsService _cloudTts = CloudTtsService();
 
   @override
-  void initState() {
-    super.initState();
-    _initTts();
-  }
-
-  Future<void> _initTts() async {
-    _tts = FlutterTts();
-    
-    // Configure TTS settings
-    await _tts.setSpeechRate(0.5);
-    await _tts.setVolume(1.0);
-    await _tts.setPitch(1.0);
-    
-    // Check available languages
-    List<dynamic> languages = await _tts.getLanguages;
-    
-    // Check available voices
-    List<dynamic> voices = await _tts.getVoices;
-    
-    // Set completion handler
-    _tts.setCompletionHandler(() {
-    });
-    
-    _tts.setErrorHandler((msg) {
-    });
-    
-    setState(() => _ttsReady = true);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Listen to language changes
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    languageProvider.addListener(_onLanguageChanged);
   }
 
   @override
   void dispose() {
-    _tts.stop();
+    // Remove language listener
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    languageProvider.removeListener(_onLanguageChanged);
     super.dispose();
   }
 
-  Future<void> _speakSpanish(String text) async {
-    if (_ttsReady) {
-      try {
-        // Stop any current speech
-        await _tts.stop();
-        
-        // Try different Spanish language codes
-        var result = await _tts.setLanguage('es-ES');
-        
-        if (result == 1) {
-          await _tts.speak(text);
-        } else {
-          // Try alternative Spanish codes
-          result = await _tts.setLanguage('es-MX');
-          
-          if (result == 1) {
-            await _tts.speak(text);
-          } else {
-            result = await _tts.setLanguage('es-US');
-            
-            if (result == 1) {
-              await _tts.speak(text);
-            } else {
-              await _tts.speak(text);
-            }
-          }
-        }
-      } catch (e) {
-        await _tts.speak(text);
+  void _onLanguageChanged() {
+    // Reinitialize phrase service with new language
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    context.read<PhrasebookProvider>().onLanguageChanged(languageProvider.currentLanguage);
+  }
+
+  Future<void> _speakEnglish(String text) async {
+    try {
+      await _cloudTts.speak(
+        text: text,
+        languageCode: 'en-US',
+        voiceName: 'en-US-Standard-A',
+        speakingRate: 0.9,
+      );
+    } catch (e) {
+      print('[Favorites] ERROR: Failed to speak English: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to play audio: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
 
-  Future<void> _speakEnglish(String text) async {
-    if (_ttsReady) {
-      try {
-        // Stop any current speech
-        await _tts.stop();
-        
-        var result = await _tts.setLanguage('en-US');
-        
-        if (result == 1) {
-          await _tts.speak(text);
-        } else {
-          // Try alternative English codes
-          result = await _tts.setLanguage('en-GB');
-          if (result == 1) {
-            await _tts.speak(text);
-          } else {
-            await _tts.speak(text);
-          }
-        }
-      } catch (e) {
-        await _tts.speak(text);
+  Future<void> _speakTranslation(String text, String languageCode) async {
+    try {
+      // Map language codes to Google Cloud TTS codes
+      final ttsLanguageCode = _getTtsLanguageCode(languageCode);
+      final voiceName = _getVoiceName(languageCode);
+      
+      await _cloudTts.speak(
+        text: text,
+        languageCode: ttsLanguageCode,
+        voiceName: voiceName,
+        speakingRate: 0.9,
+      );
+    } catch (e) {
+      print('[Favorites] ERROR: Failed to speak translation: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to play audio: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
+  }
+
+  String _getTtsLanguageCode(String languageCode) {
+    final languageMap = {
+      'es': 'es-ES',
+      'fr': 'fr-FR',
+      'de': 'de-DE',
+      'it': 'it-IT',
+      'pt': 'pt-BR',
+    };
+    return languageMap[languageCode] ?? 'es-ES';
+  }
+
+  String _getVoiceName(String languageCode) {
+    final voiceMap = {
+      'es': 'es-ES-Standard-A',
+      'fr': 'fr-FR-Standard-A',
+      'de': 'de-DE-Standard-A',
+      'it': 'it-IT-Standard-A',
+      'pt': 'pt-BR-Standard-A',
+    };
+    return voiceMap[languageCode] ?? 'es-ES-Standard-A';
   }
 
   Future<void> _toggleFavorite(PhraseModel phrase) async {
     try {
-      await context.read<PhrasebookProvider>().toggleFavorite(phrase.id);
+      await context.read<PhrasebookProvider>().toggleFavorite(phrase.id, phrase.languageCode);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -372,9 +368,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             color: Colors.grey[200],
           ),
           
-          // Spanish section
+          // Translation section
           GestureDetector(
-            onTap: () => _speakSpanish(phrase.spanish),
+            onTap: () => _speakTranslation(phrase.translation, phrase.languageCode),
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
@@ -393,7 +389,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      'ES',
+                      phrase.languageCode.toUpperCase(),
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
@@ -404,7 +400,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      phrase.spanish,
+                      phrase.translation,
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/providers/phrasebook_provider.dart';
 import '../../../../core/providers/app_providers.dart';
+import '../../../../core/providers/language_provider.dart';
 import 'category_phrases_screen.dart';
 import 'phrase_search_screen.dart';
 import 'favorites_screen.dart';
@@ -18,10 +19,49 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
   @override
   void initState() {
     super.initState();
-    // Initialize the phrasebook provider
+    _initPhrasebookProvider();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Listen to language changes
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    languageProvider.addListener(_onLanguageChanged);
+    
+    // Ensure provider is initialized when screen becomes visible
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<PhrasebookProvider>().init();
+      _ensureProviderInitialized();
     });
+  }
+
+  @override
+  void dispose() {
+    // Remove language listener
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    languageProvider.removeListener(_onLanguageChanged);
+    super.dispose();
+  }
+
+  void _onLanguageChanged() {
+    // Reinitialize phrase service with new language
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    context.read<PhrasebookProvider>().onLanguageChanged(languageProvider.currentLanguage);
+  }
+
+  Future<void> _initPhrasebookProvider() async {
+    // Get current language and initialize provider
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    final currentLanguage = languageProvider.currentLanguage;
+    await context.read<PhrasebookProvider>().init(languageCode: currentLanguage);
+  }
+
+  Future<void> _ensureProviderInitialized() async {
+    // Check if provider needs initialization
+    final provider = context.read<PhrasebookProvider>();
+    if (provider.phrases.isEmpty) {
+      await _initPhrasebookProvider();
+    }
   }
 
   @override

@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../models/phrase_model.dart';
 import '../../services/phrase_service.dart';
+import '../providers/language_provider.dart';
 
 // Theme model for phrasebook categories
 class PhrasebookTheme {
@@ -27,6 +29,7 @@ class PhrasebookProvider extends ChangeNotifier {
   List<PhraseModel> _favorites = [];
   bool _isLoading = false;
   String? _errorMessage;
+  String _currentLanguage = 'es';
 
   // Getters
   List<PhraseModel> get phrases => _phrases;
@@ -35,9 +38,13 @@ class PhrasebookProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   // Initialize the provider
-  Future<void> init() async {
-    await _phraseService.init();
+  Future<void> init({String? languageCode}) async {
+    if (languageCode != null) {
+      _currentLanguage = languageCode;
+    }
+    await _phraseService.init(languageCode: _currentLanguage);
     _listenToPhrases();
+    _listenToLanguageChanges();
   }
 
   // Listen to phrase service streams
@@ -53,6 +60,30 @@ class PhrasebookProvider extends ChangeNotifier {
       notifyListeners();
     });
   }
+
+  // Listen to language changes
+  void _listenToLanguageChanges() {
+    // This will be called when language changes
+    // We'll handle language changes in the screens that use this provider
+  }
+
+  // Method to handle language changes
+  Future<void> onLanguageChanged(String newLanguage) async {
+    if (_currentLanguage != newLanguage) {
+      _currentLanguage = newLanguage;
+      await _phraseService.reinitializeWithLanguage(newLanguage);
+      notifyListeners();
+    }
+  }
+
+  // Method to force refresh all data
+  Future<void> forceRefresh() async {
+    await _phraseService.forceRefreshFromDisk();
+    notifyListeners();
+  }
+
+  // Method to check if provider is properly initialized
+  bool get isInitialized => _phrases.isNotEmpty || _currentLanguage.isNotEmpty;
 
   // Get phrases by category
   List<PhraseModel> getPhrasesByCategory(String category) {
@@ -103,9 +134,9 @@ class PhrasebookProvider extends ChangeNotifier {
   }
 
   // Toggle favorite
-  Future<void> toggleFavorite(String phraseId) async {
+  Future<void> toggleFavorite(String phraseId, String languageCode) async {
     try {
-      await _phraseService.toggleFavorite(phraseId);
+      await _phraseService.toggleFavorite(phraseId, languageCode);
       _errorMessage = null;
     } catch (e) {
       _errorMessage = 'Failed to toggle favorite: $e';

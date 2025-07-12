@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../services/xp_service.dart';
 import '../../services/daily_task_service.dart';
+import '../providers/language_provider.dart';
 
 class InitializationService {
   static Future<void> initialize() async {
@@ -50,6 +51,15 @@ class InitializationService {
       print('✅ Daily Task service initialized successfully');
     } catch (e) {
       print('❌ Daily Task service initialization failed: $e');
+    }
+    
+    // Initialize Language Provider
+    try {
+      final languageProvider = LanguageProvider();
+      await languageProvider.initialize();
+      print('✅ Language provider initialized successfully');
+    } catch (e) {
+      print('❌ Language provider initialization failed: $e');
     }
     
     // Initialize other services here

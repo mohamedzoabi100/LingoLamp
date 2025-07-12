@@ -9,6 +9,7 @@ class RecommendedFlashcard {
   final double weight; // ranking score (higher = stronger suggestion)
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String languageCode; // NEW: language code for filtering
 
   const RecommendedFlashcard({
     this.id,
@@ -18,6 +19,7 @@ class RecommendedFlashcard {
     required this.weight,
     required this.createdAt,
     required this.updatedAt,
+    this.languageCode = 'es',
   });
 
   factory RecommendedFlashcard.fromMap(Map<String, dynamic> map) {
@@ -29,6 +31,7 @@ class RecommendedFlashcard {
       weight: (map['weight'] as num).toDouble(),
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
+      languageCode: map['language_code'] ?? 'es',
     );
   }
 
@@ -41,6 +44,7 @@ class RecommendedFlashcard {
       'weight': weight,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
+      'language_code': languageCode,
     };
   }
 
@@ -52,6 +56,7 @@ class RecommendedFlashcard {
     double? weight,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? languageCode,
   }) {
     return RecommendedFlashcard(
       id: id ?? this.id,
@@ -61,6 +66,7 @@ class RecommendedFlashcard {
       weight: weight ?? this.weight,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      languageCode: languageCode ?? this.languageCode,
     );
   }
 } 

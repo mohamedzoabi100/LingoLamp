@@ -8,16 +8,26 @@ class DailyTaskProvider extends ChangeNotifier {
   DailyTaskSet? _currentTaskSet;
   bool _isLoading = false;
   String? _errorMessage;
+  String _currentLanguage = 'es'; // Default to Spanish
 
   // Getters
   DailyTaskSet? get currentTaskSet => _currentTaskSet;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  String get currentLanguage => _currentLanguage;
   
   int get completedTasksCount => _currentTaskSet?.completedTasksCount ?? 0;
   int get totalTasksCount => _currentTaskSet?.totalTasksCount ?? 0;
   double get completionPercentage => _currentTaskSet?.completionPercentage ?? 0.0;
   bool get isCompleted => _currentTaskSet?.isCompleted ?? false;
+
+  /// Set current language and reload tasks
+  void setLanguage(String languageCode) {
+    if (_currentLanguage != languageCode) {
+      _currentLanguage = languageCode;
+      loadDailyTasks(); // Reload tasks for new language
+    }
+  }
 
   /// Load current daily tasks
   Future<void> loadDailyTasks() async {
@@ -26,7 +36,7 @@ class DailyTaskProvider extends ChangeNotifier {
       _errorMessage = null;
       notifyListeners();
 
-      final taskSet = await _taskService.getCurrentTaskSet();
+      final taskSet = await _taskService.getCurrentTaskSet(languageCode: _currentLanguage);
       
       _currentTaskSet = taskSet;
       _isLoading = false;
@@ -41,7 +51,7 @@ class DailyTaskProvider extends ChangeNotifier {
   /// Update task progress
   Future<void> updateTaskProgress(TaskType taskType, int progress) async {
     try {
-      await _taskService.updateTaskProgress(taskType, progress);
+      await _taskService.updateTaskProgress(taskType, progress, languageCode: _currentLanguage);
       await loadDailyTasks(); // Reload to get updated state
     } catch (e) {
       _errorMessage = 'Failed to update task progress: $e';
@@ -52,7 +62,7 @@ class DailyTaskProvider extends ChangeNotifier {
   /// Check and update all tasks based on current user activity
   Future<void> checkAndUpdateTasks() async {
     try {
-      await _taskService.checkAndUpdateTasks();
+      await _taskService.checkAndUpdateTasks(languageCode: _currentLanguage);
       await loadDailyTasks(); // Reload to get updated state
     } catch (e) {
       _errorMessage = 'Failed to check task progress: $e';

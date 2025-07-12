@@ -6,6 +6,7 @@ class Conversation {
   final DateTime updatedAt;
   final bool isArchived;
   final bool isDeleted;
+  final String languageCode;
   final Map<String, dynamic>? extra;
 
   Conversation({
@@ -15,6 +16,7 @@ class Conversation {
     required this.updatedAt,
     this.isArchived = false,
     this.isDeleted = false,
+    this.languageCode = 'es', // Default to Spanish
     this.extra,
   });
 
@@ -25,6 +27,7 @@ class Conversation {
     updatedAt: DateTime.parse(map['last_message_timestamp'] ?? map['updatedAt'] ?? map['updated_at'] ?? map['createdAt'] ?? map['created_at']),
     isArchived: map['isArchived'] == true || map['is_archived'] == 1,
     isDeleted: map['isDeleted'] == true || map['is_deleted'] == 1,
+    languageCode: map['languageCode']?.toString() ?? map['language_code']?.toString() ?? 'es',
     extra: map['extra'],
   );
 
@@ -35,6 +38,7 @@ class Conversation {
     'updatedAt': updatedAt.toIso8601String(),
     'isArchived': isArchived,
     'isDeleted': isDeleted,
+    'language_code': languageCode,
     'extra': extra,
   };
 }

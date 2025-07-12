@@ -54,6 +54,8 @@ dependencies:
 
   # Development
   cupertino_icons: ^1.0.2
+  googleapis_auth: ^1.4.0
+  audioplayers: ^5.2.1
 
 dev_dependencies:
   flutter_test:
@@ -71,6 +73,7 @@ flutter:
   assets:
     - assets/images/
     - assets/data/
+    - assets/TTS.json
 
   # Removed assets/icons/ and Roboto font references because they do not exist
   # fonts:

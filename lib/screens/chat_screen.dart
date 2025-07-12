@@ -5,12 +5,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_generative_ai/google_generative_ai.dart' as gen_ai;
 import 'package:uuid/uuid.dart';
+import 'package:provider/provider.dart';
 
 import '../services/ai_chat_service.dart';
 import '../services/xp_service.dart';
+import '../services/cloud_tts_service.dart';
 import '../utils/database_helper.dart';
 import '../models/chat_message_model.dart' as model;
 import '../models/conversation_model.dart';
@@ -19,6 +20,7 @@ import '../models/recommended_flashcard_model.dart';
 import 'chat_history_screen.dart';
 import '../services/user_data_service.dart';
 import '../services/recommendation_service.dart';
+import '../core/providers/language_provider.dart';
 
 class ChatScreen extends StatefulWidget {
   final VoidCallback? onBackToHome;
@@ -47,8 +49,8 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
   final XPService _xpService = XPService();
+  final CloudTtsService _cloudTts = CloudTtsService();
   late AiChatService _aiChatService;
-  final FlutterTts _tts = FlutterTts();
   final RecommendationService _recommendationService = RecommendationService();
 
   final List<model.ChatMessage> _messages = [];
@@ -60,7 +62,19 @@ class _ChatScreenState extends State<ChatScreen> {
   // --- Spanish-only configuration ---
   static const String _languageCode = 'es';
   static const String _languageTtsCode = 'es-ES';
-  static const String _languageGreeting = "¡Hola! I'm Lingo, your personal Spanish tutor. How can I help you practice today?";
+
+  String _getLanguageGreeting(BuildContext context) {
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    final languageCode = languageProvider.currentLanguage;
+    final greetings = {
+      'es': '¡Hola! I\'m Lingo, your personal Spanish tutor. How can I help you practice today?',
+      'fr': 'Bonjour ! I\'m Lingo, your personal French tutor. How can I help you practice today?',
+      'de': 'Hallo! I\'m Lingo, your personal German tutor. How can I help you practice today?',
+      'it': 'Ciao! I\'m Lingo, your personal Italian tutor. How can I help you practice today?',
+      'pt': 'Olá! I\'m Lingo, your personal Portuguese tutor. How can I help you practice today?',
+    };
+    return greetings[languageCode] ?? greetings['es']!;
+  }
 
   @override
   void initState() {
@@ -79,8 +93,6 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _initialize() async {
-    await _initTts();
-
     if (_currentConversationId != null) {
       // Loading an existing conversation
       await _loadConversationAndMessages(_currentConversationId!);
@@ -90,7 +102,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _messages.add(model.ChatMessage(
         id: const Uuid().v4(),
         conversationId: '', // Will be set when conversation is created
-        text: _languageGreeting,
+        text: _getLanguageGreeting(context),
         isUserMessage: false,
         timestamp: DateTime.now(),
       ));
@@ -104,14 +116,56 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     _inputController.dispose();
     _scrollController.dispose();
-    _tts.stop();
     super.dispose();
   }
 
-  Future<void> _initTts() async {
-    await _tts.setSpeechRate(0.5);
-    await _tts.setVolume(1.0);
-    await _tts.setPitch(1.0);
+  Future<void> _speakText(String text, String language) async {
+    try {
+      // Map language codes to Google Cloud TTS codes
+      final ttsLanguageCode = _getTtsLanguageCode(language);
+      final voiceName = _getVoiceName(language);
+      
+      await _cloudTts.speak(
+        text: text,
+        languageCode: ttsLanguageCode,
+        voiceName: voiceName,
+        speakingRate: 0.9,
+      );
+    } catch (e) {
+      print('[Chat] ERROR: Failed to speak text: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to play audio: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  String _getTtsLanguageCode(String language) {
+    final languageMap = {
+      'en': 'en-US',
+      'es': 'es-ES',
+      'fr': 'fr-FR',
+      'de': 'de-DE',
+      'it': 'it-IT',
+      'pt': 'pt-BR',
+    };
+    return languageMap[language] ?? 'en-US';
+  }
+
+  String _getVoiceName(String language) {
+    final voiceMap = {
+      'en': 'en-US-Standard-A',
+      'es': 'es-ES-Standard-A',
+      'fr': 'fr-FR-Standard-A',
+      'de': 'de-DE-Standard-A',
+      'it': 'it-IT-Standard-A',
+      'pt': 'pt-BR-Standard-A',
+    };
+    return voiceMap[language] ?? 'en-US-Standard-A';
   }
 
   Future<void> _loadConversationAndMessages(String conversationId) async {
@@ -128,7 +182,8 @@ class _ChatScreenState extends State<ChatScreen> {
     _aiChatService.startChat();
     
     // Ensure the system prompt is sent to establish the AI's behavior
-    await _aiChatService.ensureSystemPrompt();
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    await _aiChatService.ensureSystemPrompt(languageProvider.currentLanguage);
 
     final dbMessages = await _dbHelper.getMessagesForConversation(conversationId);
     setState(() {
@@ -147,12 +202,16 @@ class _ChatScreenState extends State<ChatScreen> {
       final convoTitle = firstUserMessage.substring(
           0, firstUserMessage.length > 30 ? 30 : firstUserMessage.length);
 
-      // Create conversation (Spanish-only)
+      // Get the current language from the provider
+      final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+
+      // Create conversation with correct languageCode
       Conversation newConvo = Conversation(
         id: const Uuid().v4(),
         title: convoTitle,
         createdAt: now,
         updatedAt: now,
+        languageCode: languageProvider.currentLanguage,
       );
 
       _currentConversationId = await _dbHelper.insertConversation(newConvo);
@@ -210,7 +269,11 @@ class _ChatScreenState extends State<ChatScreen> {
     await _dbHelper.insertMessage(messageToSave);
     }
       
-    final aiResponseText = await _aiChatService.sendMessage(text);
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    final aiResponseText = await _aiChatService.sendMessage(
+      text,
+      languageCode: languageProvider.currentLanguage,
+    );
     
     // Award XP for sending a chat message
     await _xpService.awardChatMessage();
@@ -363,8 +426,7 @@ class _ChatScreenState extends State<ChatScreen> {
               const SizedBox(height: 8),
               Row(mainAxisSize: MainAxisSize.min, children: [
                 _buildBubbleButton(Icons.volume_up_rounded, 'Listen', () async {
-                  await _tts.setLanguage(_languageTtsCode);
-                  _tts.speak(textForDisplay.replaceAll('*', ''));
+                  await _speakText(textForDisplay.replaceAll('*', ''), _languageTtsCode);
                 }),
                 _buildSmartSaveButton(message),
               ]),
@@ -508,11 +570,14 @@ class _ChatScreenState extends State<ChatScreen> {
   void _maybeRecommendFlashcard(FlashcardData data, model.ChatMessage message) async {
     // Only add if not already a flashcard
     if (await _dbHelper.flashcardExists(data.front, data.back)) return;
-    // Only add if not already in recommendations
-    final recs = await _recommendationService.getRecommendations();
+    // Get current language from provider
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    final currentLanguage = languageProvider.currentLanguage;
+    // Only add if not already in recommendations for this language
+    final recs = await _recommendationService.getRecommendations(languageCode: currentLanguage);
     if (recs.any((r) => r.term == data.front)) return;
     // Add to recommendations (context = translation)
-    await _recommendationService.addRecommendation(term: data.front, context: data.back);
+    await _recommendationService.addRecommendation(term: data.front, context: data.back, languageCode: currentLanguage);
   }
 
   Future<void> _addToFlashcards(
@@ -529,12 +594,17 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
     
+    // Get current language from provider
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    final currentLanguage = languageProvider.currentLanguage;
+    
     final flashcard = Flashcard(
       // id is auto-incremented by DB
       originalText: originalText,
       translatedText: translatedText,
       sourceLanguage: 'en', // Assuming source is always English for now
-      targetLanguage: _languageCode,
+      targetLanguage: currentLanguage,
+      languageCode: currentLanguage, // Set the language code explicitly
       createdAt: DateTime.now(),
       lastStudied: DateTime.now(),
       timesStudied: 0,
@@ -549,7 +619,7 @@ class _ChatScreenState extends State<ChatScreen> {
     print('✅ [CHAT] Flashcard inserted with ID: $insertedId');
     
     // Remove from recommendations if present
-    final recs = await _recommendationService.getRecommendations();
+    final recs = await _recommendationService.getRecommendations(languageCode: currentLanguage);
     RecommendedFlashcard? rec;
     for (final r in recs) {
       if (r.term == originalText) {

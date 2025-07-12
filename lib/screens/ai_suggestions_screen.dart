@@ -4,6 +4,8 @@ import 'package:flutter_tts/flutter_tts.dart';
 import '../models/phrase_model.dart';
 import '../services/ai_phrase_service.dart';
 import '../services/phrase_service.dart';
+import '../core/providers/language_provider.dart';
+import 'package:provider/provider.dart';
 
 class AiSuggestionsScreen extends StatefulWidget {
   const AiSuggestionsScreen({super.key});
@@ -72,10 +74,15 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
     });
 
     try {
-      final aiPhrases = await _aiPhraseService.generatePhrasesForTopic(topic);
+      // Get current language from provider
+      final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+      final currentLanguage = languageProvider.currentLanguage;
+      
+      final aiPhrases = await _aiPhraseService.generatePhrasesForTopic(topic, languageCode: currentLanguage);
       final phraseModels = _aiPhraseService.aiPhrasesToPhraseModels(
         aiPhrases: aiPhrases,
         category: topic,
+        languageCode: currentLanguage,
       );
       
       for (final model in phraseModels) {
@@ -110,14 +117,20 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
       debugPrint('🔄 Generating MORE phrases for topic: $_currentTopic');
       debugPrint('🔄 Current phrases count: ${_generatedPhrases.length}');
       
+      // Get current language from provider
+      final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+      final currentLanguage = languageProvider.currentLanguage;
+      
       final moreAiPhrases = await _aiPhraseService.generateMorePhrasesForTopic(
         _currentTopic,
         _generatedPhrases,
+        languageCode: currentLanguage,
       );
       
       final morePhraseModels = _aiPhraseService.aiPhrasesToPhraseModels(
         aiPhrases: moreAiPhrases,
         category: _currentTopic,
+        languageCode: currentLanguage,
       );
       
       for (final model in morePhraseModels) {
@@ -202,7 +215,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
 
   Future<void> _toggleFavorite(PhraseModel phrase) async {
     try {
-      await _phraseService.toggleFavorite(phrase.id);
+      await _phraseService.toggleFavorite(phrase.id, phrase.languageCode);
       
       if (mounted) {
         final isNowFavorite = !_favoriteIds.contains(phrase.id);

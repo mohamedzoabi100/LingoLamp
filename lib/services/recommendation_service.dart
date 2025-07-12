@@ -1,5 +1,6 @@
 import '../models/recommended_flashcard_model.dart';
 import '../utils/database_helper.dart';
+import '../core/providers/language_provider.dart';
 
 class RecommendationService {
   static final RecommendationService _instance = RecommendationService._internal();
@@ -12,6 +13,7 @@ class RecommendationService {
     required String term,
     required String context,
     String source = 'chat',
+    required String languageCode,
   }) async {
     // If this is a new translation event, remove from dismissed
     await _db.removeDismissedRecommendation(term);
@@ -23,6 +25,7 @@ class RecommendationService {
       weight: 1.0,
       createdAt: now,
       updatedAt: now,
+      languageCode: languageCode,
     );
     await _db.addRecommendation(rec);
   }
@@ -31,9 +34,9 @@ class RecommendationService {
     await _db.removeRecommendation(id);
   }
 
-  Future<void> dismissRecommendation(int id) async {
+  Future<void> dismissRecommendation(int id, {required String languageCode}) async {
     // Get the term for this recommendation
-    final recs = await getRecommendations();
+    final recs = await getRecommendations(languageCode: languageCode);
     RecommendedFlashcard? rec;
     for (final r in recs) {
       if (r.id == id) {
@@ -47,7 +50,7 @@ class RecommendationService {
     await _db.dismissRecommendation(id);
   }
 
-  Future<List<RecommendedFlashcard>> getRecommendations() async {
-    return await _db.getRecommendations();
+  Future<List<RecommendedFlashcard>> getRecommendations({required String languageCode}) async {
+    return await _db.getRecommendationsByLanguage(languageCode);
   }
 } 

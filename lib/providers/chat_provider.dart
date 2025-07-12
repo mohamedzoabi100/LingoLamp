@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/chat_message_model.dart';
 import '../models/conversation_model.dart';
 import '../services/ai_chat_service.dart';
+import '../core/providers/language_provider.dart';
 
 class ChatProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -20,6 +21,7 @@ class ChatProvider with ChangeNotifier {
   String? _error;
   bool _hasMoreMessages = true;
   bool _isLoadingMore = false;
+  String _currentLanguage = 'es'; // Default to Spanish
 
   // Getters
   List<Conversation> get conversations => _conversations;
@@ -30,10 +32,17 @@ class ChatProvider with ChangeNotifier {
   String? get error => _error;
   bool get hasMoreMessages => _hasMoreMessages;
   bool get isLoadingMore => _isLoadingMore;
+  String get currentLanguage => _currentLanguage;
 
   // Initialize provider
-  Future<void> initialize() async {
+  Future<void> initialize({String? languageCode}) async {
     if (_auth.currentUser == null) return;
+    
+    final targetLanguage = languageCode ?? _currentLanguage;
+    if (_currentLanguage != targetLanguage) {
+      _currentLanguage = targetLanguage;
+      clearCurrentConversation();
+    }
     
     _setLoading(true);
     try {
@@ -56,6 +65,7 @@ class ChatProvider with ChangeNotifier {
         .doc(userId)
         .collection('conversations')
         .where('isDeleted', isEqualTo: false)
+        .where('languageCode', isEqualTo: _currentLanguage)
         .orderBy('updatedAt', descending: true)
         .get();
 
@@ -79,6 +89,7 @@ class ChatProvider with ChangeNotifier {
       title: initialTitle ?? 'New Conversation',
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
+      languageCode: _currentLanguage,
     );
 
     final docRef = await _firestore
@@ -92,6 +103,7 @@ class ChatProvider with ChangeNotifier {
       title: conversation.title,
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt,
+      languageCode: _currentLanguage,
     );
 
     _conversations.insert(0, newConversation);
@@ -227,7 +239,10 @@ class ChatProvider with ChangeNotifier {
       );
 
       // Get AI response
-      final aiResponse = await _aiService.sendMessage(text.trim());
+      final aiResponse = await _aiService.sendMessage(
+        text.trim(),
+        languageCode: _currentLanguage,
+      );
       
       // Add AI message
       final aiMessage = await _addMessage(

@@ -6,7 +6,9 @@ import 'dart:async';
 import '../../../../core/providers/auth_provider.dart';
 import '../../../../core/providers/user_provider.dart';
 import '../../../../core/providers/daily_task_provider.dart';
+import '../../../../core/providers/language_provider.dart';
 import '../../../../widgets/xp_display_widget.dart';
+import '../../../../widgets/language_flag_button.dart';
 import '../../../../models/daily_task_model.dart';
 import '../../../../services/daily_motivation_service.dart';
 
@@ -42,7 +44,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       _controller.forward();
       // Load daily tasks when screen initializes
       final dailyTaskProvider = Provider.of<DailyTaskProvider>(context, listen: false);
-      dailyTaskProvider.loadDailyTasks();
+      final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+      dailyTaskProvider.setLanguage(languageProvider.currentLanguage);
       
       // Check and update tasks based on current activity
       dailyTaskProvider.checkAndUpdateTasks();
@@ -59,13 +62,47 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     });
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Listen to language changes
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    languageProvider.addListener(_onLanguageChanged);
+    
+    // Reload motivation when language changes
+    if (_dailyMotivation?.languageCode != languageProvider.currentLanguage) {
+      _loadDailyMotivation();
+    }
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    _controller.dispose();
+    // Remove language listener
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    languageProvider.removeListener(_onLanguageChanged);
+    super.dispose();
+  }
+
+  void _onLanguageChanged() {
+    // Reload daily motivation and tasks when language changes
+    _loadDailyMotivation();
+    final dailyTaskProvider = Provider.of<DailyTaskProvider>(context, listen: false);
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    dailyTaskProvider.setLanguage(languageProvider.currentLanguage);
+  }
+
   Future<void> _loadDailyMotivation() async {
     try {
       setState(() {
         _isLoadingMotivation = true;
       });
       
-      final motivation = await DailyMotivationService().getTodayMotivation();
+      final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+      final motivation = await DailyMotivationService().getTodayMotivation(
+        languageCode: languageProvider.currentLanguage,
+      );
       if (mounted) {
         setState(() {
           _dailyMotivation = motivation;
@@ -79,13 +116,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         });
       }
     }
-  }
-
-  @override
-  void dispose() {
-    _refreshTimer?.cancel();
-    _controller.dispose();
-    super.dispose();
   }
 
   @override
@@ -120,6 +150,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           },
         ),
         actions: [
+          const LanguageFlagButton(),
           PopupMenuButton<String>(
             icon: const Icon(Icons.settings),
             onSelected: (value) {
@@ -220,8 +251,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
         ],
       ),
-      body: Consumer3<AuthProvider, UserProvider, DailyTaskProvider>(
-        builder: (context, authProvider, userProvider, dailyTaskProvider, child) {
+      body: Consumer4<AuthProvider, UserProvider, DailyTaskProvider, LanguageProvider>(
+        builder: (context, authProvider, userProvider, dailyTaskProvider, languageProvider, child) {
           if (userProvider.isLoading || dailyTaskProvider.isLoading) {
             return const Center(
               child: CircularProgressIndicator(),

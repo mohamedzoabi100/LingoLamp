@@ -2,8 +2,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../utils/database_helper.dart';
 import '../models/conversation_model.dart';
+import '../core/providers/language_provider.dart';
 
 class ChatHistoryScreen extends StatefulWidget {
   const ChatHistoryScreen({super.key});
@@ -16,9 +18,6 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
   List<Conversation> _conversations = [];
   bool _isLoading = true;
-  
-  // Spanish-only configuration
-  static const String _languageCode = 'es';
 
   @override
   void initState() {
@@ -26,12 +25,29 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
     _loadConversations();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reload conversations when language changes
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    if (languageProvider.currentLanguage != _conversations.firstOrNull?.languageCode) {
+      _loadConversations();
+    }
+  }
+
   Future<void> _loadConversations() async {
     if (mounted) setState(() => _isLoading = true);
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
     final conversations = await _dbHelper.getAllConversations();
+    
+    // Filter conversations by current language
+    final filteredConversations = conversations.where(
+      (conversation) => conversation.languageCode == languageProvider.currentLanguage
+    ).toList();
+    
     if (mounted) {
       setState(() {
-        _conversations = conversations;
+        _conversations = filteredConversations;
         _isLoading = false;
       });
     }
@@ -73,7 +89,11 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false, // No arrow when reached from bottom-nav
-        title: const Text('Spanish Chats'),
+        title: Consumer<LanguageProvider>(
+          builder: (context, languageProvider, child) {
+            return Text('${languageProvider.currentLanguageName} Chats');
+          },
+        ),
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
       ),
@@ -84,10 +104,14 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
               ? Center(
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),
-                    child: Text(
-                      'No Spanish chats yet.\nTap the "+" button to start a new conversation!',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 18, color: Colors.grey),
+                    child: Consumer<LanguageProvider>(
+                      builder: (context, languageProvider, child) {
+                        return Text(
+                          'No ${languageProvider.currentLanguageName} chats yet.\nTap the "+" button to start a new conversation!',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 18, color: Colors.grey),
+                        );
+                      },
                     ),
                   ),
                 )

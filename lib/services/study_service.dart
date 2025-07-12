@@ -52,7 +52,7 @@ class StudyService {
   }
 
   /// Process a review and return updated study card
-  static Future<StudyCard> processReview(StudyCard studyCard, ReviewQuality quality) async {
+  static Future<StudyCard> processReview(StudyCard studyCard, ReviewQuality quality, {String? languageCode}) async {
     final updatedFlashcard = studyCard.flashcard.markAsStudied();
     
     SpacedRepetitionCard? updatedSpacedCard;
@@ -90,7 +90,7 @@ class StudyService {
     
     // Update daily task progress for flashcard review
     final dailyTaskService = DailyTaskService();
-    await dailyTaskService.updateTaskProgress(daily_task.TaskType.reviewFlashcards, 1);
+    await dailyTaskService.updateTaskProgress(daily_task.TaskType.reviewFlashcards, 1, languageCode: languageCode);
     
     return StudyCard(
       flashcard: updatedFlashcard,

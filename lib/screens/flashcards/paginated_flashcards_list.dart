@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../models/flashcard_model.dart';
 import '../../services/user_data_service.dart';
 import '../../utils/database_helper.dart';
+import '../../core/providers/language_provider.dart';
 
 class PaginatedFlashcardsList extends StatefulWidget {
   const PaginatedFlashcardsList({super.key});
@@ -36,7 +38,16 @@ class _PaginatedFlashcardsListState extends State<PaginatedFlashcardsList> {
 
   Future<void> _loadInitialFlashcards() async {
     setState(() => _isLoading = true);
-    final flashcards = await _dbHelper.getFlashcardsPaginated(limit: _pageSize, offset: 0);
+    
+    // Get current language from provider
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    final currentLanguage = languageProvider.currentLanguage;
+    
+    final flashcards = await _dbHelper.getFlashcardsPaginatedByLanguage(
+      limit: _pageSize, 
+      offset: 0, 
+      languageCode: currentLanguage
+    );
     setState(() {
       _flashcards = flashcards;
       _isLoading = false;
@@ -48,8 +59,16 @@ class _PaginatedFlashcardsListState extends State<PaginatedFlashcardsList> {
     if (_isLoading || !_hasMore) return;
     setState(() => _isLoading = true);
 
+    // Get current language from provider
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    final currentLanguage = languageProvider.currentLanguage;
+    
     final offset = _flashcards.length;
-    final newFlashcards = await _dbHelper.getFlashcardsPaginated(limit: _pageSize, offset: offset);
+    final newFlashcards = await _dbHelper.getFlashcardsPaginatedByLanguage(
+      limit: _pageSize, 
+      offset: offset, 
+      languageCode: currentLanguage
+    );
 
     setState(() {
       _flashcards.addAll(newFlashcards);

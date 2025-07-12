@@ -7,6 +7,7 @@ class Flashcard {
   final String translatedText;
   final String sourceLanguage;
   final String targetLanguage;
+  final String languageCode;
   final DateTime createdAt;
   final DateTime lastStudied;
   final int timesStudied;
@@ -26,6 +27,7 @@ class Flashcard {
     required this.translatedText,
     required this.sourceLanguage,
     required this.targetLanguage,
+    this.languageCode = 'es',
     required this.createdAt,
     required this.lastStudied,
     this.timesStudied = 0,
@@ -47,6 +49,7 @@ class Flashcard {
       'translated_text': translatedText,
       'source_language': sourceLanguage,
       'target_language': targetLanguage,
+      'language_code': languageCode,
       'created_at': createdAt.toIso8601String(),
       'last_studied': lastStudied.toIso8601String(),
       'times_studied': timesStudied,
@@ -65,6 +68,7 @@ class Flashcard {
       translatedText: map['translated_text'],
       sourceLanguage: map['source_language'],
       targetLanguage: map['target_language'],
+      languageCode: map['language_code'] ?? 'es',
       createdAt: DateTime.parse(map['created_at']),
       lastStudied: DateTime.parse(map['last_studied']),
       timesStudied: map['times_studied'] ?? 0,
@@ -88,6 +92,7 @@ class Flashcard {
     String? translatedText,
     String? sourceLanguage,
     String? targetLanguage,
+    String? languageCode,
     DateTime? createdAt,
     DateTime? lastStudied,
     int? timesStudied,
@@ -107,6 +112,7 @@ class Flashcard {
       translatedText: translatedText ?? this.translatedText,
       sourceLanguage: sourceLanguage ?? this.sourceLanguage,
       targetLanguage: targetLanguage ?? this.targetLanguage,
+      languageCode: languageCode ?? this.languageCode,
       createdAt: createdAt ?? this.createdAt,
       lastStudied: lastStudied ?? this.lastStudied,
       timesStudied: timesStudied ?? this.timesStudied,
