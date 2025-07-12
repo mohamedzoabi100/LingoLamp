@@ -15,6 +15,8 @@ class DailyTaskService {
   // Storage keys
   static const String _currentTaskSetKey = 'current_daily_task_set';
   static const String _lastTaskResetDateKey = 'last_task_reset_date';
+  static const String _taskVersionKey = 'daily_task_version';
+  static const int _currentTaskVersion = 2; // Increment when changing task structure
 
   // Task change listeners
   static final List<VoidCallback> _taskListeners = [];
@@ -36,13 +38,17 @@ class DailyTaskService {
     final today = DateTime.now();
     final todayString = _formatDate(today);
     
-    // Check if we need to reset tasks for a new day
+    // Check if we need to reset tasks for a new day or version update
     final lastResetDate = prefs.getString(_lastTaskResetDateKey);
-    if (lastResetDate != todayString) {
-      // New day, create fresh task set
+    final currentVersion = prefs.getInt(_taskVersionKey) ?? 1;
+    
+    if (lastResetDate != todayString || currentVersion != _currentTaskVersion) {
+      // New day or version update, create fresh task set
       final newTaskSet = _generateDailyTasks(today);
       await _saveTaskSet(newTaskSet);
       await prefs.setString(_lastTaskResetDateKey, todayString);
+      await prefs.setInt(_taskVersionKey, _currentTaskVersion);
+      print('🔄 Daily tasks reset: ${currentVersion != _currentTaskVersion ? "version update" : "new day"}');
       return newTaskSet;
     }
 
@@ -86,24 +92,6 @@ class DailyTaskService {
         xpReward: 20,
         createdAt: date,
       ),
-      DailyTask(
-        id: '${taskId}_xp',
-        title: 'Earn XP',
-        description: 'Earn 25 XP through various activities',
-        type: TaskType.earnXP,
-        targetValue: 25,
-        xpReward: 10,
-        createdAt: date,
-      ),
-      DailyTask(
-        id: '${taskId}_phrases',
-        title: 'Learn New Phrases',
-        description: 'Learn 3 new phrases from the phrasebook',
-        type: TaskType.learnPhrases,
-        targetValue: 3,
-        xpReward: 15,
-        createdAt: date,
-      ),
     ];
 
     return DailyTaskSet(
@@ -143,7 +131,7 @@ class DailyTaskService {
           final allCompleted = updatedTasks.every((t) => t.status == TaskStatus.completed);
           if (allCompleted) {
             // Award bonus XP for completing all daily tasks
-            await XPService().addXP(50, '🎉 All daily tasks completed!');
+            await XPService().addXP(30, '🎉 All daily tasks completed!');
             print('🎉 Bonus XP awarded for completing all daily tasks!');
           }
         }

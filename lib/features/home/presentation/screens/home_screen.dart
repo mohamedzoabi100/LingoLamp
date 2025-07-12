@@ -8,6 +8,7 @@ import '../../../../core/providers/user_provider.dart';
 import '../../../../core/providers/daily_task_provider.dart';
 import '../../../../widgets/xp_display_widget.dart';
 import '../../../../models/daily_task_model.dart';
+import '../../../../services/daily_motivation_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,6 +22,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   late Animation<double> _opacityAnim;
   late Animation<Offset> _slideAnim;
   Timer? _refreshTimer;
+  DailyMotivation? _dailyMotivation;
+  bool _isLoadingMotivation = true;
 
   @override
   void initState() {
@@ -44,6 +47,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       // Check and update tasks based on current activity
       dailyTaskProvider.checkAndUpdateTasks();
       
+      // Load daily motivation
+      _loadDailyMotivation();
+      
       // Set up periodic refresh of tasks
       _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
         if (mounted) {
@@ -51,6 +57,28 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         }
       });
     });
+  }
+
+  Future<void> _loadDailyMotivation() async {
+    try {
+      setState(() {
+        _isLoadingMotivation = true;
+      });
+      
+      final motivation = await DailyMotivationService().getTodayMotivation();
+      if (mounted) {
+        setState(() {
+          _dailyMotivation = motivation;
+          _isLoadingMotivation = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingMotivation = false;
+        });
+      }
+    }
   }
 
   @override
@@ -161,7 +189,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   },
                   child: _buildDailyTaskPanel(context, dailyTaskProvider),
                 ),
-                // Removed Quick Actions and Daily Goal
+                const SizedBox(height: 24),
+                // Daily Motivation Box
+                _buildDailyMotivationBox(),
               ],
             ),
           );
@@ -391,64 +421,63 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       ),
     );
   }
-}
 
-Widget _buildDailyTaskPanel(BuildContext context, DailyTaskProvider dailyTaskProvider) {
-  final taskSet = dailyTaskProvider.currentTaskSet;
-  if (taskSet == null) {
-    return const SizedBox.shrink();
-  }
+  Widget _buildDailyTaskPanel(BuildContext context, DailyTaskProvider dailyTaskProvider) {
+    final taskSet = dailyTaskProvider.currentTaskSet;
+    if (taskSet == null) {
+      return const SizedBox.shrink();
+    }
 
-  return Card(
-    elevation: 2,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-    color: Colors.blueGrey[50],
-    child: Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.check_circle_outline, color: Colors.blue[700]),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Daily Tasks',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).primaryColor,
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: Colors.blueGrey[50],
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.check_circle_outline, color: Colors.blue[700]),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Daily Tasks',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).primaryColor,
+                    ),
                   ),
                 ),
-              ),
-              Text(
-                '${taskSet.completedTasksCount}/${taskSet.totalTasksCount} completed',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w500,
+                Text(
+                  '${taskSet.completedTasksCount}/${taskSet.totalTasksCount} completed',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Column(
-            children: taskSet.tasks.map((task) {
-              return Column(
-                children: [
-                  _buildTaskTile(task),
-                  if (task != taskSet.tasks.last)
-                    const Divider(height: 24, thickness: 1),
-                ],
-              );
-            }).toList(),
-          ),
-        ],
+              ],
+            ),
+            const SizedBox(height: 16),
+            Column(
+              children: taskSet.tasks.map((task) {
+                return Column(
+                  children: [
+                    _buildTaskTile(task),
+                    if (task != taskSet.tasks.last)
+                      const Divider(height: 16, thickness: 1),
+                  ],
+                );
+              }).toList(),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
 Widget _buildTaskTile(DailyTask task) {
   return ListTile(
@@ -484,4 +513,88 @@ Widget _buildTaskTile(DailyTask task) {
     dense: true,
     visualDensity: VisualDensity.compact,
   );
+}
+
+Widget _buildDailyMotivationBox() {
+  if (_dailyMotivation == null && _isLoadingMotivation) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: Colors.purple[50],
+      child: const Padding(
+        padding: EdgeInsets.all(16),
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      ),
+    );
+  }
+
+  if (_dailyMotivation == null) {
+    return const SizedBox.shrink();
+  }
+
+  return Card(
+    elevation: 2,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    color: Colors.purple[50],
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.lightbulb_outline, color: Colors.purple[700]),
+              const SizedBox(width: 8),
+              Text(
+                'Daily Motivation',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.purple[700],
+                ),
+              ),
+              if (_isLoadingMotivation) ...[
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.purple[700]!),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _dailyMotivation!.spanishQuote,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              fontStyle: FontStyle.italic,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _dailyMotivation!.englishTranslation,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[600],
+              fontStyle: FontStyle.italic,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    ),
+  );
+}
 } 
