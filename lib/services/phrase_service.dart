@@ -160,8 +160,15 @@ class PhraseService {
   }
 
   Future<void> addAiPhrase(PhraseModel phrase) async {
+    print('🔄 [PhraseService] Adding AI phrase: ${phrase.english} (ID: ${phrase.id})');
+    final existingCount = _aiPhrases.length;
     _aiPhrases.removeWhere((p) => p.id == phrase.id);
+    final removedCount = existingCount - _aiPhrases.length;
+    if (removedCount > 0) {
+      print('⚠️ [PhraseService] Removed $removedCount duplicate phrase(s) with ID: ${phrase.id}');
+    }
     _aiPhrases.add(phrase);
+    print('✅ [PhraseService] Added phrase. Total AI phrases: ${_aiPhrases.length}');
     await _saveAiPhrases(phrase.languageCode);
     _updateStreams();
   }

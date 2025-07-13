@@ -14,7 +14,7 @@ class AiSuggestionsScreen extends StatefulWidget {
   State<AiSuggestionsScreen> createState() => _AiSuggestionsScreenState();
 }
 
-class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
+class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> with WidgetsBindingObserver {
   final TextEditingController _topicController = TextEditingController();
   final AiPhraseService _aiPhraseService = AiPhraseService();
   final PhraseService _phraseService = PhraseService();
@@ -30,6 +30,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initTts();
   }
 
@@ -54,7 +55,26 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
   void dispose() {
     _tts.stop();
     _topicController.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.inactive:
+        // Stop TTS when app is paused, minimized, or closed
+        _tts.stop();
+        break;
+      case AppLifecycleState.resumed:
+        // App resumed - no action needed
+        break;
+    }
   }
 
   Future<void> _generatePhrases() async {

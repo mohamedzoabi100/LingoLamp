@@ -12,6 +12,7 @@ import '../models/recommended_flashcard_model.dart';
 import '../utils/database_helper.dart';
 import 'spaced_repetition_study_screen.dart';
 import 'recommendations_screen.dart';
+import 'flashcards/browse_flashcards_list.dart';
 
 class FlashcardsScreen extends StatefulWidget {
   final VoidCallback? onBackToHome;
@@ -27,7 +28,7 @@ class FlashcardsScreen extends StatefulWidget {
 
 class _FlashcardsScreenState extends State<FlashcardsScreen> with TickerProviderStateMixin {
   final UserDataService _userDataService = UserDataService();
-  final CloudTtsService _cloudTts = CloudTtsService();
+  final CloudTtsService _cloudTts = CloudTtsService()..register();
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
   late TabController _tabController;
   late Stream<List<Flashcard>> _flashcardsStream;
@@ -62,6 +63,9 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with TickerProvider
     // Remove language listener
     final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
     languageProvider.removeListener(_onLanguageChanged);
+    // Stop TTS when leaving the screen
+    _cloudTts.stop();
+    _cloudTts.unregister();
     super.dispose();
   }
 
@@ -580,7 +584,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with TickerProvider
                   controller: _tabController,
                   children: [
                     _buildReviewMode(),
-                    // BrowseFlashcardsList(), // This widget is not defined in the original file
+                    BrowseFlashcardsList(),
                   ],
                 ),
               ),

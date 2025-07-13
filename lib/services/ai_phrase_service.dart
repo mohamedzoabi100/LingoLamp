@@ -105,7 +105,7 @@ class AiPhraseService {
           
           if (response != null && response.isNotEmpty) {
             // 🆕 Improved parsing with better error handling
-            final phrase = _parsePhraseResponse(response, languageCode);
+            final phrase = _parsePhraseResponse(response, languageCode, topic: topic);
                       if (phrase != null) {
             print('✅ AI phrase generated successfully: ${phrase.english}');
             
@@ -185,7 +185,7 @@ Now generate your phrase:
   }
 
   /// 🆕 Improved response parsing
-  PhraseModel? _parsePhraseResponse(String response, String languageCode) {
+  PhraseModel? _parsePhraseResponse(String response, String languageCode, {String? topic}) {
     try {
       // Clean up the response
       final cleanResponse = response.trim();
@@ -203,10 +203,10 @@ Now generate your phrase:
         if (english.isNotEmpty && translation.isNotEmpty && 
             english.length > 2 && translation.length > 2) {
           return PhraseModel(
-            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            id: 'ai_${DateTime.now().millisecondsSinceEpoch}_${english.hashCode}_${translation.hashCode}_$languageCode',
             english: english,
             translation: translation,
-            category: 'AI Generated',
+            category: topic ?? 'AI Generated',
             difficulty: 'beginner',
             createdAt: DateTime.now(),
             isFavorite: false,
@@ -232,10 +232,10 @@ Now generate your phrase:
       if (english != null && translation != null && 
           english.isNotEmpty && translation.isNotEmpty) {
         return PhraseModel(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          id: 'ai_${DateTime.now().millisecondsSinceEpoch}_${english.hashCode}_${translation.hashCode}_$languageCode',
           english: english,
           translation: translation,
-          category: 'AI Generated',
+          category: topic ?? 'AI Generated',
           difficulty: 'beginner',
           createdAt: DateTime.now(),
           isFavorite: false,

@@ -12,15 +12,16 @@ class PhraseSearchScreen extends StatefulWidget {
   _PhraseSearchScreenState createState() => _PhraseSearchScreenState();
 }
 
-class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
+class _PhraseSearchScreenState extends State<PhraseSearchScreen> with WidgetsBindingObserver {
   final TextEditingController _searchController = TextEditingController();
   List<PhraseModel> _filteredPhrases = [];
-  final CloudTtsService _cloudTts = CloudTtsService();
+  final CloudTtsService _cloudTts = CloudTtsService()..register();
   String _searchQuery = '';
   
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _searchController.addListener(_filterPhrases);
   }
 
@@ -38,7 +39,29 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
     // Remove language listener
     final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
     languageProvider.removeListener(_onLanguageChanged);
+    // Stop TTS when leaving the screen
+    _cloudTts.stop();
+    _cloudTts.unregister();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.inactive:
+        // Stop TTS when app is paused, minimized, or closed
+        _cloudTts.stop();
+        break;
+      case AppLifecycleState.resumed:
+        // App resumed - no action needed
+        break;
+    }
   }
 
   void _onLanguageChanged() {
@@ -190,11 +213,20 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        ElevatedButton(
+                        ElevatedButton.icon(
                           onPressed: () {
                             Navigator.pushNamed(context, '/ai-suggestions');
                           },
-                          child: const Text('Generate AI Phrases'),
+                          icon: const Icon(Icons.auto_awesome),
+                          label: const Text('Generate AI Phrases'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -213,10 +245,18 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'Search for phrases to get started',
+                          'Type to search phrases',
                           style: TextStyle(
                             fontSize: 18,
                             color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Search in English or your target language',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[500],
                           ),
                         ),
                       ],
@@ -279,10 +319,13 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
                 const Spacer(),
                 GestureDetector(
                   onTap: () => _toggleFavorite(phrase),
-                  child: Icon(
-                    phrase.isFavorite ? Icons.favorite : Icons.favorite_border,
-                    color: phrase.isFavorite ? Theme.of(context).colorScheme.primary : Colors.grey[600],
-                    size: 18,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(
+                      phrase.isFavorite ? Icons.favorite : Icons.favorite_border,
+                      color: phrase.isFavorite ? Theme.of(context).colorScheme.primary : Colors.grey[600],
+                      size: 18,
+                    ),
                   ),
                 ),
               ],

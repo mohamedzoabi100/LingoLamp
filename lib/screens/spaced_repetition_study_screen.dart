@@ -21,9 +21,9 @@ class SpacedRepetitionStudyScreen extends StatefulWidget {
   State<SpacedRepetitionStudyScreen> createState() => _SpacedRepetitionStudyScreenState();
 }
 
-class _SpacedRepetitionStudyScreenState extends State<SpacedRepetitionStudyScreen> {
+class _SpacedRepetitionStudyScreenState extends State<SpacedRepetitionStudyScreen> with WidgetsBindingObserver {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
-  final CloudTtsService _cloudTts = CloudTtsService();
+  final CloudTtsService _cloudTts = CloudTtsService()..register();
   final XPService _xpService = XPService();
   List<StudyCard> _dueCards = [];
   int _currentIndex = 0;
@@ -35,6 +35,7 @@ class _SpacedRepetitionStudyScreenState extends State<SpacedRepetitionStudyScree
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadDueCards();
   }
 
@@ -51,7 +52,29 @@ class _SpacedRepetitionStudyScreenState extends State<SpacedRepetitionStudyScree
     // Remove language listener
     final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
     languageProvider.removeListener(_onLanguageChanged);
+    // Stop TTS when leaving the screen
+    _cloudTts.stop();
+    _cloudTts.unregister();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.inactive:
+        // Stop TTS when app is paused, minimized, or closed
+        _cloudTts.stop();
+        break;
+      case AppLifecycleState.resumed:
+        // App resumed - no action needed
+        break;
+    }
   }
 
   void _onLanguageChanged() {

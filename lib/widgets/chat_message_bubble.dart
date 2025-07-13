@@ -25,7 +25,7 @@ class ChatMessageBubble extends StatefulWidget {
   State<ChatMessageBubble> createState() => _ChatMessageBubbleState();
 }
 
-class _ChatMessageBubbleState extends State<ChatMessageBubble> {
+class _ChatMessageBubbleState extends State<ChatMessageBubble> with WidgetsBindingObserver {
   final FlutterTts _flutterTts = FlutterTts();
   bool _isSpeaking = false;
   bool _isInitialized = false;
@@ -33,13 +33,36 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeTts();
   }
 
   @override
   void dispose() {
     _flutterTts.stop();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.inactive:
+        // Stop TTS when app is paused, minimized, or closed
+        _flutterTts.stop();
+        setState(() {
+          _isSpeaking = false;
+        });
+        break;
+      case AppLifecycleState.resumed:
+        // App resumed - no action needed
+        break;
+    }
   }
 
   Future<void> _initializeTts() async {
@@ -80,9 +103,18 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     if (!_isInitialized || _isSpeaking) return;
 
     try {
+      // Stop any current speech first
+      await _flutterTts.stop();
+      
+      // Small delay to ensure previous speech is fully stopped
+      await Future.delayed(const Duration(milliseconds: 100));
+      
       await _flutterTts.speak(_getPlainText(widget.message.text));
     } catch (e) {
       debugPrint('Error speaking text: $e');
+      setState(() {
+        _isSpeaking = false;
+      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to play audio')),

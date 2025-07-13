@@ -14,8 +14,8 @@ class AiSuggestionsScreen extends StatefulWidget {
   _AiSuggestionsScreenState createState() => _AiSuggestionsScreenState();
 }
 
-class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
-  final CloudTtsService _cloudTts = CloudTtsService();
+class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> with WidgetsBindingObserver {
+  final CloudTtsService _cloudTts = CloudTtsService()..register();
   final AiPhraseService _aiPhraseService = AiPhraseService();
   final XPService _xpService = XPService();
   final TextEditingController _topicController = TextEditingController();
@@ -28,6 +28,12 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
   String _currentTopic = '';
   String? _errorMessage;
   Set<String> _favoriteIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
 
   @override
   void didChangeDependencies() {
@@ -44,7 +50,29 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
     // Remove language listener
     final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
     languageProvider.removeListener(_onLanguageChanged);
+    // Stop TTS when leaving the screen
+    _cloudTts.stop();
+    _cloudTts.unregister();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.inactive:
+        // Stop TTS when app is paused, minimized, or closed
+        _cloudTts.stop();
+        break;
+      case AppLifecycleState.resumed:
+        // App resumed - no action needed
+        break;
+    }
   }
 
   void _onLanguageChanged() {
@@ -189,8 +217,17 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
         languageCode: languageProvider.currentLanguage,
       );
       
+      // Save new phrases to the provider so they persist
+      print('🔄 [AI Suggestions] Saving ${newPhrases.length} new phrases to provider');
+      for (final phrase in newPhrases) {
+        print('🔄 [AI Suggestions] Saving phrase: ${phrase.english} (ID: ${phrase.id})');
+        await context.read<PhrasebookProvider>().addAiPhrase(phrase);
+      }
+      
+      // Small delay to ensure provider updates are processed
+      await Future.delayed(const Duration(milliseconds: 100));
+      
       setState(() {
-        _generatedPhrases.addAll(newPhrases);
         _isGeneratingMore = false;
       });
       
@@ -497,12 +534,19 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              Text(
-                                '${_generatedPhrases.length} phrases generated',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
-                                ),
+                              Consumer<PhrasebookProvider>(
+                                builder: (context, provider, child) {
+                                  final currentPhrases = provider.getAiGeneratedPhrases()
+                                      .where((p) => p.category.toLowerCase() == _currentTopic.toLowerCase())
+                                      .toList();
+                                  return Text(
+                                    '${currentPhrases.length} phrases generated',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                    ),
+                                  );
+                                },
                               ),
                             ],
                           ),
@@ -565,9 +609,11 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
             Expanded(
               child: Consumer<PhrasebookProvider>(
                 builder: (context, provider, child) {
-                  _generatedPhrases = provider.getAiGeneratedPhrases()
+                  final allAiPhrases = provider.getAiGeneratedPhrases();
+                  _generatedPhrases = allAiPhrases
                       .where((p) => p.category.toLowerCase() == _currentTopic.toLowerCase())
                       .toList();
+                  print('🔄 [AI Suggestions] Consumer update - Total AI phrases: ${allAiPhrases.length}, Filtered for "$_currentTopic": ${_generatedPhrases.length}');
                   return _buildResultsSection();
                 },
               ),
@@ -794,19 +840,33 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
                   ),
                 ),
                 const Spacer(),
-                // Favorite button
+                // Favorite button with feedback
                 Material(
                   color: Colors.transparent,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(20),
-                    onTap: () => _toggleFavorite(phrase),
+                    onTap: () async {
+                      await _toggleFavorite(phrase);
+                      if (mounted) {
+                        final isNowFavorite = !phrase.isFavorite;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(isNowFavorite ? '💚 Added to favorites!' : '💔 Removed from favorites'),
+                            backgroundColor: isNowFavorite
+                                ? Theme.of(context).colorScheme.primary
+                                : Colors.grey[600],
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    },
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       child: Icon(
                         phrase.isFavorite ? Icons.favorite : Icons.favorite_border,
-                        color: phrase.isFavorite 
-                          ? Theme.of(context).colorScheme.primary 
-                          : Colors.grey[400],
+                        color: phrase.isFavorite
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.grey[400],
                         size: 18,
                       ),
                     ),

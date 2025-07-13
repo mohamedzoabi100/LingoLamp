@@ -11,7 +11,7 @@ class PhraseSearchScreen extends StatefulWidget {
   _PhraseSearchScreenState createState() => _PhraseSearchScreenState();
 }
 
-class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
+class _PhraseSearchScreenState extends State<PhraseSearchScreen> with WidgetsBindingObserver {
   final PhraseService _phraseService = PhraseService();
   final TextEditingController _searchController = TextEditingController();
   List<PhraseModel> _allPhrases = [];
@@ -23,6 +23,7 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initTts();
     _phraseService.allPhrasesStream.listen((phrases) {
       if (mounted) {
@@ -63,7 +64,26 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> {
   void dispose() {
     _tts.stop();
     _searchController.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.inactive:
+        // Stop TTS when app is paused, minimized, or closed
+        _tts.stop();
+        break;
+      case AppLifecycleState.resumed:
+        // App resumed - no action needed
+        break;
+    }
   }
 
   void _filterPhrases() {
