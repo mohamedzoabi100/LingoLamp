@@ -20,27 +20,35 @@ class SignInScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // App Logo
-              Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.lightbulb_outline,
-                  size: 60,
-                  color: Color(0xFF0E7A71),
-                ),
-              ),
+// App Logo
+Container(
+  width: 120,
+  height: 120,
+  decoration: BoxDecoration(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(24),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.1),
+        blurRadius: 20,
+        offset: const Offset(0, 10),
+      ),
+    ],
+  ),
+  child: Padding(
+    padding: const EdgeInsets.all(16.0), // Add padding around the logo
+    child: Image.asset(
+      'assets/images/Logo.png',
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stackTrace) => 
+        const Icon(
+          Icons.lightbulb_outline,
+          size: 60,
+          color: Color(0xFF0E7A71),
+        ),
+    ),
+  ),
+),
               
               const SizedBox(height: 32),
               
