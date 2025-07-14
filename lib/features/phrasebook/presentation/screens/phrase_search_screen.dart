@@ -4,6 +4,7 @@ import '../../../../core/providers/phrasebook_provider.dart';
 import '../../../../models/phrase_model.dart';
 import '../../../../core/providers/language_provider.dart';
 import '../../../../services/cloud_tts_service.dart';
+import '../../../../core/providers/auth_provider.dart';
 
 class PhraseSearchScreen extends StatefulWidget {
   const PhraseSearchScreen({Key? key}) : super(key: key);
@@ -280,6 +281,7 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> with WidgetsBin
   }
 
   Widget _buildPhraseCard(PhraseModel phrase) {
+    final isGuest = context.read<AuthProvider>().isGuest;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
@@ -317,17 +319,20 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> with WidgetsBin
                   ),
                 ),
                 const Spacer(),
-                GestureDetector(
-                  onTap: () => _toggleFavorite(phrase),
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    child: Icon(
-                      phrase.isFavorite ? Icons.favorite : Icons.favorite_border,
-                      color: phrase.isFavorite ? Theme.of(context).colorScheme.primary : Colors.grey[600],
-                      size: 18,
+                // Only show favorite icon if not guest
+                if (!isGuest) ...[
+                  GestureDetector(
+                    onTap: () => _toggleFavorite(phrase),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(
+                        phrase.isFavorite ? Icons.favorite : Icons.favorite_border,
+                        color: phrase.isFavorite ? Theme.of(context).colorScheme.primary : Colors.grey[600],
+                        size: 18,
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
           ),

@@ -49,6 +49,14 @@ class _RouterScope extends StatelessWidget {
         if (authProvider.authState == AuthState.error) {
           return '/error';
         }
+        // Handle guest mode
+        if (authProvider.authState == AuthState.guest) {
+          // If user is in guest mode and trying to access authenticated routes
+          if (!state.matchedLocation.startsWith('/guest') && state.matchedLocation != '/signin') {
+            return '/guest';
+          }
+          return null;
+        }
         // Redirect to sign in if not authenticated
         if (authProvider.authState == AuthState.unauthenticated) {
           return '/signin';

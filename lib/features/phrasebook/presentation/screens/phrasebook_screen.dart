@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../../core/providers/phrasebook_provider.dart';
 import '../../../../core/providers/app_providers.dart';
 import '../../../../core/providers/language_provider.dart';
+import '../../../../core/providers/auth_provider.dart';
 import 'category_phrases_screen.dart';
 import 'phrase_search_screen.dart';
 import 'favorites_screen.dart';
@@ -16,6 +17,8 @@ class PhrasebookScreen extends StatefulWidget {
 }
 
 class _PhrasebookScreenState extends State<PhrasebookScreen> {
+  bool _isGuest = false;
+
   @override
   void initState() {
     super.initState();
@@ -25,6 +28,9 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    // Detect guest mode
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    _isGuest = authProvider.isGuest;
     // Listen to language changes
     final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
     languageProvider.addListener(_onLanguageChanged);
@@ -76,19 +82,19 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          // Favorites star icon in top right
-          IconButton(
-            icon: const Icon(Icons.star, color: Colors.white),
-            tooltip: 'Favorite Phrases',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const FavoritesScreen(),
-                ),
-              );
-            },
-          ),
+          if (!_isGuest)
+            IconButton(
+              icon: const Icon(Icons.star, color: Colors.white),
+              tooltip: 'Favorite Phrases',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const FavoritesScreen(),
+                  ),
+                );
+              },
+            ),
         ],
       ),
       backgroundColor: Theme.of(context).colorScheme.surface,

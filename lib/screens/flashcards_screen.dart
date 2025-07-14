@@ -40,6 +40,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with TickerProvider
   bool _isStudyMode = false;
   int _currentStudyIndex = 0;
   bool _showStudyAnswer = false;
+  LanguageProvider? _languageProvider; // Store reference
 
   @override
   void initState() {
@@ -52,17 +53,16 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with TickerProvider
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Listen to language changes
-    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-    languageProvider.addListener(_onLanguageChanged);
+    // Only add listener once
+    _languageProvider ??= Provider.of<LanguageProvider>(context, listen: false);
+    _languageProvider!.addListener(_onLanguageChanged);
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     // Remove language listener
-    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-    languageProvider.removeListener(_onLanguageChanged);
+    _languageProvider?.removeListener(_onLanguageChanged); // Use stored reference
     // Stop TTS when leaving the screen
     _cloudTts.stop();
     _cloudTts.unregister();

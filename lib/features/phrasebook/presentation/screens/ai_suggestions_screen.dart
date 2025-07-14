@@ -6,6 +6,7 @@ import '../../../../core/providers/language_provider.dart';
 import '../../../../services/cloud_tts_service.dart';
 import '../../../../services/ai_phrase_service.dart';
 import '../../../../services/xp_service.dart';
+import '../../../../core/providers/auth_provider.dart';
 
 class AiSuggestionsScreen extends StatefulWidget {
   const AiSuggestionsScreen({Key? key}) : super(key: key);
@@ -28,6 +29,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> with WidgetsB
   String _currentTopic = '';
   String? _errorMessage;
   Set<String> _favoriteIds = {};
+  LanguageProvider? _languageProvider; // Store reference
 
   @override
   void initState() {
@@ -38,9 +40,9 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> with WidgetsB
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Listen to language changes
-    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-    languageProvider.addListener(_onLanguageChanged);
+    // Only add listener once
+    _languageProvider ??= Provider.of<LanguageProvider>(context, listen: false);
+    _languageProvider!.addListener(_onLanguageChanged);
   }
 
   @override
@@ -48,8 +50,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> with WidgetsB
     _topicController.dispose();
     _contextController.dispose();
     // Remove language listener
-    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-    languageProvider.removeListener(_onLanguageChanged);
+    _languageProvider?.removeListener(_onLanguageChanged); // Use stored reference
     // Stop TTS when leaving the screen
     _cloudTts.stop();
     _cloudTts.unregister();
@@ -772,6 +773,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> with WidgetsB
 
   // Side-by-side layout matching the design
   Widget _buildSideBySidePhraseCard(PhraseModel phrase, int index) {
+    final isGuest = context.read<AuthProvider>().isGuest;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -831,7 +833,7 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> with WidgetsB
                       Text(
                         'AI',
                         style: TextStyle(
-                          fontSize: 9,
+                          fontSize: 10,
                           fontWeight: FontWeight.bold,
                           color: Theme.of(context).colorScheme.primary,
                         ),
@@ -840,38 +842,18 @@ class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> with WidgetsB
                   ),
                 ),
                 const Spacer(),
-                // Favorite button with feedback
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(20),
-                    onTap: () async {
-                      await _toggleFavorite(phrase);
-                      if (mounted) {
-                        final isNowFavorite = !phrase.isFavorite;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(isNowFavorite ? '💚 Added to favorites!' : '💔 Removed from favorites'),
-                            backgroundColor: isNowFavorite
-                                ? Theme.of(context).colorScheme.primary
-                                : Colors.grey[600],
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
-                      }
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        phrase.isFavorite ? Icons.favorite : Icons.favorite_border,
-                        color: phrase.isFavorite
-                            ? Theme.of(context).colorScheme.primary
-                            : Colors.grey[400],
-                        size: 18,
-                      ),
+                // Only show favorite icon if not guest
+                if (!isGuest) ...[
+                  IconButton(
+                    icon: Icon(
+                      phrase.isFavorite ? Icons.favorite : Icons.favorite_border,
+                      color: phrase.isFavorite ? Colors.red : Colors.grey[400],
+                      size: 20,
                     ),
+                    onPressed: () => _toggleFavorite(phrase),
+                    tooltip: phrase.isFavorite ? 'Remove from favorites' : 'Save as favorite',
                   ),
-                ),
+                ],
               ],
             ),
           ),

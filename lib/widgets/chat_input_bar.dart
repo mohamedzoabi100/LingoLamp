@@ -6,12 +6,14 @@ class ChatInputBar extends StatefulWidget {
   final Function(String) onSendMessage;
   final bool isSending;
   final VoidCallback onScrollToBottom;
+  final bool hideBorder;
 
   const ChatInputBar({
     super.key,
     required this.onSendMessage,
     required this.isSending,
     required this.onScrollToBottom,
+    this.hideBorder = false,
   });
 
   @override
@@ -194,10 +196,12 @@ class _ChatInputBarState extends State<ChatInputBar> with TickerProviderStateMix
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.surfaceVariant,
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: _getBorderColor(),
-                      width: 2,
-                    ),
+                    border: widget.hideBorder
+                        ? null
+                        : Border.all(
+                            color: _getBorderColor(),
+                            width: 2,
+                          ),
                   ),
                   child: TextField(
                     controller: _controller,

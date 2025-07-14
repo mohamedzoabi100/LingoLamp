@@ -4,6 +4,7 @@ import '../../../../core/providers/phrasebook_provider.dart';
 import '../../../../models/phrase_model.dart';
 import '../../../../core/providers/language_provider.dart';
 import '../../../../services/cloud_tts_service.dart';
+import '../../../../core/providers/auth_provider.dart';
 
 class CategoryPhrasesScreen extends StatefulWidget {
   final String categoryTitle;
@@ -260,6 +261,7 @@ class _CategoryPhrasesScreenState extends State<CategoryPhrasesScreen> with Widg
   }
 
   Widget _buildPhraseCard(PhraseModel phrase) {
+    final isGuest = context.read<AuthProvider>().isGuest;
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       shape: RoundedRectangleBorder(
@@ -282,21 +284,18 @@ class _CategoryPhrasesScreenState extends State<CategoryPhrasesScreen> with Widg
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                GestureDetector(
-                  onTap: () => _toggleFavorite(phrase),
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Icon(
+                // Only show favorite icon if not guest
+                if (!isGuest) ...[
+                  IconButton(
+                    icon: Icon(
                       phrase.isFavorite ? Icons.favorite : Icons.favorite_border,
-                      color: phrase.isFavorite ? Theme.of(context).colorScheme.primary : Colors.grey[600],
+                      color: phrase.isFavorite ? Colors.red : Colors.grey[400],
                       size: 20,
                     ),
+                    onPressed: () => _toggleFavorite(phrase),
+                    tooltip: phrase.isFavorite ? 'Remove from favorites' : 'Save as favorite',
                   ),
-                ),
+                ],
               ],
             ),
           ),

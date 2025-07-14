@@ -7,7 +7,7 @@ import '../services/auth_service.dart';
 import '../services/user_data_service.dart';
 import '../services/xp_event_tracker.dart';
 import '../core/providers/auth_provider.dart' as app_auth;
-import 'phrasebook_screen.dart';
+import '../features/phrasebook/presentation/screens/phrasebook_screen.dart';
 import 'flashcards_screen.dart';
 import '../widgets/sync_status_bar.dart';
 import 'dart:async';
@@ -53,7 +53,7 @@ class _MainAppPageState extends State<MainAppPage> {
   List<Widget> get _pages => [
     _buildHomeScreen(),
     ChatHistoryScreen(),
-    PhrasebookScreen(onBackToHome: () => _onItemTapped(0)),
+    PhrasebookScreen(),
     FlashcardsScreen(onBackToHome: () => _onItemTapped(0)),
   ];
 

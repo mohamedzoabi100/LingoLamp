@@ -26,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   Timer? _refreshTimer;
   DailyMotivation? _dailyMotivation;
   bool _isLoadingMotivation = true;
+  LanguageProvider? _languageProvider; // Store reference
 
   @override
   void initState() {
@@ -65,12 +66,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _languageProvider ??= Provider.of<LanguageProvider>(context, listen: false);
     // Listen to language changes
-    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-    languageProvider.addListener(_onLanguageChanged);
+    _languageProvider!.addListener(_onLanguageChanged);
     
     // Reload motivation when language changes
-    if (_dailyMotivation?.languageCode != languageProvider.currentLanguage) {
+    if (_dailyMotivation?.languageCode != _languageProvider!.currentLanguage) {
       _loadDailyMotivation();
     }
   }
@@ -80,8 +81,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     _refreshTimer?.cancel();
     _controller.dispose();
     // Remove language listener
-    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-    languageProvider.removeListener(_onLanguageChanged);
+    _languageProvider?.removeListener(_onLanguageChanged); // Use stored reference
     super.dispose();
   }
 

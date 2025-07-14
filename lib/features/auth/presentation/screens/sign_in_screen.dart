@@ -117,12 +117,6 @@ class SignInScreen extends StatelessWidget {
   }
 
   void _handleGuestMode(BuildContext context) {
-    // TODO: Implement guest mode
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Guest mode coming soon!'),
-        backgroundColor: Colors.orange,
-      ),
-    );
+    context.read<AuthProvider>().enterGuestMode();
   }
 } 

@@ -1,10 +1,12 @@
 // lib/screens/guest_home_page.dart
 import 'package:flutter/material.dart';
-import 'chat_screen.dart';
-import 'phrasebook_screen.dart';
-import 'flashcards_screen.dart';
-import 'guest_settings_screen.dart';
-import 'chat_history_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
+
+import '../core/providers/auth_provider.dart';
+import '../core/providers/language_provider.dart';
+import '../widgets/language_flag_button.dart';
+import '../services/daily_motivation_service.dart';
 
 class GuestHomePage extends StatefulWidget {
   const GuestHomePage({super.key});
@@ -13,241 +15,462 @@ class GuestHomePage extends StatefulWidget {
   State<GuestHomePage> createState() => _GuestHomePageState();
 }
 
-class _GuestHomePageState extends State<GuestHomePage> {
-/* ──────────────────────────  bottom-nav state  ────────────────────────── */
+class _GuestHomePageState extends State<GuestHomePage> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _opacityAnim;
+  late Animation<Offset> _slideAnim;
+  DailyMotivation? _dailyMotivation;
+  bool _isLoadingMotivation = true;
+  LanguageProvider? _languageProvider; // Store reference
 
-  int _selectedIndex = -1; // –1 = Home
-  String? _currentConversationId;
-
-  List<Widget> get _navPages => [
-    ChatHistoryScreen(),
-    PhrasebookScreen(onBackToHome: _returnToHome),
-    FlashcardsScreen(onBackToHome: _returnToHome),
-  ];
-
-  Widget get _body =>
-      _selectedIndex == -1 ? _homeContent() : _navPages[_selectedIndex];
-
-  void _onItemTapped(int index) => setState(() => _selectedIndex = index);
-
-  Color _selectedNavColor(BuildContext ctx) =>
-    _selectedIndex == -1                       // home?
-        ? Theme.of(ctx).colorScheme.onSurface.withAlpha((255 * .6).round())   // same as unselected
-        : Theme.of(ctx).colorScheme.primary;   // normal highlight
-
-  void _returnToHome() => setState(() => _selectedIndex = -1);
-
-/* ──────────────────────────  small helpers  ───────────────────────────── */
-
-  Widget _buildStreakPanel(BuildContext context) {
-    const int currentStreak = 5;
-    const int longestStreak = 12;
-    return Container(
-      margin: const EdgeInsets.only(top: 20),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withAlpha((255 * .10).round()),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.primary,
-          width: 2,
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          Expanded(
-            child: Column(
-              children: [
-                Text('$currentStreak 🔥',
-                    style: TextStyle(
-                        fontSize: 35,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.primary)),
-                const SizedBox(height: 4),
-                Text('Current Streak',
-                    style: TextStyle(
-                        fontSize: 20,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withAlpha(255)),
-                    textAlign: TextAlign.center),
-              ],
-            ),
-          ),
-          Container(
-              height: 55,
-              width: 1,
-              color: Theme.of(context).colorScheme.primary),
-          Expanded(
-            child: Column(
-              children: [
-                Text('$longestStreak 🏆',
-                    style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.primary)),
-                const SizedBox(height: 4),
-                Text('Longest Streak',
-                    style: TextStyle(
-                        fontSize: 13,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withAlpha(255)),
-                    textAlign: TextAlign.center),
-              ],
-            ),
-          ),
-        ],
-      ),
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
     );
-  }
-
-  Widget _buildDailyTaskPanel(BuildContext context) {
-    const String taskTitle = 'Learn 10 new vocabulary words';
-    const String taskDescription =
-        'Focus on common verbs and nouns related to travel.';
-    const bool isTaskCompleted = false;
-
-    return Container(
-      margin: const EdgeInsets.only(top: 25, bottom: 15),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: isTaskCompleted
-            ? Colors.green.withAlpha((255 * .08).round())
-            : Theme.of(context).colorScheme.secondary.withAlpha((255 * .10).round()),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(
-          color: isTaskCompleted
-              ? Colors.green.withAlpha((255 * .25).round())
-              : Theme.of(context).colorScheme.secondary,
-          width: 2,
-        ),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Expanded(
-            child: Text("Today's Task ✨",
-                style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: isTaskCompleted
-                        ? Colors.green[700]
-                        : Theme.of(context).colorScheme.secondary)),
-          ),
-          Icon(
-              isTaskCompleted
-                  ? Icons.check_circle
-                  : Icons.radio_button_unchecked,
-              color: isTaskCompleted
-                  ? Colors.green[700]
-                  : Theme.of(context).colorScheme.secondary,
-              size: 26)
-        ]),
-        const SizedBox(height: 10),
-        Text(taskTitle,
-            style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.onSurface)),
-        const SizedBox(height: 5),
-        Text(taskDescription,
-            style: TextStyle(
-                fontSize: 13,
-                color: Theme.of(context).colorScheme.onSurface)),
-        if (!isTaskCompleted)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                style: TextButton.styleFrom(
-                    backgroundColor: Theme.of(context)
-                        .colorScheme
-                        .secondary
-                        .withAlpha((255 * .13).round()),
-                    foregroundColor: Theme.of(context).colorScheme.secondary),
-                onPressed: () => debugPrint('Start Task pressed'),
-                child: const Text('Start Task'),
-              ),
-            ),
-          ),
-      ]),
+    _opacityAnim = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
     );
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _controller.forward();
+    });
+    _loadDailyMotivation();
   }
 
-/* ──────────────────────────  home (default) UI  ───────────────────────── */
-
-  Widget _homeContent() {
-    final Color primaryTeal = Theme.of(context).colorScheme.primary;
-    final double statusBar = MediaQuery.of(context).padding.top;
-
-    return Column(children: [
-      // HEADER
-      Container(
-        width: double.infinity,
-        color: primaryTeal,
-        padding: EdgeInsets.only(
-            top: statusBar + 15, bottom: 10, left: 20, right: 20),
-        child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('LingoLamp',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: Colors.white,
-                        fontSize: 32,
-                      )),
-              IconButton(
-                  icon: const Icon(Icons.settings_outlined,
-                      size: 30, color: Colors.white),
-                  onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const GuestSettingsScreen())))
-            ]),
-      ),
-
-      // BODY (scrollable)
-      Expanded(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            SizedBox(height: MediaQuery.of(context).size.height * .02),
-            _buildStreakPanel(context),
-            _buildDailyTaskPanel(context),
-            const SizedBox(height: 20),
-          ]),
-        ),
-      )
-    ]);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Only add listener once
+    _languageProvider ??= Provider.of<LanguageProvider>(context, listen: false);
+    _languageProvider!.addListener(_onLanguageChanged);
+    if (_dailyMotivation?.languageCode != _languageProvider!.currentLanguage) {
+      _loadDailyMotivation();
+    }
   }
 
-/* ──────────────────────────  build()  ─────────────────────────────────── */
+  @override
+  void dispose() {
+    _controller.dispose();
+    _languageProvider?.removeListener(_onLanguageChanged); // Use stored reference
+    super.dispose();
+  }
+
+  void _onLanguageChanged() {
+    _loadDailyMotivation();
+  }
+
+  Future<void> _loadDailyMotivation() async {
+    try {
+      setState(() {
+        _isLoadingMotivation = true;
+      });
+      final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+      final motivation = await DailyMotivationService().getTodayMotivation(
+        languageCode: languageProvider.currentLanguage,
+      );
+      if (mounted) {
+        setState(() {
+          _dailyMotivation = motivation;
+          _isLoadingMotivation = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingMotivation = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      body: _body,
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex < 0 ? 0 : _selectedIndex,
-        onTap: _onItemTapped,
-        selectedItemColor: _selectedNavColor(context),
-        unselectedItemColor:
-            Theme.of(context).colorScheme.onSurface.withAlpha((255 * .6).round()),
+      appBar: AppBar(
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
+        title: const Align(
+          alignment: Alignment.centerLeft,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Welcome to LingoLamp', style: TextStyle(fontSize: 15, color: Colors.white70)),
+              Text(
+                'Guest Mode',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 26,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          const LanguageFlagButton(),
+          IconButton(
+            icon: const Icon(Icons.login),
+            tooltip: 'Sign In',
+            onPressed: () => _showSignInDialog(context),
+          ),
+        ],
+      ),
+      body: Consumer<LanguageProvider>(
+        builder: (context, languageProvider, child) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Yellow box at the top
+                _buildSignInPrompt(),
+                const SizedBox(height: 24),
+                // Feature Cards Row
+                Row(
+                  children: [
+                    Expanded(child: _buildFeatureCard(
+                      '💬 AI Chat',
+                      'Practice conversations with our AI tutor',
+                      Icons.chat,
+                      Colors.green,
+                      () => context.go('/guest/chat'),
+                    )),
+                    const SizedBox(width: 16),
+                    Expanded(child: _buildFeatureCard(
+                      '📚 Phrasebook',
+                      'Learn useful phrases and expressions',
+                      Icons.auto_stories,
+                      Colors.purple,
+                      () => context.go('/guest/phrasebook'),
+                    )),
+                  ],
+                ),
+                const SizedBox(height: 32),
+                // Daily Motivation Box
+                _buildDailyMotivationBox(),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
 
-          selectedFontSize: _selectedIndex == -1 ? 12 : 14,
-          unselectedFontSize: 12,
-        items: const [
-          BottomNavigationBarItem(
-              icon: Icon(Icons.chat_outlined), label: 'Chat'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.auto_stories_outlined), label: 'Phrasebook'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.diamond_outlined), label: 'Flashcards'),
+  Widget _buildWelcomeCard() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: Colors.blue[50],
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+            child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.person_outline, color: Colors.blue[700], size: 32),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Try LingoLamp',
+                    style: TextStyle(
+                      fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      color: Colors.blue[700],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Experience our AI-powered language learning features. Start practicing with our chat assistant and explore useful phrases.',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[700],
+                height: 1.4,
+            ),
+          ),
+        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeatureCards() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Available Features',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth > 600) {
+              return Row(
+                children: [
+                  Expanded(child: _buildFeatureCard(
+                    '💬 AI Chat',
+                    'Practice conversations with our AI tutor',
+                    Icons.chat,
+                    Colors.green,
+                    () => context.go('/guest/chat'),
+                  )),
+                  const SizedBox(width: 16),
+                  Expanded(child: _buildFeatureCard(
+                    '📚 Phrasebook',
+                    'Learn useful phrases and expressions',
+                    Icons.auto_stories,
+                    Colors.purple,
+                    () => context.go('/guest/phrasebook'),
+                  )),
+                ],
+              );
+            } else {
+              return Column(
+                children: [
+                  _buildFeatureCard(
+                    '💬 AI Chat',
+                    'Practice conversations with our AI tutor',
+                    Icons.chat,
+                    Colors.green,
+                    () => context.go('/guest/chat'),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildFeatureCard(
+                    '📚 Phrasebook',
+                    'Learn useful phrases and expressions',
+                    Icons.auto_stories,
+                    Colors.purple,
+                    () => context.go('/guest/phrasebook'),
+                  ),
+                ],
+              );
+            }
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFeatureCard(
+    String title,
+    String subtitle,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  size: 32,
+                  color: color,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSignInPrompt() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: Colors.orange[50],
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.star_outline, color: Colors.orange[700], size: 24),
+                const SizedBox(width: 8),
+                Text(
+                  'Unlock Full Features',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange[700],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Sign in to access flashcards, progress tracking, favorites, and sync your data across devices.',
+            style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[700],
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _showSignInDialog(context),
+                icon: const Icon(Icons.login),
+                label: const Text('Sign In with Google'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange[600],
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDailyMotivationBox() {
+    if (_dailyMotivation == null && _isLoadingMotivation) {
+      return Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: Colors.purple[50],
+        child: const Padding(
+          padding: EdgeInsets.all(16),
+          child: Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        ),
+      );
+    }
+    if (_dailyMotivation == null) {
+      return const SizedBox.shrink();
+    }
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: Colors.purple[50],
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+            children: [
+                Icon(Icons.lightbulb_outline, color: Colors.purple[700]),
+                const SizedBox(width: 8),
+                Text(
+                  'Daily Motivation',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.purple[700],
+                  ),
+                ),
+                if (_isLoadingMotivation) ...[
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.purple[700]!),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _dailyMotivation!.spanishQuote,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                fontStyle: FontStyle.italic,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _dailyMotivation!.englishTranslation,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+                fontStyle: FontStyle.italic,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSignInDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign In'),
+        content: const Text('Would you like to sign in to unlock all features and sync your progress?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              context.read<AuthProvider>().exitGuestMode();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange[600],
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Sign In'),
+          ),
         ],
       ),
     );

@@ -21,6 +21,8 @@ import 'chat_history_screen.dart';
 import '../services/user_data_service.dart';
 import '../services/recommendation_service.dart';
 import '../core/providers/language_provider.dart';
+import '../core/providers/auth_provider.dart';
+import 'package:go_router/go_router.dart';
 
 class ChatScreen extends StatefulWidget {
   final VoidCallback? onBackToHome;
@@ -58,6 +60,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Conversation? _currentConversation;
   bool _isResponding = false;
   bool _isInitialized = false;
+  bool _isGuest = false;
 
   // --- Spanish-only configuration ---
   static const String _languageCode = 'es';
@@ -86,6 +89,9 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    // Detect guest mode
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    _isGuest = authProvider.isGuest;
     if (!_isInitialized) {
       _initialize();
       _isInitialized = true;
@@ -93,6 +99,20 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _initialize() async {
+    if (_isGuest) {
+      // Guest mode: start with greeting only, no persistence
+      _aiChatService = AiChatService();
+      _messages.clear();
+      _messages.add(model.ChatMessage(
+        id: const Uuid().v4(),
+        conversationId: '',
+        text: _getLanguageGreeting(context),
+        isUserMessage: false,
+        timestamp: DateTime.now(),
+      ));
+      if (mounted) setState(() {});
+      return;
+    }
     if (_currentConversationId != null) {
       // Loading an existing conversation
       await _loadConversationAndMessages(_currentConversationId!);
@@ -249,45 +269,49 @@ class _ChatScreenState extends State<ChatScreen> {
       isUserMessage: true,
       timestamp: DateTime.now(),
     );
-    setState(() { 
+    setState(() {
       _messages.add(userMessage);
-      _isResponding = true; 
+      _isResponding = true;
     });
     _scrollToBottom();
-    
-    final bool creatingNewConversation = (_currentConversationId == null);
-    await _ensureConversationExists();
 
-    if (!creatingNewConversation) {
-    final messageToSave = model.ChatMessage(
-        id: userMessage.id,
-        conversationId: _currentConversationId!,
-        text: userMessage.text,
-        isUserMessage: userMessage.isUserMessage,
-        timestamp: userMessage.timestamp,
-      );
-    await _dbHelper.insertMessage(messageToSave);
+    if (!_isGuest) {
+      final bool creatingNewConversation = (_currentConversationId == null);
+      await _ensureConversationExists();
+      if (!creatingNewConversation) {
+        final messageToSave = model.ChatMessage(
+          id: userMessage.id,
+          conversationId: _currentConversationId!,
+          text: userMessage.text,
+          isUserMessage: userMessage.isUserMessage,
+          timestamp: userMessage.timestamp,
+        );
+        await _dbHelper.insertMessage(messageToSave);
+      }
     }
-      
+
     final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
     final aiResponseText = await _aiChatService.sendMessage(
       text,
       languageCode: languageProvider.currentLanguage,
     );
-    
-    // Award XP for sending a chat message
-    await _xpService.awardChatMessage();
-    
+
+    if (!_isGuest) {
+      await _xpService.awardChatMessage();
+    }
+
     final aiMessage = model.ChatMessage(
       id: const Uuid().v4(),
-      conversationId: _currentConversationId!,
-        text: aiResponseText,
+      conversationId: _currentConversationId ?? '',
+      text: aiResponseText,
       isUserMessage: false,
       timestamp: DateTime.now(),
       originalQuery: text,
     );
-    
-    await _dbHelper.insertMessage(aiMessage);
+
+    if (!_isGuest) {
+      await _dbHelper.insertMessage(aiMessage);
+    }
 
     setState(() {
       _messages.add(aiMessage);
@@ -310,55 +334,62 @@ class _ChatScreenState extends State<ChatScreen> {
     String appBarTitle = _currentConversation?.title ?? 'New Chat';
 
     return Scaffold(
-      appBar: AppBar( 
+      appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(appBarTitle, overflow: TextOverflow.ellipsis),
-         backgroundColor: primaryColor, 
-         foregroundColor: Colors.white, 
-         actions: [
-        IconButton(
-          icon: const Icon(Icons.history),
-          tooltip: 'Chat History',
-          onPressed: () async {
-            if (_inputController.text.isNotEmpty) {
-              final discard = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Discard unsent message?'),
-                  content: const Text('You have unsent input. Discard and continue?'),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-                    TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Discard')),
-                  ],
-                ),
-              );
-              if (discard != true) return;
-            }
-              final selectedId = await Navigator.push<String?>(context, MaterialPageRoute(builder: (context) => const ChatHistoryScreen()));
-            if (selectedId != null && selectedId != _currentConversationId) {
-              _currentConversationId = selectedId;
-              _loadConversationAndMessages(selectedId);
+          onPressed: () {
+            if (_isGuest) {
+              context.go('/guest');
+            } else {
+              Navigator.pop(context);
             }
           },
         ),
-          // PopupMenuButton removed
+        title: Text(appBarTitle, overflow: TextOverflow.ellipsis),
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
+        actions: [
+          if (!_isGuest)
+            IconButton(
+              icon: const Icon(Icons.history),
+              tooltip: 'Chat History',
+              onPressed: () async {
+                if (_inputController.text.isNotEmpty) {
+                  final discard = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Discard unsent message?'),
+                      content: const Text('You have unsent input. Discard and continue?'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Discard')),
+                      ],
+                    ),
+                  );
+                  if (discard != true) return;
+                }
+                final selectedId = await Navigator.push<String?>(context, MaterialPageRoute(builder: (context) => const ChatHistoryScreen()));
+                if (selectedId != null && selectedId != _currentConversationId) {
+                  _currentConversationId = selectedId;
+                  _loadConversationAndMessages(selectedId);
+                }
+              },
+            ),
         ],
       ),
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(children: [
-                    Expanded(
-                      child: ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.all(16),
-                itemCount: _messages.length,
-                itemBuilder: (_, index) => _buildChatBubble(_messages[index]))),
+        Expanded(
+          child: ListView.builder(
+            controller: _scrollController,
+            padding: const EdgeInsets.all(16),
+            itemCount: _messages.length,
+            itemBuilder: (_, index) => _buildChatBubble(_messages[index]),
+          ),
+        ),
         if (_isResponding)
           Padding(
-            padding:
-                const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
             child: Row(children: [
               SizedBox(
                   width: 24,
@@ -387,8 +418,9 @@ class _ChatScreenState extends State<ChatScreen> {
       if (flashcardData != null) {
         textForDisplay =
             "The translation for \"${flashcardData.front}\" is *${flashcardData.back}*.";
-        // Add to recommendations if not already a flashcard
-        _maybeRecommendFlashcard(flashcardData, message);
+        if (!_isGuest) {
+          _maybeRecommendFlashcard(flashcardData, message);
+        }
       } else {
         textForDisplay = message.text;
       }
@@ -418,17 +450,24 @@ class _ChatScreenState extends State<ChatScreen> {
                     color: isUser ? Colors.white : Colors.black87),
                 strong: TextStyle(
                     fontSize: 16.0,
-                    color: isUser ? Colors.white : Colors.black87,
                     fontWeight: FontWeight.bold),
               ),
             ),
-            if (!isUser) ...[
+            if (!isUser && !_isGuest) ...[
               const SizedBox(height: 8),
               Row(mainAxisSize: MainAxisSize.min, children: [
                 _buildBubbleButton(Icons.volume_up_rounded, 'Listen', () async {
                   await _speakText(textForDisplay.replaceAll('*', ''), _languageTtsCode);
                 }),
                 _buildSmartSaveButton(message),
+              ]),
+            ]
+            else if (!isUser && _isGuest) ...[
+              const SizedBox(height: 8),
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                _buildBubbleButton(Icons.volume_up_rounded, 'Listen', () async {
+                  await _speakText(textForDisplay.replaceAll('*', ''), _languageTtsCode);
+                }),
               ]),
             ]
           ],

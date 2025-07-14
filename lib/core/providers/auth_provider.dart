@@ -4,7 +4,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../../services/user_data_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum AuthState { initial, loading, authenticated, unauthenticated, error }
+enum AuthState { initial, loading, authenticated, unauthenticated, error, guest }
 
 class AuthProvider extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -19,6 +19,7 @@ class AuthProvider extends ChangeNotifier {
   AuthState get authState => _authState;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _currentUser != null;
+  bool get isGuest => _authState == AuthState.guest;
   bool get isLoading => _authState == AuthState.loading;
   
   AuthProvider() {
@@ -36,6 +37,21 @@ class AuthProvider extends ChangeNotifier {
       }
       notifyListeners();
     });
+  }
+
+  // Guest mode methods
+  void enterGuestMode() {
+    _authState = AuthState.guest;
+    _currentUser = null;
+    _errorMessage = null;
+    notifyListeners();
+  }
+
+  void exitGuestMode() {
+    _authState = AuthState.unauthenticated;
+    _currentUser = null;
+    _errorMessage = null;
+    notifyListeners();
   }
   
   Future<void> signInWithGoogle() async {

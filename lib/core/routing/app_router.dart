@@ -15,6 +15,7 @@ import '../../screens/flashcards_screen.dart';
 import '../../models/phrasebook_theme.dart';
 import '../../features/phrasebook/presentation/screens/category_phrases_screen.dart';
 import '../../screens/recommendations_screen.dart';
+import '../../screens/guest_home_page.dart';
 
 class AppRouter {
   static final List<RouteBase> routes = [
@@ -33,7 +34,28 @@ class AppRouter {
       path: '/signin',
       builder: (context, state) => const SignInScreen(),
     ),
-    // Main app routes
+    // Guest mode routes
+    ShellRoute(
+      builder: (context, state, child) => GuestAppShell(child: child),
+      routes: [
+        // Guest home screen
+        GoRoute(
+          path: '/guest',
+          builder: (context, state) => const GuestHomePage(),
+        ),
+        // Guest chat screen
+        GoRoute(
+          path: '/guest/chat',
+          builder: (context, state) => const ChatScreen(),
+        ),
+        // Guest phrasebook screen
+        GoRoute(
+          path: '/guest/phrasebook',
+          builder: (context, state) => const PhrasebookScreen(),
+        ),
+      ],
+    ),
+    // Main app routes (authenticated users)
     ShellRoute(
       builder: (context, state, child) => MainAppShell(child: child),
       routes: [
@@ -178,6 +200,80 @@ class ErrorScreen extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// Guest app shell with simplified navigation
+class GuestAppShell extends StatefulWidget {
+  final Widget child;
+
+  const GuestAppShell({super.key, required this.child});
+
+  @override
+  State<GuestAppShell> createState() => _GuestAppShellState();
+}
+
+class _GuestAppShellState extends State<GuestAppShell> {
+  int _currentIndex = 0;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final location = GoRouterState.of(context).uri.toString();
+    if (location.startsWith('/guest/chat')) {
+      _currentIndex = 1;
+    } else if (location.startsWith('/guest/phrasebook')) {
+      _currentIndex = 2;
+    } else {
+      _currentIndex = 0;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: widget.child,
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+          // Navigate to the selected route
+          switch (index) {
+            case 0:
+              context.go('/guest');
+              break;
+            case 1:
+              context.go('/guest/chat');
+              break;
+            case 2:
+              context.go('/guest/phrasebook');
+              break;
+          }
+        },
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: Colors.teal[700],
+        unselectedItemColor: Colors.teal[200],
+        items: [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_outlined, color: Colors.blue[200]),
+            activeIcon: Icon(Icons.home, color: Colors.blue[700]),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.chat_outlined, color: Colors.green[200]),
+            activeIcon: Icon(Icons.chat, color: Colors.green[700]),
+            label: 'Chat',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.auto_stories_outlined, color: Colors.purple[200]),
+            activeIcon: Icon(Icons.auto_stories, color: Colors.purple[700]),
+            label: 'Phrasebook',
+          ),
+        ],
       ),
     );
   }
