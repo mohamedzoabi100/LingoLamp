@@ -11,6 +11,7 @@ import '../services/ai_phrase_service.dart';
 import '../services/ai_chat_service.dart';
 import '../services/xp_service.dart';
 import '../core/providers/language_provider.dart';
+import '../core/providers/flashcard_provider.dart';
 
 class RecommendationsScreen extends StatefulWidget {
   const RecommendationsScreen({super.key});
@@ -60,25 +61,17 @@ class _RecommendationsScreenState extends State<RecommendationsScreen> {
                           icon: const Icon(Icons.add),
                           color: Colors.green,
                           onPressed: () async {
-                            // Add as flashcard
-                            final flashcard = Flashcard(
-                              originalText: rec.term,
-                              translatedText: rec.context,
-                              sourceLanguage: 'en',
-                              targetLanguage: languageProvider.currentLanguage,
-                              languageCode: languageProvider.currentLanguage,
-                              createdAt: DateTime.now(),
-                              lastStudied: DateTime.now(),
-                              timesStudied: 0,
-                              difficulty: 2,
-                              isFavorite: false,
-                              category: 'Recommended',
-                              tags: ['recommended'],
+                            final flashcardProvider = Provider.of<FlashcardProvider>(context, listen: false);
+                            // Add as flashcard using the provider
+                            await flashcardProvider.addFlashcard(
+                              rec.term,
+                              rec.context,
+                              'Recommended',
                             );
-                            await DatabaseHelper.instance.insertFlashcard(flashcard);
                             await _recommendationService.removeRecommendation(rec.id!);
                             await _xpService.awardFlashcardCreated();
                             if (mounted) {
+                              setState(() {}); // Refresh recommendations
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(content: Text('Added "${rec.term}" to flashcards! 📚 +10 XP'), backgroundColor: Colors.green),
                               );

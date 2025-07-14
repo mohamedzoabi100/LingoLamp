@@ -5,7 +5,7 @@ import 'package:provider/single_child_widget.dart';
 import 'auth_provider.dart';
 
 // Features
-import '../../providers/chat_provider.dart';
+import 'chat_provider.dart';
 import 'flashcard_provider.dart';
 import 'phrasebook_provider.dart';
 import 'user_provider.dart';

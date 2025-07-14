@@ -290,7 +290,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with TickerProvider
   }
 
   Widget _buildReviewMode() {
-    if (_reviewQueue.isEmpty) {
+    if (_reviewQueue.isEmpty || _currentIndex >= _reviewQueue.length) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -440,6 +440,10 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with TickerProvider
   }
 
   Future<void> _processReview(StudyCard card, ReviewQuality quality) async {
+    if (_reviewQueue.isEmpty || _currentIndex >= _reviewQueue.length) {
+      _showSessionComplete();
+      return;
+    }
     final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
     final updated = await StudyService.processReview(card, quality, languageCode: languageProvider.currentLanguage);
 

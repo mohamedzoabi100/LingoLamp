@@ -213,6 +213,36 @@ class XPService {
     }
   }
 
+  /// Clear all XP and streak data (for account deletion)
+  Future<void> clearAllXPData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Clear all XP-related keys
+      await prefs.remove(_totalXPKey);
+      await prefs.remove(_todayXPKey);
+      await prefs.remove(_currentStreakKey);
+      await prefs.remove(_longestStreakKey);
+      await prefs.remove(_lastActivityDateKey);
+      
+      // Clear any other XP-related keys that might exist
+      await prefs.remove('xp_level');
+      await prefs.remove('xp_experience');
+      await prefs.remove('streak_count');
+      await prefs.remove('last_streak_date');
+      await prefs.remove('achievements');
+      await prefs.remove('daily_goals');
+      
+      print('✅ All XP and streak data cleared');
+      
+      // Notify listeners for UI update
+      _notifyXPListeners();
+      
+    } catch (e) {
+      print('❌ Error clearing XP data: $e');
+    }
+  }
+
   /// Check if two dates are the same day
   bool _isSameDay(DateTime date1, DateTime date2) {
     return date1.year == date2.year && 

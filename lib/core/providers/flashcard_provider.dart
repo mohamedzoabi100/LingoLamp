@@ -1,198 +1,57 @@
 import 'package:flutter/foundation.dart';
+import 'package:rxdart/rxdart.dart';
 import '../../models/flashcard_model.dart';
+import '../../utils/database_helper.dart';
+import '../../services/sync_service.dart';
+import '../../services/xp_service.dart';
 import '../../services/xp_event_tracker.dart';
 
-class StudySession {
-  final List<Flashcard> cards;
-  final int currentIndex;
-  final int totalCards;
-  final DateTime startTime;
-
-  StudySession({
-    required this.cards,
-    this.currentIndex = 0,
-    required this.totalCards,
-    required this.startTime,
-  });
-
-  bool get isComplete => currentIndex >= totalCards;
-  Flashcard? get currentCard => cards.isNotEmpty && currentIndex < cards.length ? cards[currentIndex] : null;
-}
-
 class FlashcardProvider extends ChangeNotifier {
+  final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+  final SyncService _syncService = SyncService();
+  final XPService _xpService = XPService();
+
   List<Flashcard> _flashcards = [];
-  List<Flashcard> _studyQueue = [];
-  StudySession? _currentSession;
   bool _isLoading = false;
-  String? _errorMessage;
+  String? _error;
 
   // Getters
   List<Flashcard> get flashcards => _flashcards;
-  List<Flashcard> get studyQueue => _studyQueue;
-  StudySession? get currentSession => _currentSession;
   bool get isLoading => _isLoading;
-  String? get errorMessage => _errorMessage;
+  String? get error => _error;
+  Stream<List<Flashcard>> get flashcardsStream => _dbHelper.flashcardsStream;
+
+  FlashcardProvider() {
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    await loadFlashcards();
+    _listenToDatabaseChanges();
+  }
+
+  void _listenToDatabaseChanges() {
+    _dbHelper.flashcardsStream.listen((flashcards) {
+      _flashcards = flashcards;
+      notifyListeners();
+    });
+  }
 
   Future<void> loadFlashcards() async {
     try {
       _isLoading = true;
+      _error = null;
       notifyListeners();
 
-      // TODO: Load flashcards from database
-      await Future.delayed(const Duration(milliseconds: 300));
-
-      _flashcards = [
-        Flashcard(
-          originalText: 'Hello',
-          translatedText: 'Hola',
-          sourceLanguage: 'en',
-          targetLanguage: 'es',
-          createdAt: DateTime.now().subtract(const Duration(days: 5)),
-          lastStudied: DateTime.now().subtract(const Duration(hours: 2)),
-          timesStudied: 3,
-          difficulty: 2,
-          category: 'Greetings',
-        ),
-        Flashcard(
-          originalText: 'Goodbye',
-          translatedText: 'Adiós',
-          sourceLanguage: 'en',
-          targetLanguage: 'es',
-          createdAt: DateTime.now().subtract(const Duration(days: 4)),
-          lastStudied: DateTime.now().subtract(const Duration(days: 1)),
-          timesStudied: 2,
-          difficulty: 2,
-          category: 'Greetings',
-        ),
-        Flashcard(
-          originalText: 'Thank you',
-          translatedText: 'Gracias',
-          sourceLanguage: 'en',
-          targetLanguage: 'es',
-          createdAt: DateTime.now().subtract(const Duration(days: 3)),
-          lastStudied: DateTime.now().subtract(const Duration(hours: 6)),
-          timesStudied: 5,
-          difficulty: 1,
-          category: 'Politeness',
-        ),
-      ];
-
-      _generateStudyQueue();
-      _errorMessage = null;
+      _flashcards = await _dbHelper.getAllFlashcards();
+      
+      _isLoading = false;
+      notifyListeners();
     } catch (e) {
-      _errorMessage = 'Failed to load flashcards: $e';
-    } finally {
+      _error = e.toString();
       _isLoading = false;
       notifyListeners();
     }
-  }
-
-  void _generateStudyQueue() {
-    // Simple spaced repetition algorithm
-    final now = DateTime.now();
-    _studyQueue = _flashcards.where((card) {
-      if (card.lastStudied == null) return true;
-      
-      final daysSinceLastStudy = now.difference(card.lastStudied).inDays;
-      final interval = _calculateInterval(card.timesStudied, card.difficulty);
-      
-      return daysSinceLastStudy >= interval;
-    }).toList();
-    
-    // Sort by priority (due cards first, then by difficulty)
-    _studyQueue.sort((a, b) {
-      final aDue = a.lastStudied == null || 
-          now.difference(a.lastStudied).inDays >= _calculateInterval(a.timesStudied, a.difficulty);
-      final bDue = b.lastStudied == null || 
-          now.difference(b.lastStudied).inDays >= _calculateInterval(b.timesStudied, b.difficulty);
-      
-      if (aDue && !bDue) return -1;
-      if (!aDue && bDue) return 1;
-      
-      return a.difficulty.compareTo(b.difficulty);
-    });
-  }
-
-  int _calculateInterval(int timesStudied, int difficulty) {
-    // Simple spaced repetition intervals
-    if (timesStudied == 0) return 0; // New card
-    if (timesStudied == 1) return 1; // 1 day
-    if (timesStudied == 2) return 3; // 3 days
-    if (timesStudied == 3) return 7; // 1 week
-    if (timesStudied == 4) return 14; // 2 weeks
-    return 30; // 1 month
-  }
-
-  Future<void> startStudySession() async {
-    if (_studyQueue.isEmpty) return;
-
-    _currentSession = StudySession(
-      cards: List.from(_studyQueue),
-      totalCards: _studyQueue.length,
-      startTime: DateTime.now(),
-    );
-    notifyListeners();
-  }
-
-  Future<void> markCardAsStudied(String cardId, int rating) async {
-    try {
-      final cardIndex = _flashcards.indexWhere((card) => card.uuid == cardId);
-      if (cardIndex == -1) return;
-
-      final card = _flashcards[cardIndex];
-      final updatedCard = card.copyWith(
-        lastStudied: DateTime.now(),
-        timesStudied: card.timesStudied + 1,
-        difficulty: _adjustDifficulty(card.difficulty, rating),
-      );
-
-      _flashcards[cardIndex] = updatedCard;
-      
-      // Update study queue
-      _generateStudyQueue();
-      
-      // Update current session
-      if (_currentSession != null) {
-        final sessionCardIndex = _currentSession!.cards.indexWhere((card) => card.uuid == cardId);
-        if (sessionCardIndex != -1) {
-          _currentSession!.cards[sessionCardIndex] = updatedCard;
-        }
-      }
-
-      notifyListeners();
-      
-      // TODO: Save to database
-    } catch (e) {
-      _errorMessage = 'Failed to update card: $e';
-      notifyListeners();
-    }
-  }
-
-  int _adjustDifficulty(int currentDifficulty, int rating) {
-    // Rating: 1-5 (1 = very hard, 5 = very easy)
-    if (rating <= 2 && currentDifficulty < 5) {
-      return currentDifficulty + 1; // Make harder
-    } else if (rating >= 4 && currentDifficulty > 1) {
-      return currentDifficulty - 1; // Make easier
-    }
-    return currentDifficulty;
-  }
-
-  void nextCard() {
-    if (_currentSession == null || _currentSession!.isComplete) return;
-    
-    _currentSession = StudySession(
-      cards: _currentSession!.cards,
-      currentIndex: _currentSession!.currentIndex + 1,
-      totalCards: _currentSession!.totalCards,
-      startTime: _currentSession!.startTime,
-    );
-    notifyListeners();
-  }
-
-  void endStudySession() {
-    _currentSession = null;
-    notifyListeners();
   }
 
   Future<void> addFlashcard(String originalText, String translatedText, String category) async {
@@ -207,32 +66,119 @@ class FlashcardProvider extends ChangeNotifier {
         category: category,
       );
 
-      _flashcards.add(newCard);
-      _generateStudyQueue();
-      notifyListeners();
-      
+      // Insert into the database
+      await _dbHelper.insertFlashcard(newCard);
+
+      // Sync to cloud if user is authenticated
+      if (_syncService.isAuthenticated) {
+        await _syncService.syncFlashcards();
+      }
+
       // Award XP for creating a flashcard
       final xpTracker = XPEventTracker();
-      xpTracker.addXP(XPEventTracker.flashcardCreatedFromChat, 'Flashcard created from chat');
-      
-      // TODO: Save to database
+      xpTracker.addXP(XPEventTracker.flashcardCreatedFromChat, 'Flashcard created');
+
+      notifyListeners();
     } catch (e) {
-      _errorMessage = 'Failed to add flashcard: $e';
+      _error = e.toString();
       notifyListeners();
     }
   }
 
-  void updateFlashcard(Flashcard updated) {
-    final index = _flashcards.indexWhere((c) => c.uuid == updated.uuid);
-    if (index != -1) {
-      _flashcards[index] = updated;
-      _generateStudyQueue();
+  Future<void> updateFlashcard(Flashcard flashcard) async {
+    try {
+      await _dbHelper.updateFlashcard(flashcard);
+
+      // Sync to cloud if user is authenticated
+      if (_syncService.isAuthenticated) {
+        await _syncService.syncFlashcards();
+      }
+
       notifyListeners();
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteFlashcard(String uuid) async {
+    try {
+      await _dbHelper.deleteFlashcardByUuid(uuid);
+
+      // Sync to cloud if user is authenticated
+      if (_syncService.isAuthenticated) {
+        await _syncService.syncFlashcards();
+      }
+
+      notifyListeners();
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<void> markFlashcardAsStudied(Flashcard flashcard) async {
+    try {
+      final updatedCard = flashcard.markAsStudied();
+      await _dbHelper.updateFlashcard(updatedCard);
+
+      // Sync to cloud if user is authenticated
+      if (_syncService.isAuthenticated) {
+        await _syncService.syncFlashcards();
+      }
+
+      notifyListeners();
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<void> toggleFavorite(Flashcard flashcard) async {
+    try {
+      final updatedCard = flashcard.copyWith(isFavorite: !flashcard.isFavorite);
+      await _dbHelper.updateFlashcard(updatedCard);
+
+      // Sync to cloud if user is authenticated
+      if (_syncService.isAuthenticated) {
+        await _syncService.syncFlashcards();
+      }
+
+      notifyListeners();
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+    }
+  }
+
+  List<Flashcard> getFlashcardsByCategory(String category) {
+    return _flashcards.where((card) => card.category == category).toList();
+  }
+
+  List<Flashcard> getFavoriteFlashcards() {
+    return _flashcards.where((card) => card.isFavorite).toList();
+  }
+
+  List<Flashcard> getFlashcardsByLanguage(String languageCode) {
+    return _flashcards.where((card) => card.languageCode == languageCode).toList();
+  }
+
+  // Sync methods
+  Future<void> syncWithCloud() async {
+    if (_syncService.isAuthenticated) {
+      await _syncService.syncFlashcards();
+    }
+  }
+
+  Future<void> pullFromCloud() async {
+    if (_syncService.isAuthenticated) {
+      await _syncService.pullFromCloud();
+      await loadFlashcards(); // Reload after pulling
     }
   }
 
   void clearError() {
-    _errorMessage = null;
+    _error = null;
     notifyListeners();
   }
 } 

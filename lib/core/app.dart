@@ -7,6 +7,9 @@ import 'providers/app_providers.dart';
 import 'providers/auth_provider.dart';
 import 'providers/user_provider.dart';
 
+// Services
+import '../services/sync_service.dart';
+
 // Theme
 import 'theme/app_theme.dart';
 
@@ -25,8 +28,57 @@ class LingoLampApp extends StatelessWidget {
   }
 }
 
-class _RouterScope extends StatelessWidget {
+class _RouterScope extends StatefulWidget {
   const _RouterScope();
+
+  @override
+  State<_RouterScope> createState() => _RouterScopeState();
+}
+
+class _RouterScopeState extends State<_RouterScope> with WidgetsBindingObserver {
+  late SyncService _syncService;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _syncService = SyncService();
+    _initializeSync();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _syncService.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initializeSync() async {
+    await _syncService.initialize();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    // Handle app lifecycle changes for sync
+    switch (state) {
+      case AppLifecycleState.resumed:
+        // App came to foreground - check for sync
+        if (_syncService.isAuthenticated) {
+          _syncService.pullFromCloud();
+        }
+        break;
+      case AppLifecycleState.paused:
+        // App going to background - push any pending changes
+        if (_syncService.isAuthenticated) {
+          _syncService.pushToCloud();
+        }
+        break;
+      default:
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
