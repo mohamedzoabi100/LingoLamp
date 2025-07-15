@@ -10,6 +10,7 @@ import './user_data_service.dart';
 import './daily_task_service.dart';
 import '../models/daily_task_model.dart' as daily_task;
 import '../core/providers/language_provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class PhraseService {
   static final PhraseService _instance = PhraseService._internal();
@@ -21,6 +22,7 @@ class PhraseService {
   Set<String> _favoriteIds = {};
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   bool get _isAuthenticated => _auth.currentUser != null;
 
   final _phrasesSubject = BehaviorSubject<List<PhraseModel>>.seeded([]);
@@ -127,10 +129,23 @@ class PhraseService {
   }
 
   Future<void> _loadAiPhrases(String languageCode) async {
-    final prefs = await SharedPreferences.getInstance();
-    final key = _isAuthenticated ? 'signed_in_ai_phrases_$languageCode' : 'guest_ai_phrases_$languageCode';
-    final jsonList = prefs.getStringList(key) ?? [];
-    _aiPhrases = jsonList.map((json) => PhraseModel.fromJson(jsonDecode(json))).toList();
+    if (_isAuthenticated) {
+      final uid = _auth.currentUser!.uid;
+      final snapshot = await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('phrases')
+        .doc(languageCode)
+        .collection('items')
+        .get();
+      _aiPhrases = snapshot.docs.map((doc) => PhraseModel.fromJson(doc.data())).toList();
+      print('✅ [PhraseService] Loaded ${_aiPhrases.length} AI phrases from Firestore for $uid/$languageCode');
+    } else {
+      final prefs = await SharedPreferences.getInstance();
+      final key = _isAuthenticated ? 'signed_in_ai_phrases_$languageCode' : 'guest_ai_phrases_$languageCode';
+      final jsonList = prefs.getStringList(key) ?? [];
+      _aiPhrases = jsonList.map((json) => PhraseModel.fromJson(jsonDecode(json))).toList();
+    }
   }
 
   Future<void> _saveAiPhrases(String languageCode) async {
@@ -171,6 +186,20 @@ class PhraseService {
     print('✅ [PhraseService] Added phrase. Total AI phrases: ${_aiPhrases.length}');
     await _saveAiPhrases(phrase.languageCode);
     _updateStreams();
+
+    // --- Firestore sync for logged-in users ---
+    if (_isAuthenticated) {
+      final uid = _auth.currentUser!.uid;
+      final docRef = _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('phrases')
+        .doc(phrase.languageCode)
+        .collection('items')
+        .doc(phrase.id);
+      await docRef.set(phrase.toJson());
+      print('✅ [PhraseService] Synced AI phrase to Firestore for user $uid');
+    }
   }
   
   Future<void> updateAiPhrasesFromSync(List<String> aiPhrasesJson) async {

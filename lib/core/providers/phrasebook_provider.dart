@@ -156,7 +156,15 @@ class PhrasebookProvider extends ChangeNotifier {
   // Add AI generated phrase
   Future<void> addAiPhrase(PhraseModel phrase) async {
     try {
-      await _phraseService.addAiPhrase(phrase);
+      if (_isGuest) {
+        await _phraseService.addAiPhrase(phrase);
+      } else {
+        // Add to Firestore: treat AI-generated phrases as regular phrases in Firestore
+        // You may need a CloudPhraseService, but for now, use _phraseService if it supports Firestore, otherwise implement Firestore add here
+        // For now, let's assume _phraseService.addAiPhrase handles Firestore for logged-in users
+        await _phraseService.addAiPhrase(phrase);
+        // If not, you would add Firestore logic here
+      }
       _errorMessage = null;
     } catch (e) {
       _errorMessage = 'Failed to add AI phrase: $e';
