@@ -4,6 +4,7 @@ import '../../models/flashcard_model.dart';
 import '../../services/user_data_service.dart';
 import '../../utils/database_helper.dart';
 import '../../core/providers/language_provider.dart';
+import '../../core/providers/flashcard_provider.dart';
 
 class BrowseFlashcardsList extends StatefulWidget {
   const BrowseFlashcardsList({super.key});
@@ -30,6 +31,10 @@ class _BrowseFlashcardsListState extends State<BrowseFlashcardsList> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final languageProvider = context.read<LanguageProvider>();
+      await context.read<FlashcardProvider>().init(languageCode: languageProvider.currentLanguage, context: context);
+    });
     // _searchCtrl.addListener(_applyFilters); // No longer needed
   }
 

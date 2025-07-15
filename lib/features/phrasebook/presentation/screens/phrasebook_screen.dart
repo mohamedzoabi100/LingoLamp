@@ -56,10 +56,9 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
   }
 
   Future<void> _initPhrasebookProvider() async {
-    // Get current language and initialize provider
-    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    final languageProvider = context.read<LanguageProvider>();
     final currentLanguage = languageProvider.currentLanguage;
-    await context.read<PhrasebookProvider>().init(languageCode: currentLanguage);
+    await context.read<PhrasebookProvider>().init(languageCode: currentLanguage, context: context);
   }
 
   Future<void> _ensureProviderInitialized() async {

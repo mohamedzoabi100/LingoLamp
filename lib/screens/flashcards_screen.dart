@@ -13,6 +13,7 @@ import '../utils/database_helper.dart';
 import 'spaced_repetition_study_screen.dart';
 import 'recommendations_screen.dart';
 import 'flashcards/browse_flashcards_list.dart';
+import '../core/providers/flashcard_provider.dart';
 
 class FlashcardsScreen extends StatefulWidget {
   final VoidCallback? onBackToHome;
@@ -46,6 +47,10 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with TickerProvider
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final languageProvider = context.read<LanguageProvider>();
+      await context.read<FlashcardProvider>().init(languageCode: languageProvider.currentLanguage, context: context);
+    });
     _loadFlashcards();
     _loadReviewQueue();
   }

@@ -23,6 +23,7 @@ import '../services/recommendation_service.dart';
 import '../core/providers/language_provider.dart';
 import '../core/providers/auth_provider.dart';
 import 'package:go_router/go_router.dart';
+import '../core/providers/chat_provider.dart' as chatprov;
 
 class ChatScreen extends StatefulWidget {
   final VoidCallback? onBackToHome;
@@ -57,7 +58,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   final List<model.ChatMessage> _messages = [];
   String? _currentConversationId;
-  Conversation? _currentConversation;
+  chatprov.Conversation? _currentConversation;
   bool _isResponding = false;
   bool _isInitialized = false;
   bool _isGuest = false;
@@ -83,6 +84,10 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _currentConversationId = widget.conversationId;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final languageProvider = context.read<LanguageProvider>();
+      await context.read<chatprov.ChatProvider>().init(languageCode: languageProvider.currentLanguage, context: context);
+    });
     // Initialization is now deferred to didChangeDependencies
   }
 
@@ -189,12 +194,18 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _loadConversationAndMessages(String conversationId) async {
-    _currentConversation = await _dbHelper.getConversation(conversationId);
-    if (_currentConversation == null) {
+    final modelConvo = await _dbHelper.getConversation(conversationId);
+    if (modelConvo == null) {
       if (mounted) Navigator.pop(context);
       return;
     }
-
+    _currentConversation = chatprov.Conversation(
+      id: modelConvo.id,
+      title: modelConvo.title,
+      createdAt: modelConvo.createdAt,
+      lastMessageTimestamp: modelConvo.updatedAt,
+    );
+    
     // Initialize AI service with fresh session and updated system prompt
     _aiChatService = AiChatService();
     
@@ -225,17 +236,23 @@ class _ChatScreenState extends State<ChatScreen> {
       // Get the current language from the provider
       final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
 
-      // Create conversation with correct languageCode
-      Conversation newConvo = Conversation(
+      // Create both model.Conversation for DB and chatprov.Conversation for state
+      final newModelConvo = Conversation(
         id: const Uuid().v4(),
         title: convoTitle,
         createdAt: now,
         updatedAt: now,
         languageCode: languageProvider.currentLanguage,
       );
+      final newChatProvConvo = chatprov.Conversation(
+        id: newModelConvo.id,
+        title: newModelConvo.title,
+        createdAt: newModelConvo.createdAt,
+        lastMessageTimestamp: newModelConvo.updatedAt,
+      );
 
-      _currentConversationId = await _dbHelper.insertConversation(newConvo);
-      _currentConversation = await _dbHelper.getConversation(_currentConversationId!);
+      _currentConversationId = await _dbHelper.insertConversation(newModelConvo);
+      _currentConversation = newChatProvConvo;
 
       // Update messages with the new conversation ID
       for (int i = 0; i < _messages.length; i++) {

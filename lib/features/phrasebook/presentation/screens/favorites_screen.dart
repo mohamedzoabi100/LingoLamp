@@ -21,6 +21,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> with WidgetsBindingOb
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final languageProvider = context.read<LanguageProvider>();
+      await context.read<PhrasebookProvider>().init(languageCode: languageProvider.currentLanguage, context: context);
+    });
     WidgetsBinding.instance.addObserver(this);
   }
 

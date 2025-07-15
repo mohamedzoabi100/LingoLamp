@@ -4,8 +4,9 @@ import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../utils/database_helper.dart';
-import '../models/conversation_model.dart';
+import '../models/conversation_model.dart' as model;
 import '../core/providers/language_provider.dart';
+import '../core/providers/chat_provider.dart' as chatprov;
 
 class ChatHistoryScreen extends StatefulWidget {
   const ChatHistoryScreen({super.key});
@@ -16,12 +17,16 @@ class ChatHistoryScreen extends StatefulWidget {
 
 class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
-  List<Conversation> _conversations = [];
+  List<model.Conversation> _conversations = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final languageProvider = context.read<LanguageProvider>();
+      await context.read<chatprov.ChatProvider>().init(languageCode: languageProvider.currentLanguage, context: context);
+    });
     _loadConversations();
   }
 
@@ -53,7 +58,7 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
     }
   }
 
-  Future<void> _confirmAndDeleteConversation(Conversation conversation) async {
+  Future<void> _confirmAndDeleteConversation(model.Conversation conversation) async {
     final bool? shouldDelete = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) {

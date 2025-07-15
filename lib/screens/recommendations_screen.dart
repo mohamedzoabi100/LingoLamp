@@ -25,6 +25,15 @@ class _RecommendationsScreenState extends State<RecommendationsScreen> {
   final XPService _xpService = XPService();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final languageProvider = context.read<LanguageProvider>();
+      await context.read<FlashcardProvider>().init(languageCode: languageProvider.currentLanguage, context: context);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Consumer<LanguageProvider>(
       builder: (context, languageProvider, child) {
@@ -62,12 +71,20 @@ class _RecommendationsScreenState extends State<RecommendationsScreen> {
                           color: Colors.green,
                           onPressed: () async {
                             final flashcardProvider = Provider.of<FlashcardProvider>(context, listen: false);
-                            // Add as flashcard using the provider
-                            await flashcardProvider.addFlashcard(
-                              rec.term,
-                              rec.context,
-                              'Recommended',
+                            final languageProvider = context.read<LanguageProvider>();
+                            final now = DateTime.now();
+                            final flashcard = Flashcard(
+                              originalText: rec.term,
+                              translatedText: rec.context,
+                              sourceLanguage: 'en',
+                              targetLanguage: languageProvider.currentLanguage,
+                              languageCode: languageProvider.currentLanguage,
+                              createdAt: now,
+                              lastStudied: now,
+                              category: 'Recommended',
+                              tags: ['recommended'],
                             );
+                            await flashcardProvider.addFlashcard(flashcard);
                             await _recommendationService.removeRecommendation(rec.id!);
                             await _xpService.awardFlashcardCreated();
                             if (mounted) {

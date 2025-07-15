@@ -1,4 +1,9 @@
 import 'package:flutter/foundation.dart';
+import '../../services/cloud_chat_service.dart';
+import '../providers/auth_provider.dart';
+import 'package:flutter/widgets.dart';
+import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ChatMessage {
   final String id;
@@ -65,12 +70,17 @@ class Conversation {
 }
 
 class ChatProvider extends ChangeNotifier {
+  final CloudChatService _cloudChatService = CloudChatService();
   List<ChatMessage> _messages = [];
   List<Conversation> _conversations = [];
   Conversation? _currentConversation;
   bool _isLoading = false;
   bool _isResponding = false;
   String? _errorMessage;
+  bool _isGuest = false;
+  String _currentLanguage = 'es';
+  Stream<List<Map<String, dynamic>>>? _conversationsStream;
+  Stream<List<Map<String, dynamic>>>? _messagesStream;
 
   // Getters
   List<ChatMessage> get messages => _messages;
@@ -80,14 +90,51 @@ class ChatProvider extends ChangeNotifier {
   bool get isResponding => _isResponding;
   String? get errorMessage => _errorMessage;
 
+  // Context-aware init
+  Future<void> init({String? languageCode, required BuildContext context}) async {
+    if (languageCode != null) _currentLanguage = languageCode;
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    _isGuest = authProvider.isGuest;
+    if (!_isGuest) {
+      _listenToConversationsCloud();
+    }
+  }
+
+  void _listenToConversationsCloud() {
+    _conversationsStream?.drain();
+    _conversationsStream = _cloudChatService.listenToConversations();
+    _conversationsStream!.listen((cloudConvos) {
+      _conversations = cloudConvos.map((c) => Conversation(
+        id: c['id'],
+        title: c['title'],
+        createdAt: (c['createdAt'] as Timestamp).toDate(),
+        lastMessageTimestamp: (c['lastMessageTimestamp'] as Timestamp).toDate(),
+      )).toList();
+      notifyListeners();
+    });
+  }
+
+  void _listenToMessagesCloud(String conversationId) {
+    _messagesStream?.drain();
+    _messagesStream = _cloudChatService.listenToMessages(conversationId);
+    _messagesStream!.listen((cloudMsgs) {
+      _messages = cloudMsgs.map((m) => ChatMessage(
+        id: m['id'],
+        text: m['text'],
+        isUserMessage: m['isUserMessage'],
+        timestamp: (m['timestamp'] as Timestamp).toDate(),
+        conversationId: m['conversationId'],
+        suggestedFlashcards: List<String>.from(m['suggestedFlashcards'] ?? []),
+      )).toList();
+      notifyListeners();
+    });
+  }
+
   Future<void> loadConversations() async {
-    try {
+    if (_isGuest) {
       _isLoading = true;
       notifyListeners();
-
-      // TODO: Load conversations from database
       await Future.delayed(const Duration(milliseconds: 300));
-
       _conversations = [
         Conversation(
           id: '1',
@@ -102,24 +149,16 @@ class ChatProvider extends ChangeNotifier {
           lastMessageTimestamp: DateTime.now().subtract(const Duration(minutes: 30)),
         ),
       ];
-
-      _errorMessage = null;
-    } catch (e) {
-      _errorMessage = 'Failed to load conversations: $e';
-    } finally {
       _isLoading = false;
       notifyListeners();
-    }
+    } // else: Firestore listener handles updates
   }
 
   Future<void> loadConversation(String conversationId) async {
-    try {
+    if (_isGuest) {
       _isLoading = true;
       notifyListeners();
-
-      // TODO: Load conversation and messages from database
       await Future.delayed(const Duration(milliseconds: 300));
-
       _currentConversation = _conversations.firstWhere(
         (conv) => conv.id == conversationId,
         orElse: () => Conversation(
@@ -129,7 +168,6 @@ class ChatProvider extends ChangeNotifier {
           lastMessageTimestamp: DateTime.now(),
         ),
       );
-
       _messages = [
         ChatMessage(
           id: '1',
@@ -139,21 +177,27 @@ class ChatProvider extends ChangeNotifier {
           conversationId: conversationId,
         ),
       ];
-
-      _errorMessage = null;
-    } catch (e) {
-      _errorMessage = 'Failed to load conversation: $e';
-    } finally {
       _isLoading = false;
       notifyListeners();
+    } else {
+      _currentConversation = _conversations.firstWhere(
+        (c) => c.id == conversationId,
+        orElse: () => Conversation(
+          id: conversationId,
+          title: 'New Conversation',
+          createdAt: DateTime.now(),
+          lastMessageTimestamp: DateTime.now(),
+        ),
+      );
+      if (_currentConversation != null) {
+        _listenToMessagesCloud(conversationId);
+      }
     }
   }
 
   Future<void> sendMessage(String text) async {
     if (text.trim().isEmpty) return;
-
-    try {
-      // Add user message
+    if (_isGuest) {
       final userMessage = ChatMessage(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         text: text,
@@ -161,16 +205,11 @@ class ChatProvider extends ChangeNotifier {
         timestamp: DateTime.now(),
         conversationId: _currentConversation?.id,
       );
-
       _messages.add(userMessage);
       notifyListeners();
-
-      // Simulate AI response
       _isResponding = true;
       notifyListeners();
-
       await Future.delayed(const Duration(seconds: 2));
-
       final aiMessage = ChatMessage(
         id: (DateTime.now().millisecondsSinceEpoch + 1).toString(),
         text: 'This is a simulated AI response to: "$text"',
@@ -179,55 +218,72 @@ class ChatProvider extends ChangeNotifier {
         conversationId: _currentConversation?.id,
         suggestedFlashcards: ['Hello', 'Goodbye'],
       );
-
       _messages.add(aiMessage);
       _isResponding = false;
       notifyListeners();
-
-    } catch (e) {
-      _errorMessage = 'Failed to send message: $e';
+    } else {
+      _isResponding = true;
+      notifyListeners();
+      await _cloudChatService.addMessage(_currentConversation!.id, {
+        'id': DateTime.now().millisecondsSinceEpoch.toString(),
+        'text': text,
+        'isUserMessage': true,
+        'timestamp': DateTime.now(),
+        'conversationId': _currentConversation!.id,
+        'suggestedFlashcards': [],
+      });
       _isResponding = false;
       notifyListeners();
     }
   }
 
   Future<void> createNewConversation() async {
-    try {
+    if (_isGuest) {
       final newConversation = Conversation(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         title: 'New Conversation',
         createdAt: DateTime.now(),
         lastMessageTimestamp: DateTime.now(),
       );
-
       _currentConversation = newConversation;
       _conversations.insert(0, newConversation);
       _messages.clear();
       notifyListeners();
-
-    } catch (e) {
-      _errorMessage = 'Failed to create conversation: $e';
-      notifyListeners();
+    } else {
+      final convoId = DateTime.now().millisecondsSinceEpoch.toString();
+      await _cloudChatService.addConversation({
+        'id': convoId,
+        'title': 'New Conversation',
+        'createdAt': DateTime.now(),
+        'lastMessageTimestamp': DateTime.now(),
+      });
+      // Firestore listener will update state
     }
   }
 
   Future<void> deleteConversation(String conversationId) async {
-    try {
+    if (_isGuest) {
       _conversations.removeWhere((conv) => conv.id == conversationId);
       if (_currentConversation?.id == conversationId) {
         _currentConversation = null;
         _messages.clear();
       }
-      // TODO: Delete from database if needed
       notifyListeners();
-    } catch (e) {
-      _errorMessage = 'Failed to delete conversation: $e';
-      notifyListeners();
+    } else {
+      await _cloudChatService.deleteConversation(conversationId);
+      // Firestore listener will update state
     }
   }
 
   void clearError() {
     _errorMessage = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _conversationsStream = null;
+    _messagesStream = null;
+    super.dispose();
   }
 } 

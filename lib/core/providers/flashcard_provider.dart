@@ -5,29 +5,48 @@ import '../../utils/database_helper.dart';
 import '../../services/sync_service.dart';
 import '../../services/xp_service.dart';
 import '../../services/xp_event_tracker.dart';
+import '../../services/cloud_flashcard_service.dart';
+import '../providers/auth_provider.dart';
+import 'package:flutter/widgets.dart';
+import 'package:provider/provider.dart';
 
 class FlashcardProvider extends ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
-  final SyncService _syncService = SyncService();
+  final CloudFlashcardService _cloudFlashcardService = CloudFlashcardService();
   final XPService _xpService = XPService();
 
   List<Flashcard> _flashcards = [];
   bool _isLoading = false;
   String? _error;
+  bool _isGuest = false;
+  String _currentLanguage = 'es';
+  Stream<List<Map<String, dynamic>>>? _flashcardsStream;
 
   // Getters
   List<Flashcard> get flashcards => _flashcards;
   bool get isLoading => _isLoading;
   String? get error => _error;
-  Stream<List<Flashcard>> get flashcardsStream => _dbHelper.flashcardsStream;
 
-  FlashcardProvider() {
-    _initialize();
+  // Context-aware init
+  Future<void> init({String? languageCode, required BuildContext context}) async {
+    if (languageCode != null) _currentLanguage = languageCode;
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    _isGuest = authProvider.isGuest;
+    if (_isGuest) {
+      await loadFlashcardsLocal();
+      _listenToDatabaseChanges();
+    } else {
+      _listenToFlashcardsCloud();
+    }
   }
 
-  Future<void> _initialize() async {
-    await loadFlashcards();
-    _listenToDatabaseChanges();
+  void _listenToFlashcardsCloud() {
+    _flashcardsStream?.drain();
+    _flashcardsStream = _cloudFlashcardService.listenToFlashcards(_currentLanguage);
+    _flashcardsStream!.listen((cloudFlashcards) {
+      _flashcards = cloudFlashcards.map((f) => Flashcard.fromMap(f)).toList();
+      notifyListeners();
+    });
   }
 
   void _listenToDatabaseChanges() {
@@ -37,14 +56,12 @@ class FlashcardProvider extends ChangeNotifier {
     });
   }
 
-  Future<void> loadFlashcards() async {
+  Future<void> loadFlashcardsLocal() async {
     try {
       _isLoading = true;
       _error = null;
       notifyListeners();
-
       _flashcards = await _dbHelper.getAllFlashcards();
-      
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -54,31 +71,15 @@ class FlashcardProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> addFlashcard(String originalText, String translatedText, String category) async {
+  // CRUD methods
+  Future<void> addFlashcard(Flashcard flashcard) async {
     try {
-      final newCard = Flashcard(
-        originalText: originalText,
-        translatedText: translatedText,
-        sourceLanguage: 'en',
-        targetLanguage: 'es',
-        createdAt: DateTime.now(),
-        lastStudied: DateTime.now(),
-        category: category,
-      );
-
-      // Insert into the database
-      await _dbHelper.insertFlashcard(newCard);
-
-      // Sync to cloud if user is authenticated
-      if (_syncService.isAuthenticated) {
-        await _syncService.syncFlashcards();
+      if (_isGuest) {
+        await _dbHelper.insertFlashcard(flashcard);
+      } else {
+        await _cloudFlashcardService.addFlashcard(_currentLanguage, flashcard.toMap());
       }
-
-      // Award XP for creating a flashcard
-      final xpTracker = XPEventTracker();
-      xpTracker.addXP(XPEventTracker.flashcardCreatedFromChat, 'Flashcard created');
-
-      notifyListeners();
+      await _xpService.awardFlashcardCreated();
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -87,14 +88,12 @@ class FlashcardProvider extends ChangeNotifier {
 
   Future<void> updateFlashcard(Flashcard flashcard) async {
     try {
-      await _dbHelper.updateFlashcard(flashcard);
-
-      // Sync to cloud if user is authenticated
-      if (_syncService.isAuthenticated) {
-        await _syncService.syncFlashcards();
+      if (_isGuest) {
+        await _dbHelper.updateFlashcard(flashcard);
+      } else {
+        if (flashcard.uuid.isEmpty) return;
+        await _cloudFlashcardService.updateFlashcard(_currentLanguage, flashcard.uuid, flashcard.toMap());
       }
-
-      notifyListeners();
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -103,14 +102,11 @@ class FlashcardProvider extends ChangeNotifier {
 
   Future<void> deleteFlashcard(String uuid) async {
     try {
-      await _dbHelper.deleteFlashcardByUuid(uuid);
-
-      // Sync to cloud if user is authenticated
-      if (_syncService.isAuthenticated) {
-        await _syncService.syncFlashcards();
+      if (_isGuest) {
+        await _dbHelper.deleteFlashcardByUuid(uuid);
+      } else {
+        await _cloudFlashcardService.removeFlashcard(_currentLanguage, uuid);
       }
-
-      notifyListeners();
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -120,14 +116,7 @@ class FlashcardProvider extends ChangeNotifier {
   Future<void> markFlashcardAsStudied(Flashcard flashcard) async {
     try {
       final updatedCard = flashcard.markAsStudied();
-      await _dbHelper.updateFlashcard(updatedCard);
-
-      // Sync to cloud if user is authenticated
-      if (_syncService.isAuthenticated) {
-        await _syncService.syncFlashcards();
-      }
-
-      notifyListeners();
+      await updateFlashcard(updatedCard);
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -137,14 +126,7 @@ class FlashcardProvider extends ChangeNotifier {
   Future<void> toggleFavorite(Flashcard flashcard) async {
     try {
       final updatedCard = flashcard.copyWith(isFavorite: !flashcard.isFavorite);
-      await _dbHelper.updateFlashcard(updatedCard);
-
-      // Sync to cloud if user is authenticated
-      if (_syncService.isAuthenticated) {
-        await _syncService.syncFlashcards();
-      }
-
-      notifyListeners();
+      await updateFlashcard(updatedCard);
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -163,22 +145,14 @@ class FlashcardProvider extends ChangeNotifier {
     return _flashcards.where((card) => card.languageCode == languageCode).toList();
   }
 
-  // Sync methods
-  Future<void> syncWithCloud() async {
-    if (_syncService.isAuthenticated) {
-      await _syncService.syncFlashcards();
-    }
-  }
-
-  Future<void> pullFromCloud() async {
-    if (_syncService.isAuthenticated) {
-      await _syncService.pullFromCloud();
-      await loadFlashcards(); // Reload after pulling
-    }
-  }
-
   void clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _flashcardsStream = null;
+    super.dispose();
   }
 } 

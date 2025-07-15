@@ -24,6 +24,10 @@ class _PhraseSearchScreenState extends State<PhraseSearchScreen> with WidgetsBin
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _searchController.addListener(_filterPhrases);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final languageProvider = context.read<LanguageProvider>();
+      await context.read<PhrasebookProvider>().init(languageCode: languageProvider.currentLanguage, context: context);
+    });
   }
 
   @override

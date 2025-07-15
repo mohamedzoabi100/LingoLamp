@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/phrase_model.dart';
 import '../../services/phrase_service.dart';
+import '../../services/cloud_favorites_service.dart';
 import '../providers/language_provider.dart';
+import '../providers/auth_provider.dart';
 
 // Theme model for phrasebook categories
 class PhrasebookTheme {
@@ -24,12 +26,15 @@ class PhrasebookTheme {
 
 class PhrasebookProvider extends ChangeNotifier {
   final PhraseService _phraseService = PhraseService();
+  final CloudFavoritesService _cloudFavoritesService = CloudFavoritesService();
   
   List<PhraseModel> _phrases = [];
   List<PhraseModel> _favorites = [];
   bool _isLoading = false;
   String? _errorMessage;
   String _currentLanguage = 'es';
+  bool _isGuest = false;
+  Stream<List<Map<String, dynamic>>>? _favoritesStream;
 
   // Getters
   List<PhraseModel> get phrases => _phrases;
@@ -38,13 +43,20 @@ class PhrasebookProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   // Initialize the provider
-  Future<void> init({String? languageCode}) async {
+  Future<void> init({String? languageCode, BuildContext? context}) async {
     if (languageCode != null) {
       _currentLanguage = languageCode;
+    }
+    if (context != null) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      _isGuest = authProvider.isGuest;
     }
     await _phraseService.init(languageCode: _currentLanguage);
     _listenToPhrases();
     _listenToLanguageChanges();
+    if (!_isGuest) {
+      _listenToFavoritesCloud();
+    }
   }
 
   // Listen to phrase service streams
@@ -59,6 +71,25 @@ class PhrasebookProvider extends ChangeNotifier {
       _favorites = favorites;
       notifyListeners();
     });
+  }
+
+  void _listenToFavoritesCloud() {
+    _favoritesStream?.drain();
+    _favoritesStream = _cloudFavoritesService.listenToFavorites(_currentLanguage);
+    _favoritesStream!.listen((cloudFavorites) {
+      // Map Firestore docs to PhraseModel (assume phraseId is stored)
+      final ids = cloudFavorites.map((f) => f['phraseId'] as String).toSet();
+      _favorites = _phrases.where((p) => ids.contains(p.id)).toList();
+      // Update isFavorite on all phrases
+      _phrases = _phrases.map((p) => p.copyWith(isFavorite: ids.contains(p.id))).toList();
+      notifyListeners();
+    });
+  }
+
+  @override
+  void dispose() {
+    _favoritesStream = null;
+    super.dispose();
   }
 
   // Listen to language changes
@@ -136,7 +167,22 @@ class PhrasebookProvider extends ChangeNotifier {
   // Toggle favorite
   Future<void> toggleFavorite(String phraseId, String languageCode) async {
     try {
-      await _phraseService.toggleFavorite(phraseId, languageCode);
+      if (_isGuest) {
+        await _phraseService.toggleFavorite(phraseId, languageCode);
+      } else {
+        final isFav = _favorites.any((p) => p.id == phraseId);
+        if (isFav) {
+          // Remove from Firestore
+          final favDoc = await _cloudFavoritesService.getFavorites(languageCode);
+          final doc = favDoc.firstWhere((f) => f['phraseId'] == phraseId, orElse: () => {});
+          if (doc.isNotEmpty && doc['id'] != null) {
+            await _cloudFavoritesService.removeFavorite(languageCode, doc['id']);
+          }
+        } else {
+          // Add to Firestore
+          await _cloudFavoritesService.addFavorite(languageCode, {'phraseId': phraseId});
+        }
+      }
       _errorMessage = null;
     } catch (e) {
       _errorMessage = 'Failed to toggle favorite: $e';
