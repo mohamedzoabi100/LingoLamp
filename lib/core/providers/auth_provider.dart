@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../../services/user_data_service.dart';
 import '../../services/sync_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'app_providers.dart';
 
 enum AuthState { initial, loading, authenticated, unauthenticated, error, guest }
 
@@ -118,6 +120,11 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       _handleAuthError(e);
     }
+  }
+
+  // Method to clear provider states (called from UI when needed)
+  static void clearProviderStates(BuildContext context) {
+    AppProviders.clearAllProviderStates(context);
   }
 
   Future<void> deleteAccount() async {

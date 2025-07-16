@@ -4,6 +4,23 @@ These terms and conditions apply to the LingoLamp app (hereby referred to as "Ap
 
 Upon downloading or utilizing the Application, you are automatically agreeing to the following terms. It is strongly advised that you thoroughly read and understand these terms prior to using the Application. Unauthorized copying, modification of the Application, any part of the Application, or our trademarks is strictly prohibited. Any attempts to extract the source code of the Application, translate the Application into other languages, or create derivative versions are not permitted. All trademarks, copyrights, database rights, and other intellectual property rights related to the Application remain the property of the Service Provider.
 
+**Guest Mode and Data Rights**
+
+The Application offers a guest mode that allows users to use the app without creating an account. In guest mode:
+
+*   All data is stored locally on your device
+*   You can delete all guest data at any time through the Settings menu
+*   Guest data is not transmitted to our servers
+*   Deleting guest data will permanently remove all flashcards, chat history, favorites, and preferences
+
+**Data Deletion and Portability**
+
+You have the right to delete your data at any time:
+
+*   **Guest Users**: Can delete all local data through the Settings menu in guest mode
+*   **Authenticated Users**: Can delete their account and all associated data through the Settings menu
+*   **Data Portability**: Authenticated users can sync their data across devices using the cloud sync functionality
+
 The Service Provider is dedicated to ensuring that the Application is as beneficial and efficient as possible. As such, they reserve the right to modify the Application or charge for their services at any time and for any reason. The Service Provider assures you that any charges for the Application or its services will be clearly communicated to you.
 
 The Application stores and processes personal data that you have provided to the Service Provider in order to provide the Service. It is your responsibility to maintain the security of your phone and access to the Application. The Service Provider strongly advise against jailbreaking or rooting your phone, which involves removing software restrictions and limitations imposed by the official operating system of your device. Such actions could expose your phone to malware, viruses, malicious programs, compromise your phone's security features, and may result in the Application not functioning correctly or at all.

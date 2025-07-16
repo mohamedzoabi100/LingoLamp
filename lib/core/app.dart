@@ -16,6 +16,21 @@ import 'theme/app_theme.dart';
 // Screens
 import 'routing/app_router.dart';
 
+// Global function to clear provider states
+void clearAllProviderStates() {
+  try {
+    final context = navigatorKey.currentContext;
+    if (context != null) {
+      AppProviders.clearAllProviderStates(context);
+    }
+  } catch (e) {
+    print('[App] Error clearing provider states: $e');
+  }
+}
+
+// Global navigator key for accessing context
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 class LingoLampApp extends StatelessWidget {
   const LingoLampApp({super.key});
 
@@ -123,7 +138,6 @@ class _RouterScopeState extends State<_RouterScope> with WidgetsBindingObserver 
       title: 'LingoLamp',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
       routerConfig: router,
     );
   }

@@ -280,6 +280,24 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Clear all in-memory data when switching accounts
+  void clear() {
+    _messages.clear();
+    _conversations.clear();
+    _currentConversation = null;
+    _isLoading = false;
+    _isResponding = false;
+    _errorMessage = null;
+    
+    // Stop listening to cloud streams
+    _conversationsStream?.drain();
+    _messagesStream?.drain();
+    _conversationsStream = null;
+    _messagesStream = null;
+    
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _conversationsStream = null;

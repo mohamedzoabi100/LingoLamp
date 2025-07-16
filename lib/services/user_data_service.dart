@@ -1034,15 +1034,22 @@ class UserDataService {
       print('[UserDataService] Error clearing SharedPreferences: $e');
     }
 
-    // Clear in-memory providers (stub for now, add as features are implemented)
-    // Example:
-    // ChatProvider.instance.clear();
-    // FlashcardProvider.instance.clear();
-    // PhrasebookProvider.instance.clear();
-    // UserProvider.instance.clear();
-    // ...add more as needed
+    // Clear local database
+    try {
+      await _dbHelper.clearAllFlashcards();
+      await _clearAllConversationsAndMessages();
+    } catch (e) {
+      print('[UserDataService] Error clearing database: $e');
+    }
 
     print('[UserDataService] All user data cleared.');
+  }
+
+  // Method to clear provider states (called from auth provider)
+  static void clearProviderStates() {
+    print('[UserDataService] Clearing provider states...');
+    // This will be called by the auth provider to clear in-memory provider states
+    // The actual clearing is done in the auth provider where we have access to the provider context
   }
 
   // === 🔄 AUTH LISTENER ===

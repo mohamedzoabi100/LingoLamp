@@ -204,6 +204,20 @@ class PhrasebookProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Clear all in-memory data when switching accounts
+  void clear() {
+    _phrases.clear();
+    _favorites.clear();
+    _isLoading = false;
+    _errorMessage = null;
+    
+    // Stop listening to cloud streams
+    _favoritesStream?.drain();
+    _favoritesStream = null;
+    
+    notifyListeners();
+  }
+
   // Set loading state
   void _setLoading(bool loading) {
     _isLoading = loading;

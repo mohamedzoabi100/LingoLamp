@@ -113,7 +113,7 @@ class SettingsScreen extends StatelessWidget {
               showAboutDialog(
                 context: context,
                 applicationName: 'LingoLamp',
-                applicationVersion: '1.0.0',
+                applicationVersion: '2.0.0',
                 applicationIcon: Image.asset('assets/images/Logo.png', width: 48, height: 48),
                 children: [
                   const SizedBox(height: 16),
@@ -156,6 +156,44 @@ class SettingsScreen extends StatelessWidget {
                   ),
                   const Text('• Fully compliant with Google Play Store data safety and privacy policies.'),
                   const Text('• See our Privacy Policy and Terms of Service for more details.'),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Open Source Licenses:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const Text('This app uses the following open source libraries:'),
+                  const SizedBox(height: 8),
+                  const Text('• Flutter (Apache 2.0)'),
+                  const Text('• Firebase (Apache 2.0)'),
+                  const Text('• Provider (MIT)'),
+                  const Text('• Go Router (BSD 3-Clause)'),
+                  const Text('• Google Generative AI (Apache 2.0)'),
+                  const Text('• SQLite (Public Domain)'),
+                  const Text('• Hive (Apache 2.0)'),
+                  const Text('• Shared Preferences (Apache 2.0)'),
+                  const Text('• Cached Network Image (MIT)'),
+                  const Text('• Shimmer (MIT)'),
+                  const Text('• Flutter Markdown (MIT)'),
+                  const Text('• Flutter TTS (MIT)'),
+                  const Text('• Speech to Text (MIT)'),
+                  const Text('• Intl (BSD 3-Clause)'),
+                  const Text('• HTTP (BSD 3-Clause)'),
+                  const Text('• Connectivity Plus (Apache 2.0)'),
+                  const Text('• Path Provider (Apache 2.0)'),
+                  const Text('• Permission Handler (MIT)'),
+                  const Text('• RxDart (Apache 2.0)'),
+                  const Text('• Path (BSD 3-Clause)'),
+                  const Text('• UUID (MIT)'),
+                  const Text('• CSV (MIT)'),
+                  const Text('• Cupertino Icons (MIT)'),
+                  const Text('• Google APIs Auth (Apache 2.0)'),
+                  const Text('• Audio Players (MIT)'),
+                  const SizedBox(height: 8),
+                  const Text('For full license texts, visit:'),
+                  const Text('https://github.com/flutter/flutter/blob/master/LICENSE'),
+                  const Text('https://firebase.google.com/terms'),
+                  const Text('https://pub.dev/packages/provider'),
+                  const Text('https://pub.dev/packages/go_router'),
                 ],
               );
             },
@@ -265,6 +303,8 @@ class SettingsScreen extends StatelessWidget {
           ElevatedButton(
             onPressed: () {
               Navigator.of(context).pop();
+              // Clear provider states before signing out
+              AuthProvider.clearProviderStates(context);
               context.read<AuthProvider>().signOut();
             },
             style: ElevatedButton.styleFrom(

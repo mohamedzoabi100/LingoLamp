@@ -201,15 +201,4 @@ class AppTheme {
     );
   }
   
-  // Dark theme
-  static ThemeData get darkTheme {
-    return ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: primaryColor,
-        brightness: Brightness.dark,
-      ),
-      // Add dark theme customization here
-    );
-  }
 } 

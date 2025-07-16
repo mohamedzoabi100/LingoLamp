@@ -1,5 +1,5 @@
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:provider/single_child_widget.dart';
 
 // Auth
 import 'auth_provider.dart';
@@ -13,7 +13,7 @@ import 'daily_task_provider.dart';
 import 'language_provider.dart';
 
 class AppProviders {
-  static List<SingleChildWidget> get providers => [
+  static List<ChangeNotifierProvider> get providers => [
     // Auth provider
     ChangeNotifierProvider<AuthProvider>(
       create: (context) => AuthProvider(),
@@ -49,4 +49,35 @@ class AppProviders {
       create: (context) => LanguageProvider(),
     ),
   ];
+
+  // Method to clear all provider states when switching accounts
+  static void clearAllProviderStates(BuildContext context) {
+    try {
+      print('[AppProviders] Clearing all provider states...');
+      
+      // Clear chat provider
+      final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+      chatProvider.clear();
+      
+      // Clear flashcard provider
+      final flashcardProvider = Provider.of<FlashcardProvider>(context, listen: false);
+      flashcardProvider.clear();
+      
+      // Clear phrasebook provider
+      final phrasebookProvider = Provider.of<PhrasebookProvider>(context, listen: false);
+      phrasebookProvider.clear();
+      
+      // Clear daily task provider
+      final dailyTaskProvider = Provider.of<DailyTaskProvider>(context, listen: false);
+      dailyTaskProvider.clear();
+      
+      // Reset user provider
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      userProvider.setUser(null);
+      
+      print('[AppProviders] All provider states cleared successfully');
+    } catch (e) {
+      print('[AppProviders] Error clearing provider states: $e');
+    }
+  }
 } 

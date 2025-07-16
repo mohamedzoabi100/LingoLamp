@@ -215,13 +215,17 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       children: [
                         Text('LingoLamp is your AI-powered language learning companion.'),
                         SizedBox(height: 8),
-                        Text('Version: 1.0.0'),
+                        Text('Version: 2.0.0'),
                         SizedBox(height: 8),
                         Text('Features:'),
                         Text('• AI Chat for conversation practice'),
                         Text('• Smart Flashcards with spaced repetition'),
                         Text('• Phrasebook with AI suggestions'),
                         Text('• Progress tracking and XP system'),
+                        Text('• Cross-device sync'),
+                        Text('• Guest mode support'),
+                        SizedBox(height: 8),
+                        Text('For detailed information and licenses, visit Settings > About.'),
                       ],
                     ),
                     actions: [

@@ -1,0 +1,113 @@
+# LingoLamp - Open Source Licenses
+
+This project uses the following open source libraries and their respective licenses:
+
+## Main Application License
+LingoLamp is licensed under the MIT License.
+
+## Dependencies and Their Licenses
+
+### Flutter Framework
+- **Flutter**: Apache License 2.0
+- **Dart**: BSD 3-Clause License
+
+### Firebase Services
+- **firebase_core**: Apache License 2.0
+- **firebase_auth**: Apache License 2.0
+- **cloud_firestore**: Apache License 2.0
+- **google_sign_in**: Apache License 2.0
+
+### State Management
+- **provider**: MIT License
+- **riverpod**: MIT License
+- **flutter_riverpod**: MIT License
+
+### Navigation
+- **go_router**: BSD 3-Clause License
+
+### AI & APIs
+- **google_generative_ai**: Apache License 2.0
+- **http**: BSD 3-Clause License
+
+### Local Storage
+- **sqflite**: Public Domain
+- **hive**: Apache License 2.0
+- **hive_flutter**: Apache License 2.0
+- **shared_preferences**: Apache License 2.0
+
+### UI & UX
+- **cached_network_image**: MIT License
+- **shimmer**: MIT License
+- **flutter_markdown**: MIT License
+- **flutter_tts**: MIT License
+- **speech_to_text**: MIT License
+- **intl**: BSD 3-Clause License
+- **cupertino_icons**: MIT License
+
+### Utilities
+- **connectivity_plus**: Apache License 2.0
+- **path_provider**: Apache License 2.0
+- **permission_handler**: MIT License
+- **rxdart**: Apache License 2.0
+- **path**: BSD 3-Clause License
+- **uuid**: MIT License
+- **csv**: MIT License
+- **googleapis_auth**: Apache License 2.0
+- **audioplayers**: MIT License
+
+### Development Dependencies
+- **flutter_test**: Apache License 2.0
+- **flutter_lints**: Apache License 2.0
+- **mockito**: Apache License 2.0
+- **build_runner**: Apache License 2.0
+- **hive_generator**: Apache License 2.0
+- **json_annotation**: Apache License 2.0
+- **json_serializable**: Apache License 2.0
+
+## License Links
+
+For full license texts, visit:
+- Flutter: https://github.com/flutter/flutter/blob/master/LICENSE
+- Firebase: https://firebase.google.com/terms
+- Provider: https://pub.dev/packages/provider
+- Go Router: https://pub.dev/packages/go_router
+- All other packages: https://pub.dev/packages/[package_name]
+
+## Third-Party Services
+
+### Google Services
+- **Google Play Services**: https://policies.google.com/terms
+- **Google Generative AI**: https://ai.google.dev/terms
+- **Google Sign-In**: https://developers.google.com/identity/sign-in/web/backend-auth
+
+### Firebase
+- **Firebase Terms**: https://firebase.google.com/terms
+- **Firebase Privacy**: https://firebase.google.com/support/privacy
+
+## Data Privacy Compliance
+
+This application complies with:
+- GDPR (General Data Protection Regulation)
+- CCPA (California Consumer Privacy Act)
+- Google Play Store Data Safety Requirements
+- Apple App Store Privacy Requirements
+
+## User Rights
+
+Users have the right to:
+- Delete their account and all associated data
+- Export their data (for authenticated users)
+- Access their personal data
+- Request data deletion at any time
+- Use the app in guest mode without data collection
+
+## Contact Information
+
+For questions about licenses or privacy, contact:
+- Email: [Your Contact Email]
+- Privacy Policy: See LingoLamp-PrivacyPolicy.md
+- Terms of Service: See LingoLamp-TOS.md
+
+---
+
+**Note**: This license file is required for app store compliance and must be kept up to date with any new dependencies added to the project. 

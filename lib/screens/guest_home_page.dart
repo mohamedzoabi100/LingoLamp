@@ -7,6 +7,7 @@ import '../core/providers/auth_provider.dart';
 import '../core/providers/language_provider.dart';
 import '../widgets/language_flag_button.dart';
 import '../services/daily_motivation_service.dart';
+import '../services/user_data_service.dart'; // Added import for UserDataService
 
 class GuestHomePage extends StatefulWidget {
   const GuestHomePage({super.key});
@@ -114,6 +115,11 @@ class _GuestHomePageState extends State<GuestHomePage> with SingleTickerProvider
         ),
         actions: [
           const LanguageFlagButton(),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Settings',
+            onPressed: () => _showGuestSettings(context),
+          ),
           IconButton(
             icon: const Icon(Icons.login),
             tooltip: 'Sign In',
@@ -474,5 +480,178 @@ class _GuestHomePageState extends State<GuestHomePage> with SingleTickerProvider
         ],
       ),
     );
+  }
+
+  void _showGuestSettings(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Guest Settings'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Manage your guest data and settings:'),
+            SizedBox(height: 16),
+            Text('• Delete all guest data (flashcards, chat history, favorites)'),
+            Text('• Clear app preferences'),
+            Text('• Reset to fresh start'),
+            SizedBox(height: 8),
+            Text(
+              'Note: This will permanently delete all your guest data and cannot be undone.',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.red,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _showDeleteDataDialog(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete All Data'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteDataDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete All Guest Data'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'This will permanently delete all your guest data including:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 8),
+            Text('• All flashcards and study progress'),
+            Text('• Chat history and conversations'),
+            Text('• Favorites and preferences'),
+            Text('• AI-generated phrases'),
+            Text('• App settings and preferences'),
+            SizedBox(height: 8),
+            Text(
+              'This action cannot be undone. Are you absolutely sure?',
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _confirmDeleteData(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete All Data'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeleteData(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Final Confirmation'),
+        content: const Text(
+          'This is your final warning. All guest data will be permanently deleted and cannot be recovered. This will reset the app to a fresh state.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await _deleteAllGuestData(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete & Reset'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteAllGuestData(BuildContext context) async {
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Deleting all data...'),
+            ],
+          ),
+        ),
+      );
+
+      // Clear all guest data
+      await UserDataService().clearAllUserData();
+      
+      // Clear provider states
+      AuthProvider.clearProviderStates(context);
+
+      // Close loading dialog
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('All guest data has been deleted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading dialog
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        
+        // Show error message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting data: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }

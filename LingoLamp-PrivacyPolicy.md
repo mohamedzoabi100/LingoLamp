@@ -23,6 +23,28 @@ The Service Provider may use the information you provided to contact you from ti
 
 For a better experience, while using the Application, the Service Provider may require you to provide us with certain personally identifiable information. The information that the Service Provider request will be retained by them and used as described in this privacy policy.
 
+**Guest Mode and Data Collection**
+
+The Application offers a guest mode that allows users to use the app without creating an account. In guest mode, the Application collects and stores the following data locally on your device:
+
+*   Flashcards and study progress
+*   Chat history and conversations
+*   Favorites and preferences
+*   AI-generated phrases
+*   App settings and preferences
+
+This guest data is stored locally on your device and is not transmitted to our servers. You can delete all guest data at any time through the guest settings menu in the app.
+
+**Data Deletion Rights**
+
+You have the right to delete your data at any time:
+
+*   **For Guest Users**: You can delete all guest data through the Settings menu in guest mode. This will permanently delete all flashcards, chat history, favorites, and preferences stored locally on your device.
+
+*   **For Authenticated Users**: You can delete your account and all associated data through the Settings menu. This will permanently delete all your data from our servers and local storage.
+
+*   **Data Portability**: Authenticated users can export their data through the sync functionality, which allows data to be transferred between devices.
+
 **Third Party Access**
 
 Only aggregated, anonymized data is periodically transmitted to external services to aid the Service Provider in improving the Application and their service. The Service Provider may share your information with third parties in the ways that are described in this privacy statement.

@@ -102,6 +102,14 @@ class DailyTaskProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Clear all in-memory data when switching accounts
+  void clear() {
+    _currentTaskSet = null;
+    _isLoading = false;
+    _errorMessage = null;
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     super.dispose();

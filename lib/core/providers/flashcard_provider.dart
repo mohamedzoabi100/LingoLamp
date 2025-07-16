@@ -150,6 +150,19 @@ class FlashcardProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Clear all in-memory data when switching accounts
+  void clear() {
+    _flashcards.clear();
+    _isLoading = false;
+    _error = null;
+    
+    // Stop listening to cloud streams
+    _flashcardsStream?.drain();
+    _flashcardsStream = null;
+    
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _flashcardsStream = null;
