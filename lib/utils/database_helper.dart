@@ -2,6 +2,7 @@
 // ** UPDATED FILE WITH ADDITIONAL METHODS **
 
 import 'dart:async';
+import 'dart:async' show unawaited;
 import 'package:rxdart/rxdart.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
@@ -32,7 +33,7 @@ class DatabaseHelper {
 
   // Database version incremented to handle schema change
   static const String _dbName = 'lingolamp_chat.db';
-  static const int _dbVersion = 11; // Incremented to handle new schema
+  static const int _dbVersion = 13; // Incremented to force recreation due to schema issues
 
   static const String tableConversations = 'conversations';
   static const String colConversationId = 'id';
@@ -97,10 +98,18 @@ class DatabaseHelper {
   Future<Database> get database async {
     if (_database != null) return _database!;
     _database = await _initDatabase();
-    // Prime the stream with initial data as soon as the db is ready
-    _onFlashcardsChanged();
-    _onChatChanged();
-    _onRecommendedChanged();
+    
+    // Prime the streams with initial data as soon as the db is ready
+    // Use try-catch to prevent crashes on real devices
+    try {
+      await _onFlashcardsChanged();
+      await _onChatChanged();
+      await _onRecommendedChanged();
+    } catch (e) {
+      print('⚠️ [DB] Error priming streams: $e');
+      // Continue even if stream priming fails
+    }
+    
     return _database!;
   }
 
@@ -116,7 +125,7 @@ class DatabaseHelper {
 
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
-      CREATE TABLE $tableConversations (
+      CREATE TABLE IF NOT EXISTS $tableConversations (
         $colConversationId TEXT PRIMARY KEY,
         $colConversationTitle TEXT,
         $colConversationCreatedAt TEXT NOT NULL,
@@ -126,7 +135,7 @@ class DatabaseHelper {
     ''');
 
     await db.execute('''
-      CREATE TABLE $tableMessages (
+      CREATE TABLE IF NOT EXISTS $tableMessages (
         $colMessageId TEXT PRIMARY KEY,
         $colMessageConversationId TEXT NOT NULL,
         $colMessageText TEXT NOT NULL,
@@ -138,7 +147,7 @@ class DatabaseHelper {
     ''');
 
     await db.execute('''
-      CREATE TABLE $tableFlashcards (
+      CREATE TABLE IF NOT EXISTS $tableFlashcards (
         $colFlashcardId INTEGER PRIMARY KEY AUTOINCREMENT,
         $colFlashcardUuid TEXT UNIQUE,
         $colFlashcardOriginalText TEXT NOT NULL,
@@ -157,7 +166,7 @@ class DatabaseHelper {
     ''');
 
     await db.execute('''
-      CREATE TABLE $tableSpacedRepetition (
+      CREATE TABLE IF NOT EXISTS $tableSpacedRepetition (
         $colSpacedRepetitionId INTEGER PRIMARY KEY AUTOINCREMENT,
         $colSpacedRepetitionFlashcardId INTEGER NOT NULL,
         $colSpacedRepetitionEaseFactor REAL DEFAULT 2.5,
@@ -172,7 +181,7 @@ class DatabaseHelper {
     ''');
 
     await db.execute('''
-      CREATE TABLE $tableRecommended (
+      CREATE TABLE IF NOT EXISTS $tableRecommended (
         $colRecommendedId INTEGER PRIMARY KEY AUTOINCREMENT,
         $colRecommendedTerm TEXT NOT NULL,
         $colRecommendedContext TEXT NOT NULL,
@@ -185,7 +194,7 @@ class DatabaseHelper {
     ''');
 
     await db.execute('''
-      CREATE TABLE $tableDismissed (
+      CREATE TABLE IF NOT EXISTS $tableDismissed (
         $colDismissedTerm TEXT PRIMARY KEY,
         $colDismissedAt TEXT NOT NULL
       )
@@ -195,6 +204,24 @@ class DatabaseHelper {
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       await _onCreate(db, newVersion); // Re-create if starting from a very old version
+    }
+    // Force recreation for version 13 to fix schema issues
+    if (oldVersion < 13) {
+      print('🔄 Recreating database due to schema issues...');
+      // Drop existing tables first to avoid conflicts
+      try {
+        await db.execute('DROP TABLE IF EXISTS $tableDismissed');
+        await db.execute('DROP TABLE IF EXISTS $tableRecommended');
+        await db.execute('DROP TABLE IF EXISTS $tableSpacedRepetition');
+        await db.execute('DROP TABLE IF EXISTS $tableFlashcards');
+        await db.execute('DROP TABLE IF EXISTS $tableMessages');
+        await db.execute('DROP TABLE IF EXISTS $tableConversations');
+        print('🗑️ Dropped existing tables');
+      } catch (e) {
+        print('⚠️ Error dropping tables: $e');
+      }
+      await _onCreate(db, newVersion);
+      return;
     }
     // Handles the upgrade from version 2 to 3 by adding the new column
     if (oldVersion == 2) {
@@ -287,6 +314,14 @@ class DatabaseHelper {
     if (flashcards.isNotEmpty) {
       print('📝 [DB] First flashcard: ${flashcards.first.toMap()}');
       print('📝 [DB] Last flashcard: ${flashcards.last.toMap()}');
+      
+      // Debug: print all flashcards
+      print('📝 [DB] All flashcards in database:');
+      for (final card in flashcards) {
+        print('  - ${card.originalText} -> ${card.translatedText}, language: ${card.languageCode}, id: ${card.id}, uuid: ${card.uuid}');
+      }
+    } else {
+      print('⚠️ [DB] No flashcards found in database');
     }
     _flashcardsController.add(flashcards);
     print('📡 [DB] Added ${flashcards.length} flashcards to stream');
@@ -310,16 +345,30 @@ class DatabaseHelper {
   // === CONVERSATION METHODS ===
   
   Future<String> insertConversation(Conversation conversation) async {
-    Database db = await instance.database;
-    final id = conversation.id.isNotEmpty ? conversation.id : const Uuid().v4();
-    await db.insert(tableConversations, {
-      colConversationId: id,
-      colConversationTitle: conversation.title,
-      colConversationCreatedAt: conversation.createdAt.toIso8601String(),
-      colConversationLastMessageTimestamp: conversation.updatedAt.toIso8601String(),
-      colConversationLanguageCode: conversation.languageCode,
-    });
-    return id;
+    try {
+      Database db = await instance.database;
+      final id = conversation.id.isNotEmpty ? conversation.id : const Uuid().v4();
+      final data = {
+        colConversationId: id,
+        colConversationTitle: conversation.title,
+        colConversationCreatedAt: conversation.createdAt.toIso8601String().replaceAll('--', '-'),
+        colConversationLastMessageTimestamp: conversation.updatedAt.toIso8601String().replaceAll('--', '-'),
+        colConversationLanguageCode: conversation.languageCode,
+      };
+      print('🗄️ [DB] Inserting conversation: $data');
+      
+      // Use INSERT OR REPLACE to handle duplicate keys gracefully
+      await db.insert(
+        tableConversations, 
+        data,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      print('✅ [DB] Conversation inserted successfully with ID: $id');
+      return id;
+    } catch (e) {
+      print('❌ [DB] Error inserting conversation: $e');
+      rethrow;
+    }
   }
 
   Future<List<Conversation>> getAllConversations() async {
@@ -375,27 +424,42 @@ class DatabaseHelper {
   // === CHAT MESSAGE METHODS ===
   
   Future<String> insertMessage(ChatMessage message) async {
-    Database db = await instance.database;
-    final messageId = await db.insert(tableMessages, message.toMap());
+    try {
+      Database db = await instance.database;
+      final messageData = message.toMap();
+      print('🗄️ [DB] Inserting message: $messageData');
+      
+      // Use INSERT OR REPLACE to handle duplicate keys gracefully
+      final messageId = await db.insert(
+        tableMessages, 
+        messageData,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      print('✅ [DB] Message inserted successfully with ID: $messageId');
 
-    if (messageId > 0) {
-      Conversation? convo = await getConversation(message.conversationId);
-      if (convo != null) {
-        final updatedConvo = Conversation(
-          id: convo.id,
-          title: convo.title,
-          createdAt: convo.createdAt,
-          updatedAt: message.timestamp,
-          isArchived: convo.isArchived,
-          isDeleted: convo.isDeleted,
-          extra: convo.extra,
-          languageCode: convo.languageCode,
-        );
-        await updateConversation(updatedConvo);
+      if (messageId > 0) {
+        Conversation? convo = await getConversation(message.conversationId);
+        if (convo != null) {
+          final updatedConvo = Conversation(
+            id: convo.id,
+            title: convo.title,
+            createdAt: convo.createdAt,
+            updatedAt: message.timestamp,
+            isArchived: convo.isArchived,
+            isDeleted: convo.isDeleted,
+            extra: convo.extra,
+            languageCode: convo.languageCode,
+          );
+          await updateConversation(updatedConvo);
+        }
       }
+      // Fire and forget - don't await
+      unawaited(_onChatChanged());
+      return messageId.toString();
+    } catch (e) {
+      print('❌ [DB] Error inserting message: $e');
+      rethrow;
     }
-    _onChatChanged();
-    return messageId.toString();
   }
 
   Future<List<ChatMessage>> getMessagesForConversation(String conversationId) async {
@@ -528,6 +592,19 @@ class DatabaseHelper {
       flashcard.toMap(),
       where: '$colFlashcardId = ?',
       whereArgs: [flashcard.id],
+    );
+    _onFlashcardsChanged();
+    return result;
+  }
+
+  // NEW METHOD - Update flashcard by UUID (for cloud flashcards)
+  Future<int> updateFlashcardByUuid(Flashcard flashcard) async {
+    Database db = await instance.database;
+    final result = await db.update(
+      tableFlashcards,
+      flashcard.toMap(),
+      where: '$colFlashcardUuid = ?',
+      whereArgs: [flashcard.uuid],
     );
     _onFlashcardsChanged();
     return result;
@@ -690,6 +767,18 @@ class DatabaseHelper {
       tableFlashcards,
       where: '$colFlashcardUuid = ?',
       whereArgs: [uuid],
+      limit: 1,
+    );
+    if (maps.isNotEmpty) return Flashcard.fromMap(maps.first);
+    return null;
+  }
+
+  Future<Flashcard?> getFlashcardByOriginalText(String originalText) async {
+    Database db = await instance.database;
+    final maps = await db.query(
+      tableFlashcards,
+      where: '$colFlashcardOriginalText = ?',
+      whereArgs: [originalText],
       limit: 1,
     );
     if (maps.isNotEmpty) return Flashcard.fromMap(maps.first);
@@ -860,6 +949,31 @@ class DatabaseHelper {
       orderBy: '$colRecommendedWeight DESC',
     );
     return maps.map(RecommendedFlashcard.fromMap).toList();
+  }
+
+  // Get all recommendations (for sync purposes)
+  Future<List<RecommendedFlashcard>> getAllRecommendations() async {
+    final db = await database;
+    final maps = await db.query(
+      tableRecommended,
+      orderBy: '$colRecommendedWeight DESC',
+    );
+    return maps.map(RecommendedFlashcard.fromMap).toList();
+  }
+
+  // Get recommendation by term (for sync purposes)
+  Future<RecommendedFlashcard?> getRecommendationByTerm(String term) async {
+    final db = await database;
+    final maps = await db.query(
+      tableRecommended,
+      where: '$colRecommendedTerm = ?',
+      whereArgs: [term],
+      limit: 1,
+    );
+    if (maps.isNotEmpty) {
+      return RecommendedFlashcard.fromMap(maps.first);
+    }
+    return null;
   }
 
   void dispose() {

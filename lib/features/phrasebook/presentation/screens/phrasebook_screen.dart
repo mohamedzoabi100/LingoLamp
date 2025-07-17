@@ -43,9 +43,14 @@ class _PhrasebookScreenState extends State<PhrasebookScreen> {
 
   @override
   void dispose() {
-    // Remove language listener
-    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-    languageProvider.removeListener(_onLanguageChanged);
+    // Remove language listener - add null check to prevent crashes
+    try {
+      final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+      languageProvider.removeListener(_onLanguageChanged);
+    } catch (e) {
+      // Provider might not be available during dispose
+      print('⚠️ [PHRASEBOOK] Could not remove language listener during dispose: $e');
+    }
     super.dispose();
   }
 

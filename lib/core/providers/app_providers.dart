@@ -8,6 +8,7 @@ import 'auth_provider.dart';
 import 'chat_provider.dart';
 import 'flashcard_provider.dart';
 import 'phrasebook_provider.dart';
+import 'recommendation_provider.dart';
 import 'user_provider.dart';
 import 'daily_task_provider.dart';
 import 'language_provider.dart';
@@ -32,6 +33,11 @@ class AppProviders {
     // Flashcard provider
     ChangeNotifierProvider<FlashcardProvider>(
       create: (context) => FlashcardProvider(),
+    ),
+    
+    // Recommendation provider
+    ChangeNotifierProvider<RecommendationProvider>(
+      create: (context) => RecommendationProvider(),
     ),
     
     // Phrasebook provider
@@ -62,6 +68,10 @@ class AppProviders {
       // Clear flashcard provider
       final flashcardProvider = Provider.of<FlashcardProvider>(context, listen: false);
       flashcardProvider.clear();
+      
+      // Clear recommendation provider
+      final recommendationProvider = Provider.of<RecommendationProvider>(context, listen: false);
+      recommendationProvider.clear();
       
       // Clear phrasebook provider
       final phrasebookProvider = Provider.of<PhrasebookProvider>(context, listen: false);

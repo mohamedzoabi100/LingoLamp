@@ -6,12 +6,12 @@ import '../utils/database_helper.dart';
 import '../models/flashcard_model.dart';
 import '../services/phrase_service.dart';
 import '../models/phrase_model.dart';
-import '../services/recommendation_service.dart';
 import '../services/ai_phrase_service.dart';
 import '../services/ai_chat_service.dart';
 import '../services/xp_service.dart';
 import '../core/providers/language_provider.dart';
 import '../core/providers/flashcard_provider.dart';
+import '../core/providers/recommendation_provider.dart';
 
 class RecommendationsScreen extends StatefulWidget {
   const RecommendationsScreen({super.key});
@@ -21,7 +21,6 @@ class RecommendationsScreen extends StatefulWidget {
 }
 
 class _RecommendationsScreenState extends State<RecommendationsScreen> {
-  final RecommendationService _recommendationService = RecommendationService();
   final XPService _xpService = XPService();
 
   @override
@@ -30,6 +29,7 @@ class _RecommendationsScreenState extends State<RecommendationsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final languageProvider = context.read<LanguageProvider>();
       await context.read<FlashcardProvider>().init(languageCode: languageProvider.currentLanguage, context: context);
+      await context.read<RecommendationProvider>().init(languageCode: languageProvider.currentLanguage, context: context);
     });
   }
 
@@ -37,23 +37,39 @@ class _RecommendationsScreenState extends State<RecommendationsScreen> {
   Widget build(BuildContext context) {
     return Consumer<LanguageProvider>(
       builder: (context, languageProvider, child) {
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Recommendations'),
-            foregroundColor: Colors.white,
-            backgroundColor: Theme.of(context).primaryColor,
-          ),
-          body: FutureBuilder<List<RecommendedFlashcard>>(
-            future: _recommendationService.getRecommendations(languageCode: languageProvider.currentLanguage),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              final recs = snapshot.data!;
-              if (recs.isEmpty) {
-                return const Center(child: Text('No recommendations yet.'));
-              }
-              return ListView.separated(
+        return Consumer<RecommendationProvider>(
+          builder: (context, recommendationProvider, child) {
+            // Check if provider is loading
+            if (recommendationProvider.isLoading) {
+              return Scaffold(
+                appBar: AppBar(
+                  title: const Text('Recommendations'),
+                  foregroundColor: Colors.white,
+                  backgroundColor: Colors.blue,
+                ),
+                body: const Center(child: CircularProgressIndicator()),
+              );
+            }
+            
+            final recs = recommendationProvider.recommendations;
+            if (recs.isEmpty) {
+              return Scaffold(
+                appBar: AppBar(
+                  title: const Text('Recommendations'),
+                  foregroundColor: Colors.white,
+                  backgroundColor: Theme.of(context).primaryColor,
+                ),
+                body: const Center(child: Text('No recommendations yet.')),
+              );
+            }
+            
+            return Scaffold(
+              appBar: AppBar(
+                title: const Text('Recommendations'),
+                foregroundColor: Colors.white,
+                backgroundColor: Theme.of(context).primaryColor,
+              ),
+              body: ListView.separated(
                 itemCount: recs.length,
                 separatorBuilder: (_, __) => const Divider(height: 0),
                 itemBuilder: (context, index) {
@@ -72,6 +88,22 @@ class _RecommendationsScreenState extends State<RecommendationsScreen> {
                           onPressed: () async {
                             final flashcardProvider = Provider.of<FlashcardProvider>(context, listen: false);
                             final languageProvider = context.read<LanguageProvider>();
+                            
+                            // Check if flashcard already exists
+                            final existingFlashcards = flashcardProvider.flashcards;
+                            final alreadyExists = existingFlashcards.any((f) => f.originalText == rec.term);
+                            
+                            if (alreadyExists) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Flashcard "${rec.term}" already exists!'), backgroundColor: Colors.orange),
+                                );
+                              }
+                              // Still remove from recommendations since it already exists
+                              await recommendationProvider.removeRecommendation(rec.id!);
+                              return;
+                            }
+                            
                             final now = DateTime.now();
                             final flashcard = Flashcard(
                               originalText: rec.term,
@@ -85,10 +117,9 @@ class _RecommendationsScreenState extends State<RecommendationsScreen> {
                               tags: ['recommended'],
                             );
                             await flashcardProvider.addFlashcard(flashcard);
-                            await _recommendationService.removeRecommendation(rec.id!);
+                            await recommendationProvider.removeRecommendation(rec.id!);
                             await _xpService.awardFlashcardCreated();
                             if (mounted) {
-                              setState(() {}); // Refresh recommendations
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(content: Text('Added "${rec.term}" to flashcards! 📚 +10 XP'), backgroundColor: Colors.green),
                               );
@@ -99,9 +130,9 @@ class _RecommendationsScreenState extends State<RecommendationsScreen> {
                     ),
                   );
                 },
-              );
-            },
-          ),
+              ),
+            );
+          },
         );
       },
     );

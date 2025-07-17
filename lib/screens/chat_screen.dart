@@ -3,6 +3,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:async' show unawaited;
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:google_generative_ai/google_generative_ai.dart' as gen_ai;
@@ -12,6 +13,7 @@ import 'package:provider/provider.dart';
 import '../services/ai_chat_service.dart';
 import '../services/xp_service.dart';
 import '../services/cloud_tts_service.dart';
+import '../services/sync_service.dart';
 import '../utils/database_helper.dart';
 import '../models/chat_message_model.dart' as model;
 import '../models/conversation_model.dart';
@@ -19,9 +21,10 @@ import '../models/flashcard_model.dart';
 import '../models/recommended_flashcard_model.dart';
 import 'chat_history_screen.dart';
 import '../services/user_data_service.dart';
-import '../services/recommendation_service.dart';
 import '../core/providers/language_provider.dart';
 import '../core/providers/auth_provider.dart';
+import '../core/providers/flashcard_provider.dart';
+import '../core/providers/recommendation_provider.dart';
 import 'package:go_router/go_router.dart';
 import '../core/providers/chat_provider.dart' as chatprov;
 
@@ -54,7 +57,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final XPService _xpService = XPService();
   final CloudTtsService _cloudTts = CloudTtsService();
   late AiChatService _aiChatService;
-  final RecommendationService _recommendationService = RecommendationService();
+
 
   final List<model.ChatMessage> _messages = [];
   String? _currentConversationId;
@@ -141,6 +144,13 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     _inputController.dispose();
     _scrollController.dispose();
+    
+    // Trigger final sync when leaving chat screen
+    if (!_isGuest && _currentConversationId != null) {
+      final syncService = SyncService();
+      unawaited(syncService.syncChatHistory());
+    }
+    
     super.dispose();
   }
 
@@ -226,33 +236,37 @@ class _ChatScreenState extends State<ChatScreen> {
   
   Future<void> _ensureConversationExists() async {
     if (_currentConversationId == null && _messages.isNotEmpty) {
-      final now = DateTime.now();
-      final firstUserMessage = _messages
-          .firstWhere((m) => m.isUserMessage, orElse: () => _messages.first)
-          .text;
-      final convoTitle = firstUserMessage.substring(
-          0, firstUserMessage.length > 30 ? 30 : firstUserMessage.length);
+      try {
+        final now = DateTime.now();
+        final firstUserMessage = _messages
+            .firstWhere((m) => m.isUserMessage, orElse: () => _messages.first)
+            .text;
+        final convoTitle = firstUserMessage.substring(
+            0, firstUserMessage.length > 30 ? 30 : firstUserMessage.length);
 
-      // Get the current language from the provider
-      final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+        // Get the current language from the provider
+        final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
 
-      // Create both model.Conversation for DB and chatprov.Conversation for state
-      final newModelConvo = Conversation(
-        id: const Uuid().v4(),
-        title: convoTitle,
-        createdAt: now,
-        updatedAt: now,
-        languageCode: languageProvider.currentLanguage,
-      );
-      final newChatProvConvo = chatprov.Conversation(
-        id: newModelConvo.id,
-        title: newModelConvo.title,
-        createdAt: newModelConvo.createdAt,
-        lastMessageTimestamp: newModelConvo.updatedAt,
-      );
+        // Create both model.Conversation for DB and chatprov.Conversation for state
+        final conversationId = const Uuid().v4();
+        final newModelConvo = Conversation(
+          id: conversationId,
+          title: convoTitle,
+          createdAt: now,
+          updatedAt: now,
+          languageCode: languageProvider.currentLanguage,
+        );
+        final newChatProvConvo = chatprov.Conversation(
+          id: conversationId,
+          title: newModelConvo.title,
+          createdAt: newModelConvo.createdAt,
+          lastMessageTimestamp: newModelConvo.updatedAt,
+        );
 
-      _currentConversationId = await _dbHelper.insertConversation(newModelConvo);
-      _currentConversation = newChatProvConvo;
+        // Insert conversation and ensure we use the same ID
+        final insertedId = await _dbHelper.insertConversation(newModelConvo);
+        _currentConversationId = insertedId;
+        _currentConversation = newChatProvConvo;
 
       // Update messages with the new conversation ID
       for (int i = 0; i < _messages.length; i++) {
@@ -268,6 +282,23 @@ class _ChatScreenState extends State<ChatScreen> {
           );
           _messages[i] = newMsg;
           await _dbHelper.insertMessage(newMsg);
+        }
+      }
+      
+      // Trigger sync when conversation is created
+      final syncService = SyncService();
+      unawaited(syncService.syncChatHistory());
+      } catch (e) {
+        print('❌ [CHAT] Error ensuring conversation exists: $e');
+        // Create a fallback conversation ID if database fails
+        if (_currentConversationId == null) {
+          _currentConversationId = const Uuid().v4();
+          _currentConversation = chatprov.Conversation(
+            id: _currentConversationId!,
+            title: 'New Chat',
+            createdAt: DateTime.now(),
+            lastMessageTimestamp: DateTime.now(),
+          );
         }
       }
     }
@@ -292,30 +323,12 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     _scrollToBottom();
 
-    if (!_isGuest) {
-      final bool creatingNewConversation = (_currentConversationId == null);
-      await _ensureConversationExists();
-      if (!creatingNewConversation) {
-        final messageToSave = model.ChatMessage(
-          id: userMessage.id,
-          conversationId: _currentConversationId!,
-          text: userMessage.text,
-          isUserMessage: userMessage.isUserMessage,
-          timestamp: userMessage.timestamp,
-        );
-        await _dbHelper.insertMessage(messageToSave);
-      }
-    }
-
+    // Get AI response immediately without waiting for database operations
     final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
     final aiResponseText = await _aiChatService.sendMessage(
       text,
       languageCode: languageProvider.currentLanguage,
     );
-
-    if (!_isGuest) {
-      await _xpService.awardChatMessage();
-    }
 
     final aiMessage = model.ChatMessage(
       id: const Uuid().v4(),
@@ -326,15 +339,78 @@ class _ChatScreenState extends State<ChatScreen> {
       originalQuery: text,
     );
 
-    if (!_isGuest) {
-      await _dbHelper.insertMessage(aiMessage);
-    }
-
+    // Display AI response immediately
     setState(() {
       _messages.add(aiMessage);
       _isResponding = false;
     });
     _scrollToBottom();
+
+    // Handle database operations in background (non-blocking)
+    if (!_isGuest) {
+      // Fire and forget - don't await
+      unawaited(_handleDatabaseOperationsInBackground(userMessage, aiMessage));
+    }
+  }
+
+  Future<void> _handleDatabaseOperationsInBackground(
+    model.ChatMessage userMessage, 
+    model.ChatMessage aiMessage
+  ) async {
+    try {
+      // Add a small delay to ensure chat UI is fully updated first
+      await Future.delayed(const Duration(milliseconds: 100));
+      
+      // Ensure conversation exists
+      final bool creatingNewConversation = (_currentConversationId == null);
+      await _ensureConversationExists();
+      
+      // Check if messages already exist to prevent duplicates
+      final existingMessages = await _dbHelper.getMessagesForConversation(_currentConversationId!);
+      final existingMessageIds = existingMessages.map((m) => m.id).toSet();
+      
+      // Save user message to database only if it doesn't exist
+      if (!existingMessageIds.contains(userMessage.id)) {
+        final userMessageToSave = model.ChatMessage(
+          id: userMessage.id,
+          conversationId: _currentConversationId!,
+          text: userMessage.text,
+          isUserMessage: userMessage.isUserMessage,
+          timestamp: userMessage.timestamp,
+        );
+        await _dbHelper.insertMessage(userMessageToSave);
+        print('✅ [CHAT] User message saved to database');
+      } else {
+        print('⚠️ [CHAT] User message already exists, skipping insertion');
+      }
+      
+      // Save AI message to database only if it doesn't exist
+      if (!existingMessageIds.contains(aiMessage.id)) {
+        final aiMessageToSave = model.ChatMessage(
+          id: aiMessage.id,
+          conversationId: _currentConversationId!,
+          text: aiMessage.text,
+          isUserMessage: aiMessage.isUserMessage,
+          timestamp: aiMessage.timestamp,
+          originalQuery: aiMessage.originalQuery,
+        );
+        await _dbHelper.insertMessage(aiMessageToSave);
+        print('✅ [CHAT] AI message saved to database');
+      } else {
+        print('⚠️ [CHAT] AI message already exists, skipping insertion');
+      }
+      
+      await _xpService.awardChatMessage();
+      
+      // Trigger chat sync to cloud
+      final syncService = SyncService();
+      unawaited(syncService.syncChatHistory());
+      
+      print('✅ [CHAT] Background database operations completed successfully');
+    } catch (e) {
+      print('❌ [CHAT] Background database operation failed: $e');
+      // Don't show error to user since chat already worked
+    }
   }
 
   // --- Build Methods ---
@@ -624,38 +700,67 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _maybeRecommendFlashcard(FlashcardData data, model.ChatMessage message) async {
-    // Only add if not already a flashcard
-    if (await _dbHelper.flashcardExists(data.front, data.back)) return;
     // Get current language from provider
     final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
     final currentLanguage = languageProvider.currentLanguage;
+    
+    // Check if this term already exists as a flashcard using FlashcardProvider
+    final flashcardProvider = Provider.of<FlashcardProvider>(context, listen: false);
+    final existingFlashcards = flashcardProvider.flashcards;
+    final alreadyExists = existingFlashcards.any((f) => f.originalText == data.front);
+    
+    if (alreadyExists) {
+      print('⚠️ [CHAT] Term "${data.front}" already exists as flashcard, skipping recommendation');
+      return;
+    }
+    
+    // Get recommendation provider
+    final recommendationProvider = Provider.of<RecommendationProvider>(context, listen: false);
     // Only add if not already in recommendations for this language
-    final recs = await _recommendationService.getRecommendations(languageCode: currentLanguage);
+    final recs = recommendationProvider.recommendations;
     if (recs.any((r) => r.term == data.front)) return;
+    
     // Add to recommendations (context = translation)
-    await _recommendationService.addRecommendation(term: data.front, context: data.back, languageCode: currentLanguage);
+    final now = DateTime.now();
+    final recommendation = RecommendedFlashcard(
+      term: data.front,
+      context: data.back,
+      source: 'chat',
+      weight: 1.0,
+      createdAt: now,
+      updatedAt: now,
+      languageCode: currentLanguage,
+    );
+    await recommendationProvider.addRecommendation(recommendation);
   }
 
   Future<void> _addToFlashcards(
       String originalText, String translatedText) async {
     print('🔍 [CHAT] Starting _addToFlashcards with: "$originalText" -> "$translatedText"');
     
-    if (await _dbHelper.flashcardExists(originalText, translatedText)) {
-      print('⚠️ [CHAT] Flashcard already exists, skipping');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('This flashcard already exists!'),
-            backgroundColor: Colors.orange));
-      }
-      return;
-    }
-    
     // Get current language from provider
     final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
     final currentLanguage = languageProvider.currentLanguage;
     
+    // Check if flashcard already exists using FlashcardProvider
+    final flashcardProvider = Provider.of<FlashcardProvider>(context, listen: false);
+    final existingFlashcards = flashcardProvider.flashcards;
+    final alreadyExists = existingFlashcards.any((f) => 
+      f.originalText == originalText && f.translatedText == translatedText
+    );
+    
+    if (alreadyExists) {
+      print('⚠️ [CHAT] Flashcard already exists, skipping');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('This flashcard already exists!'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 2)));
+      }
+      return;
+    }
+    
     final flashcard = Flashcard(
-      // id is auto-incremented by DB
       originalText: originalText,
       translatedText: translatedText,
       sourceLanguage: 'en', // Assuming source is always English for now
@@ -670,29 +775,22 @@ class _ChatScreenState extends State<ChatScreen> {
       tags: ['chat', 'ai-generated'],
     );
     
-    print('💾 [CHAT] Inserting flashcard: ${flashcard.toMap()}');
-    final insertedId = await _dbHelper.insertFlashcard(flashcard);
-    print('✅ [CHAT] Flashcard inserted with ID: $insertedId');
+    print('💾 [CHAT] Adding flashcard via FlashcardProvider: ${flashcard.originalText} -> ${flashcard.translatedText}');
+    await flashcardProvider.addFlashcard(flashcard);
+    print('✅ [CHAT] Flashcard added via FlashcardProvider');
     
     // Remove from recommendations if present
-    final recs = await _recommendationService.getRecommendations(languageCode: currentLanguage);
-    RecommendedFlashcard? rec;
-    for (final r in recs) {
-      if (r.term == originalText) {
-        rec = r;
-        break;
-      }
-    }
-    if (rec != null && rec.id != null) {
-      await _recommendationService.removeRecommendation(rec.id!);
-    }
+    final recommendationProvider = Provider.of<RecommendationProvider>(context, listen: false);
+    await recommendationProvider.removeRecommendationByTerm(originalText);
+    
     // Award XP for creating a flashcard from chat
     await _xpService.awardFlashcardCreated();
     
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Added to flashcards! 📚 +10 XP'),
-          backgroundColor: Colors.green));
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2)));
     }
   }
 

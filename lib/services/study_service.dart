@@ -65,6 +65,16 @@ class StudyService {
       );
     } else {
       // Create new spaced repetition card
+      // Check if flashcard has an ID, if not, we can't create a spaced repetition card
+      if (studyCard.flashcard.id == null) {
+        print('⚠️ [StudyService] Cannot create spaced repetition card for flashcard without ID: ${studyCard.flashcard.originalText}');
+        // Return the updated flashcard without spaced repetition data
+        return StudyCard(
+          flashcard: updatedFlashcard,
+          spacedRepetitionCard: null,
+        );
+      }
+      
       final newSpacedCard = SpacedRepetitionService.createNewCard(studyCard.flashcard.id!);
       updatedSpacedCard = SpacedRepetitionService.processReview(newSpacedCard, quality);
     }

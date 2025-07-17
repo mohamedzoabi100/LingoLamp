@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../models/flashcard_model.dart';
 
 class CloudFlashcardService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -15,34 +16,50 @@ class CloudFlashcardService {
   }
 
   /// Get all flashcards for the current user and language.
-  Future<List<Map<String, dynamic>>> getFlashcards(String languageCode) async {
+  Future<List<Flashcard>> getFlashcards(String languageCode) async {
     final snapshot = await _flashcardsCollection(languageCode).get();
-    return snapshot.docs.map((doc) => {...doc.data(), 'id': doc.id}).toList();
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+      // Use the document ID as the UUID (since we're using UUID as document ID)
+      data['uuid'] = doc.id;
+      data['languageCode'] = languageCode;
+      return Flashcard.fromMap(data);
+    }).toList();
   }
 
   /// Listen to flashcards changes for the current user and language.
-  Stream<List<Map<String, dynamic>>> listenToFlashcards(String languageCode) {
+  Stream<List<Flashcard>> listenToFlashcards(String languageCode) {
     return _flashcardsCollection(languageCode).snapshots().map((snapshot) =>
-      snapshot.docs.map((doc) => {...doc.data(), 'id': doc.id}).toList()
+      snapshot.docs.map((doc) {
+        final data = doc.data();
+        // Use the document ID as the UUID (since we're using UUID as document ID)
+        data['uuid'] = doc.id;
+        data['languageCode'] = languageCode;
+        return Flashcard.fromMap(data);
+      }).toList()
     );
   }
 
   /// Add a flashcard for the current user and language.
-  Future<void> addFlashcard(String languageCode, Map<String, dynamic> flashcardData) async {
-    await _flashcardsCollection(languageCode).add({
-      ...flashcardData,
+  Future<void> addFlashcard(String languageCode, Flashcard flashcard) async {
+    await _flashcardsCollection(languageCode).doc(flashcard.uuid).set({
+      ...flashcard.toMap(),
       'createdAt': FieldValue.serverTimestamp(),
+      'lastModified': FieldValue.serverTimestamp(),
     });
   }
 
-  /// Update a flashcard by its document ID for the current user and language.
-  Future<void> updateFlashcard(String languageCode, String flashcardId, Map<String, dynamic> flashcardData) async {
-    await _flashcardsCollection(languageCode).doc(flashcardId).update(flashcardData);
+  /// Update a flashcard for the current user and language.
+  Future<void> updateFlashcard(String languageCode, Flashcard flashcard) async {
+    await _flashcardsCollection(languageCode).doc(flashcard.uuid).update({
+      ...flashcard.toMap(),
+      'lastModified': FieldValue.serverTimestamp(),
+    });
   }
 
-  /// Remove a flashcard by its document ID for the current user and language.
-  Future<void> removeFlashcard(String languageCode, String flashcardId) async {
-    await _flashcardsCollection(languageCode).doc(flashcardId).delete();
+  /// Remove a flashcard by its UUID for the current user and language.
+  Future<void> removeFlashcard(String languageCode, String flashcardUuid) async {
+    await _flashcardsCollection(languageCode).doc(flashcardUuid).delete();
   }
 
   /// Remove all flashcards for a language (optional, for account/data deletion)
@@ -53,5 +70,40 @@ class CloudFlashcardService {
       batch.delete(doc.reference);
     }
     await batch.commit();
+  }
+
+  /// Get all flashcards across all languages for the current user.
+  Future<List<Flashcard>> getAllFlashcards() async {
+    final List<Flashcard> allFlashcards = [];
+    
+    // Get all language documents
+    final languagesSnapshot = await _firestore
+        .collection('users')
+        .doc(_auth.currentUser!.uid)
+        .collection('flashcards')
+        .get();
+    
+    for (final languageDoc in languagesSnapshot.docs) {
+      final languageCode = languageDoc.id;
+      
+      // Get all flashcards for this language
+      final flashcardsSnapshot = await languageDoc.reference
+          .collection('items')
+          .get();
+      
+      for (final flashcardDoc in flashcardsSnapshot.docs) {
+        try {
+          final data = flashcardDoc.data();
+          // Use the document ID as the UUID (since we're using UUID as document ID)
+          data['uuid'] = flashcardDoc.id;
+          data['languageCode'] = languageCode;
+          allFlashcards.add(Flashcard.fromMap(data));
+        } catch (e) {
+          print('⚠️ Error parsing cloud flashcard: $e');
+        }
+      }
+    }
+    
+    return allFlashcards;
   }
 } 

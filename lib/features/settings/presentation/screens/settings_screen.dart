@@ -96,14 +96,14 @@ class SettingsScreen extends StatelessWidget {
             leading: const Icon(Icons.privacy_tip),
             title: const Text('Privacy Policy'),
             onTap: () {
-              // TODO: Show privacy policy
+              _showPrivacyPolicy(context);
             },
           ),
           ListTile(
             leading: const Icon(Icons.description),
             title: const Text('Terms of Service'),
             onTap: () {
-              // TODO: Show terms of service
+              _showTermsOfService(context);
             },
           ),
           ListTile(
@@ -115,6 +115,7 @@ class SettingsScreen extends StatelessWidget {
                 applicationName: 'LingoLamp',
                 applicationVersion: '2.0.0',
                 applicationIcon: Image.asset('assets/images/Logo.png', width: 48, height: 48),
+                applicationLegalese: '© 2025 LingoLamp. All rights reserved.',
                 children: [
                   const SizedBox(height: 16),
                   const Text(
@@ -134,28 +135,21 @@ class SettingsScreen extends StatelessWidget {
                   const Text('• Full account deletion and data portability'),
                   const SizedBox(height: 12),
                   const Text(
-                    'Data Collection & Privacy:',
+                    'Privacy & Data:',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const Text(
-                    '• We collect only the data needed to provide your learning experience: flashcards, chat history, XP, favorites, and settings.'
+                    '• We collect only data needed for your learning experience'
                   ),
                   const Text(
-                    '• All data is securely stored and transmitted using Google Firebase.'
+                    '• All data is securely stored using Google Firebase'
                   ),
                   const Text(
-                    '• You can delete your account and all data at any time from Settings.'
+                    '• You can delete your account and all data at any time'
                   ),
                   const Text(
-                    '• No personal data is shared with third parties.'
+                    '• No personal data is shared with third parties'
                   ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Compliance:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const Text('• Fully compliant with Google Play Store data safety and privacy policies.'),
-                  const Text('• See our Privacy Policy and Terms of Service for more details.'),
                   const SizedBox(height: 12),
                   const Text(
                     'Open Source Licenses:',
@@ -166,10 +160,13 @@ class SettingsScreen extends StatelessWidget {
                   const Text('• Flutter (Apache 2.0)'),
                   const Text('• Firebase (Apache 2.0)'),
                   const Text('• Provider (MIT)'),
+                  const Text('• Riverpod (MIT)'),
+                  const Text('• Flutter Riverpod (MIT)'),
                   const Text('• Go Router (BSD 3-Clause)'),
                   const Text('• Google Generative AI (Apache 2.0)'),
                   const Text('• SQLite (Public Domain)'),
                   const Text('• Hive (Apache 2.0)'),
+                  const Text('• Hive Flutter (Apache 2.0)'),
                   const Text('• Shared Preferences (Apache 2.0)'),
                   const Text('• Cached Network Image (MIT)'),
                   const Text('• Shimmer (MIT)'),
@@ -190,10 +187,15 @@ class SettingsScreen extends StatelessWidget {
                   const Text('• Audio Players (MIT)'),
                   const SizedBox(height: 8),
                   const Text('For full license texts, visit:'),
-                  const Text('https://github.com/flutter/flutter/blob/master/LICENSE'),
-                  const Text('https://firebase.google.com/terms'),
-                  const Text('https://pub.dev/packages/provider'),
-                  const Text('https://pub.dev/packages/go_router'),
+                  const Text('https://pub.dev/packages/[package_name]'),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Contact & Legal:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const Text('Email: support@lingolamp.app'),
+                  const Text('Privacy Policy: https://sites.google.com/view/lingolamp-privacypolicy/'),
+                  const Text('Terms of Service: https://sites.google.com/view/lingolamp-tos/'),
                 ],
               );
             },
@@ -388,6 +390,86 @@ class SettingsScreen extends StatelessWidget {
               foregroundColor: Colors.white,
             ),
             child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPrivacyPolicy(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Privacy Policy'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Our Privacy Policy explains how we collect, use, and protect your data.'),
+            SizedBox(height: 16),
+            Text('To view our complete Privacy Policy, please visit:'),
+            SizedBox(height: 8),
+            Text(
+              'https://sites.google.com/view/lingolamp-privacypolicy/',
+              style: TextStyle(
+                color: Colors.blue,
+                decoration: TextDecoration.underline,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // TODO: Launch URL in browser
+              // url_launcher can be added if needed
+            },
+            child: const Text('Open in Browser'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTermsOfService(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Terms of Service'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Our Terms of Service outline the rules and guidelines for using LingoLamp.'),
+            SizedBox(height: 16),
+            Text('To view our complete Terms of Service, please visit:'),
+            SizedBox(height: 8),
+            Text(
+              'https://sites.google.com/view/lingolamp-tos/',
+              style: TextStyle(
+                color: Colors.blue,
+                decoration: TextDecoration.underline,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // TODO: Launch URL in browser
+              // url_launcher can be added if needed
+            },
+            child: const Text('Open in Browser'),
           ),
         ],
       ),

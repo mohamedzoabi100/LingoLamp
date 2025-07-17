@@ -16,7 +16,7 @@ class InitializationService {
       // Initialize SharedPreferences
       await SharedPreferences.getInstance();
       
-      // Initialize other services
+      // Initialize other services (don't fail if they don't work)
       await _initializeOtherServices();
       
       print('✅ All services initialized successfully');
@@ -33,6 +33,7 @@ class InitializationService {
       print('✅ Hive initialized successfully');
     } catch (e) {
       print('❌ Hive initialization failed: $e');
+      // Continue without Hive if it fails
     }
   }
   
@@ -43,6 +44,7 @@ class InitializationService {
       print('✅ XP service initialized successfully');
     } catch (e) {
       print('❌ XP service initialization failed: $e');
+      // Continue without XP service if it fails
     }
     
     // Initialize Daily Task service and load data from Firestore for authenticated users
@@ -51,6 +53,7 @@ class InitializationService {
       print('✅ Daily Task service initialized successfully');
     } catch (e) {
       print('❌ Daily Task service initialization failed: $e');
+      // Continue without Daily Task service if it fails
     }
     
     // Initialize Language Provider
@@ -60,10 +63,10 @@ class InitializationService {
       print('✅ Language provider initialized successfully');
     } catch (e) {
       print('❌ Language provider initialization failed: $e');
+      // Continue without Language provider if it fails
     }
     
-    // Initialize other services here
-    // This will be expanded as we add more services
-    await Future.delayed(const Duration(milliseconds: 100));
+    // Add a small delay to ensure everything is properly initialized
+    await Future.delayed(const Duration(milliseconds: 200));
   }
 } 

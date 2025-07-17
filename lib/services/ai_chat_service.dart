@@ -2,6 +2,7 @@
 // ** FINAL VERSION with your preferred detailed prompt **
 
 import 'dart:async';
+import 'dart:async' show unawaited;
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
@@ -102,12 +103,12 @@ STYLE
           return "I'm sorry, I couldn't process that. Could you try rephrasing?";
         }
         
-        // Award XP and update daily task progress only after successful response
+        // Award XP and update daily task progress only after successful response (non-blocking)
         final xpTracker = XPEventTracker();
         xpTracker.addXP(XPEventTracker.chatMessage, 'Chat message sent');
         
-        final dailyTaskService = DailyTaskService();
-        await dailyTaskService.updateTaskProgress(daily_task.TaskType.chatWithAI, 1, languageCode: languageCode);
+        // Fire and forget - don't await
+        unawaited(DailyTaskService().updateTaskProgress(daily_task.TaskType.chatWithAI, 1, languageCode: languageCode));
         
         return aiResponse;
       } on TimeoutException {

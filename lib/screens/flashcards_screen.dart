@@ -9,11 +9,14 @@ import '../core/providers/language_provider.dart';
 import '../models/spaced_repetition_model.dart';
 import '../models/study_card_model.dart';
 import '../models/recommended_flashcard_model.dart';
+import '../models/spaced_repetition_model.dart' show ReviewQuality;
 import '../utils/database_helper.dart';
 import 'spaced_repetition_study_screen.dart';
 import 'recommendations_screen.dart';
 import 'flashcards/browse_flashcards_list.dart';
 import '../core/providers/flashcard_provider.dart';
+import '../core/providers/recommendation_provider.dart';
+import '../services/xp_service.dart';
 
 class FlashcardsScreen extends StatefulWidget {
   final VoidCallback? onBackToHome;
@@ -27,31 +30,58 @@ class FlashcardsScreen extends StatefulWidget {
   State<FlashcardsScreen> createState() => _FlashcardsScreenState();
 }
 
-class _FlashcardsScreenState extends State<FlashcardsScreen> with TickerProviderStateMixin {
+class _FlashcardsScreenState extends State<FlashcardsScreen>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   final UserDataService _userDataService = UserDataService();
   final CloudTtsService _cloudTts = CloudTtsService()..register();
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
-  late TabController _tabController;
-  late Stream<List<Flashcard>> _flashcardsStream;
-  late Stream<List<RecommendedFlashcard>> _recommendedStream;
+  final XPService _xpService = XPService();
+
+  // State variables
   List<StudyCard> _studyCards = [];
   List<StudyCard> _reviewQueue = [];
   int _currentIndex = 0;
   bool _showAnswer = false;
   bool _isStudyMode = false;
   int _currentStudyIndex = 0;
-  bool _showStudyAnswer = false;
-  LanguageProvider? _languageProvider; // Store reference
+  LanguageProvider? _languageProvider;
+  bool _hasRefreshedReview = false; // Track if review has been refreshed
+  late TabController _tabController;
+  late FocusNode _focusNode;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _tabController = TabController(length: 2, vsync: this);
+    _focusNode = FocusNode();
+    
+    // Add tab change listener to refresh data when switching tabs
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging) {
+        print('🔄 [FLASHCARDS] Tab changed');
+        
+        // If switching to review tab (index 0), refresh from Firebase and update review queue
+        if (_tabController.index == 0) {
+          print('🔄 [FLASHCARDS] Switching to review tab, refreshing from Firebase and review queue');
+          _refreshFromFirebaseAndLoadReview();
+        }
+        // If switching to browse tab (index 1), refresh from Firebase
+        else if (_tabController.index == 1) {
+          print('🔄 [FLASHCARDS] Switching to browse tab, refreshing from Firebase');
+          _refreshFromFirebase();
+        }
+      }
+    });
+    
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final languageProvider = context.read<LanguageProvider>();
       await context.read<FlashcardProvider>().init(languageCode: languageProvider.currentLanguage, context: context);
+      await context.read<RecommendationProvider>().init(languageCode: languageProvider.currentLanguage, context: context);
+      
+      // Refresh data after initialization
+      await _refreshData();
     });
-    _loadFlashcards();
     _loadReviewQueue();
   }
 
@@ -61,11 +91,33 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with TickerProvider
     // Only add listener once
     _languageProvider ??= Provider.of<LanguageProvider>(context, listen: false);
     _languageProvider!.addListener(_onLanguageChanged);
+    
+    // Add focus listener to refresh data when screen is focused
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus) {
+        print('🔄 [FLASHCARDS] Screen focused, refreshing both tabs from Firebase');
+        
+        // Refresh both tabs when returning to the screen (e.g., from recommendations)
+        _refreshBothTabsFromFirebase();
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Refresh when app becomes visible
+    if (state == AppLifecycleState.resumed) {
+      print('🔄 [FLASHCARDS] App resumed, refreshing review queue');
+      _loadReviewQueue();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tabController.dispose();
+    _focusNode.dispose();
     // Remove language listener
     _languageProvider?.removeListener(_onLanguageChanged); // Use stored reference
     // Stop TTS when leaving the screen
@@ -76,27 +128,62 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with TickerProvider
 
   void _onLanguageChanged() {
     // Reload flashcards when language changes
-    _loadFlashcards();
     _loadReviewQueue();
+    _hasRefreshedReview = false; // Reset flag to allow refresh
+    
+    // Refresh flashcard provider with new language
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+      final flashcardProvider = Provider.of<FlashcardProvider>(context, listen: false);
+      final recommendationProvider = Provider.of<RecommendationProvider>(context, listen: false);
+      await flashcardProvider.onLanguageChanged(languageProvider.currentLanguage);
+      await recommendationProvider.onLanguageChanged(languageProvider.currentLanguage);
+    });
   }
 
-  Future<void> _loadFlashcards() async {
-    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-    _flashcardsStream = _dbHelper.flashcardsStream;
-    _recommendedStream = _dbHelper.recommendedStream;
-  }
+
 
   Future<void> _loadReviewQueue() async {
-    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-    final allFlashcards = await _dbHelper.getFlashcardsByLanguage(languageProvider.currentLanguage);
+    final flashcardProvider = Provider.of<FlashcardProvider>(context, listen: false);
+    final allFlashcards = flashcardProvider.flashcards;
     final spacedCards = await _dbHelper.getAllSpacedRepetitionCards();
     
     _studyCards = StudyService.createStudySession(allFlashcards, spacedCards);
     _reviewQueue = _studyCards.where((card) => card.isDue).toList();
     
+    print('📅 [FLASHCARDS] Loaded ${_reviewQueue.length} due cards out of ${allFlashcards.length} total flashcards');
+    
     if (mounted) {
       setState(() {});
     }
+  }
+
+  // Refresh data when screen is focused
+  Future<void> _refreshData() async {
+    final flashcardProvider = Provider.of<FlashcardProvider>(context, listen: false);
+    await flashcardProvider.forceRefresh();
+    await _loadReviewQueue();
+    _hasRefreshedReview = false; // Reset flag to allow refresh
+  }
+
+  // Refresh from Firebase and load review queue (for review tab)
+  Future<void> _refreshFromFirebaseAndLoadReview() async {
+    final flashcardProvider = Provider.of<FlashcardProvider>(context, listen: false);
+    await flashcardProvider.forceRefresh();
+    await _loadReviewQueue();
+  }
+
+  // Refresh from Firebase only (for browse tab)
+  Future<void> _refreshFromFirebase() async {
+    final flashcardProvider = Provider.of<FlashcardProvider>(context, listen: false);
+    await flashcardProvider.forceRefresh();
+  }
+
+  // Refresh both tabs from Firebase (for when returning to screen)
+  Future<void> _refreshBothTabsFromFirebase() async {
+    final flashcardProvider = Provider.of<FlashcardProvider>(context, listen: false);
+    await flashcardProvider.forceRefresh();
+    await _loadReviewQueue();
   }
 
   Future<void> _speakText(String text, String language) async {
@@ -149,11 +236,9 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with TickerProvider
   }
 
   Future<void> _markAsStudied(Flashcard flashcard) async {
-    final updatedFlashcard = flashcard.copyWith(
-      lastStudied: DateTime.now(),
-      timesStudied: flashcard.timesStudied + 1,
-    );
-    await _userDataService.updateFlashcard(updatedFlashcard);
+    final flashcardProvider = Provider.of<FlashcardProvider>(context, listen: false);
+    final updatedFlashcard = flashcard.markAsStudied();
+    await flashcardProvider.updateFlashcard(updatedFlashcard);
   }
 
   void _startStudyMode(List<Flashcard> filteredFlashcards) {
@@ -450,10 +535,11 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with TickerProvider
       return;
     }
     final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    final flashcardProvider = Provider.of<FlashcardProvider>(context, listen: false);
     final updated = await StudyService.processReview(card, quality, languageCode: languageProvider.currentLanguage);
 
-    // Persist changes
-    await _dbHelper.updateFlashcard(updated.flashcard);
+    // Persist changes using provider
+    await flashcardProvider.markAsReviewed(updated.flashcard, quality == ReviewQuality.good || quality == ReviewQuality.easy);
     if (updated.spacedRepetitionCard != null) {
       if (updated.spacedRepetitionCard!.id != null) {
         await _dbHelper.updateSpacedRepetitionCard(updated.spacedRepetitionCard!);
@@ -493,114 +579,114 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> with TickerProvider
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<LanguageProvider>(
-      builder: (context, languageProvider, child) {
-        return StreamBuilder<List<Flashcard>>(
-          stream: _flashcardsStream,
-          builder: (context, snapshot) {
-            print('🔄 [FLASHCARDS] StreamBuilder update - hasData: ${snapshot.hasData}, dataLength: ${snapshot.data?.length ?? 0}');
-            if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
+    return Focus(
+      focusNode: _focusNode,
+      child: Consumer<LanguageProvider>(
+        builder: (context, languageProvider, child) {
+          return Consumer<FlashcardProvider>(
+            builder: (context, flashcardProvider, child) {
+              // Check if provider is loading
+              if (flashcardProvider.isLoading) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+              
+              final allFlashcards = flashcardProvider.flashcards;
+              print('📊 [FLASHCARDS] Received ${allFlashcards.length} flashcards from provider');
+              if (allFlashcards.isNotEmpty) {
+                print('📝 [FLASHCARDS] First flashcard: ${allFlashcards.first.toMap()}');
+                print('📝 [FLASHCARDS] Last flashcard: ${allFlashcards.last.toMap()}');
+              }
+              
+              // Flashcards are already filtered by language in the provider
+              final currentLanguage = languageProvider.currentLanguage;
+              print('🔍 [FLASHCARDS] Using ${allFlashcards.length} flashcards for language: $currentLanguage');
 
-            if (snapshot.hasError) {
-              print('❌ [FLASHCARDS] Stream error: ${snapshot.error}');
-              return Center(child: Text('Error: ${snapshot.error}'));
-            }
+              // Refresh review queue when screen is built to ensure it's up to date
+              // Only do this once per build cycle to avoid refresh loops
+              if (!_hasRefreshedReview && mounted) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && !_hasRefreshedReview) {
+                    _loadReviewQueue();
+                    _hasRefreshedReview = true;
+                  }
+                });
+              }
 
-            final allFlashcards = snapshot.data ?? [];
-            print('📊 [FLASHCARDS] Received ${allFlashcards.length} flashcards from stream');
-            if (allFlashcards.isNotEmpty) {
-              print('📝 [FLASHCARDS] First flashcard: ${allFlashcards.first.toMap()}');
-              print('📝 [FLASHCARDS] Last flashcard: ${allFlashcards.last.toMap()}');
-            }
-            
-            // Filter flashcards by current language
-            final currentLanguage = languageProvider.currentLanguage;
-            final filteredFlashcards = allFlashcards.where((flashcard) => 
-              flashcard.languageCode == currentLanguage
-            ).toList();
-            
-            print('🔍 [FLASHCARDS] Filtered to ${filteredFlashcards.length} flashcards for language: $currentLanguage');
-
-            return DefaultTabController(
-              length: 2,
-              child: Scaffold(
-                appBar: AppBar(
-                  leading: null,
-                  title: const Text('Flashcards'),
-                  backgroundColor: Theme.of(context).primaryColor,
-                  foregroundColor: Colors.white,
-                  bottom: TabBar(
-                    controller: _tabController,
-                    indicatorColor: Colors.white,
-                    labelColor: Colors.white,
-                    unselectedLabelColor: Colors.white70,
-                    tabs: const [
-                      Tab(text: 'Review'),
-                      Tab(text: 'Browse'),
-                    ],
-                  ),
-                  actions: [
-                    StreamBuilder<List<RecommendedFlashcard>>(
-                      stream: _recommendedStream,
-                      builder: (context, snap) {
-                        final allRecommendations = snap.data ?? [];
-                        // Filter recommendations by current language
-                        final currentLanguage = languageProvider.currentLanguage;
-                        final filteredRecommendations = allRecommendations.where((rec) => 
-                          rec.languageCode == currentLanguage
-                        ).toList();
-                        final count = filteredRecommendations.length;
-                        return IconButton(
-                          tooltip: 'Recommendations',
-                          icon: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              const Icon(Icons.lightbulb_outline),
-                              if (count > 0)
-                                Positioned(
-                                  right: -2,
-                                  top: -2,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(2),
-                                    decoration: const BoxDecoration(
-                                      color: Colors.red,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                                    child: Text(
-                                      '$count',
-                                      style: const TextStyle(color: Colors.white, fontSize: 10),
-                                      textAlign: TextAlign.center,
+              return DefaultTabController(
+                length: 2,
+                child: Scaffold(
+                  appBar: AppBar(
+                    leading: null,
+                    title: const Text('Flashcards'),
+                    backgroundColor: Theme.of(context).primaryColor,
+                    foregroundColor: Colors.white,
+                    bottom: TabBar(
+                      controller: _tabController,
+                      indicatorColor: Colors.white,
+                      labelColor: Colors.white,
+                      unselectedLabelColor: Colors.white70,
+                      tabs: const [
+                        Tab(text: 'Review'),
+                        Tab(text: 'Browse'),
+                      ],
+                    ),
+                    actions: [
+                      Consumer<RecommendationProvider>(
+                        builder: (context, recommendationProvider, child) {
+                          final recommendations = recommendationProvider.recommendations;
+                          final count = recommendations.length;
+                          return IconButton(
+                            tooltip: 'Recommendations',
+                            icon: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                const Icon(Icons.lightbulb_outline),
+                                if (count > 0)
+                                  Positioned(
+                                    right: -2,
+                                    top: -2,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(2),
+                                      decoration: const BoxDecoration(
+                                        color: Colors.red,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                                      child: Text(
+                                        '$count',
+                                        style: const TextStyle(color: Colors.white, fontSize: 10),
+                                        textAlign: TextAlign.center,
+                                      ),
                                     ),
                                   ),
-                                ),
-                            ],
-                          ),
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => const RecommendationsScreen()),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ],
+                              ],
+                            ),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const RecommendationsScreen()),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                  body: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildReviewMode(),
+                      BrowseFlashcardsList(),
+                    ],
+                  ),
                 ),
-                body: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildReviewMode(),
-                    BrowseFlashcardsList(),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }

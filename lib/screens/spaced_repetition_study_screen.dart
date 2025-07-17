@@ -7,6 +7,7 @@ import '../services/study_service.dart';
 import '../services/cloud_tts_service.dart';
 import '../services/xp_service.dart';
 import '../core/providers/language_provider.dart';
+import '../core/providers/flashcard_provider.dart';
 import '../utils/database_helper.dart';
 
 class SpacedRepetitionStudyScreen extends StatefulWidget {
@@ -79,16 +80,28 @@ class _SpacedRepetitionStudyScreenState extends State<SpacedRepetitionStudyScree
 
   void _onLanguageChanged() {
     // Reload due cards when language changes
-    _loadDueCards();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _loadDueCards();
+    });
   }
 
   Future<void> _loadDueCards() async {
     final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-    final flashcards = await _dbHelper.getFlashcardsByLanguage(languageProvider.currentLanguage);
+    final flashcardProvider = Provider.of<FlashcardProvider>(context, listen: false);
+    
+    print('📚 [STUDY] Loading due cards for language: ${languageProvider.currentLanguage}');
+    
+    // Use flashcards from the provider instead of database helper
+    final flashcards = flashcardProvider.flashcards;
+    print('📚 [STUDY] Found ${flashcards.length} flashcards from provider');
+    
     final spacedCards = await _dbHelper.getAllSpacedRepetitionCards();
+    print('📚 [STUDY] Found ${spacedCards.length} spaced repetition cards');
     
     final studyCards = StudyService.createStudySession(flashcards, spacedCards);
     final dueCards = studyCards.where((card) => card.isDue).toList();
+    
+    print('📚 [STUDY] Found ${dueCards.length} due cards');
     
     if (mounted) {
       setState(() {
@@ -96,6 +109,7 @@ class _SpacedRepetitionStudyScreenState extends State<SpacedRepetitionStudyScree
         _currentIndex = 0;
         _showAnswer = false;
       });
+      print('✅ [STUDY] Due cards loaded and state updated');
     }
   }
 
@@ -155,8 +169,13 @@ class _SpacedRepetitionStudyScreenState extends State<SpacedRepetitionStudyScree
   Future<void> _processReview(ReviewQuality quality) async {
     if (_dueCards.isEmpty) return;
 
+    print('🔄 [STUDY] Processing review for quality: $quality');
     final currentCard = _dueCards[_currentIndex];
     final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    final flashcardProvider = Provider.of<FlashcardProvider>(context, listen: false);
+    
+    print('📝 [STUDY] Current card: ${currentCard.flashcard.originalText} -> ${currentCard.flashcard.translatedText}');
+    
     final updatedStudyCard = await StudyService.processReview(currentCard, quality, languageCode: languageProvider.currentLanguage);
 
     // Award XP based on review quality
@@ -177,8 +196,11 @@ class _SpacedRepetitionStudyScreenState extends State<SpacedRepetitionStudyScree
     }
     await _xpService.awardFlashcardReview(difficulty);
 
-    // Persist changes to the database
-    await _dbHelper.updateFlashcard(updatedStudyCard.flashcard);
+    print('💾 [STUDY] Updating flashcard via provider...');
+    // Update flashcard using the provider (this will sync to cloud for signed-in users)
+    await flashcardProvider.updateFlashcard(updatedStudyCard.flashcard);
+    
+    // Update spaced repetition card in local database
     if (updatedStudyCard.spacedRepetitionCard != null) {
       if (updatedStudyCard.spacedRepetitionCard!.id != null) {
         await _dbHelper.updateSpacedRepetitionCard(updatedStudyCard.spacedRepetitionCard!);
@@ -187,17 +209,32 @@ class _SpacedRepetitionStudyScreenState extends State<SpacedRepetitionStudyScree
       }
     }
     
-    _nextCard();
+    print('➡️ [STUDY] Moving to next card...');
+    
+    // Reload due cards after processing the review
+    // This ensures that cards that are no longer due are removed from the list
+    await _loadDueCards();
+    
+    // If we still have cards, move to the next one
+    if (_dueCards.isNotEmpty) {
+      _nextCard();
+    } else {
+      // No more cards due, show session complete
+      _showSessionComplete();
+    }
   }
 
   void _nextCard() {
+    print('🔄 [STUDY] _nextCard called. Current index: $_currentIndex, Total cards: ${_dueCards.length}');
     if (_currentIndex < _dueCards.length - 1) {
       setState(() {
         _currentIndex++;
         _showAnswer = false;
       });
+      print('✅ [STUDY] Moved to next card. New index: $_currentIndex');
     } else {
-      _showSessionComplete();
+      print('🏁 [STUDY] Reached end of current due cards list');
+      // Don't show session complete here - let _processReview handle it
     }
   }
 
@@ -415,7 +452,10 @@ class _SpacedRepetitionStudyScreenState extends State<SpacedRepetitionStudyScree
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4.0),
         child: ElevatedButton(
-          onPressed: () => _processReview(quality),
+          onPressed: () {
+            print('🔘 [STUDY] Button pressed: $label ($quality)');
+            _processReview(quality);
+          },
           style: ElevatedButton.styleFrom(
             backgroundColor: color,
             foregroundColor: Colors.white,

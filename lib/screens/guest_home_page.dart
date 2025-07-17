@@ -496,6 +496,7 @@ class _GuestHomePageState extends State<GuestHomePage> with SingleTickerProvider
             Text('• Delete all guest data (flashcards, chat history, favorites)'),
             Text('• Clear app preferences'),
             Text('• Reset to fresh start'),
+            Text('• View app information and licenses'),
             SizedBox(height: 8),
             Text(
               'Note: This will permanently delete all your guest data and cannot be undone.',
@@ -512,6 +513,13 @@ class _GuestHomePageState extends State<GuestHomePage> with SingleTickerProvider
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Cancel'),
           ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _showAboutDialog(context);
+            },
+            child: const Text('About'),
+          ),
           ElevatedButton(
             onPressed: () {
               Navigator.of(context).pop();
@@ -525,6 +533,97 @@ class _GuestHomePageState extends State<GuestHomePage> with SingleTickerProvider
           ),
         ],
       ),
+    );
+  }
+
+  void _showAboutDialog(BuildContext context) {
+    showAboutDialog(
+      context: context,
+      applicationName: 'LingoLamp',
+      applicationVersion: '2.0.0',
+      applicationIcon: Image.asset('assets/images/Logo.png', width: 48, height: 48),
+      applicationLegalese: '© 2025 LingoLamp. All rights reserved.',
+      children: [
+        const SizedBox(height: 16),
+        const Text(
+          'LingoLamp is your all-in-one language learning companion, designed to help you master new languages through interactive features and smart AI assistance.',
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'Key Features:',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        const Text('• Flashcards with spaced repetition'),
+        const Text('• AI-powered chat and phrase suggestions'),
+        const Text('• Daily tasks and XP streaks'),
+        const Text('• Favorites and personalized recommendations'),
+        const Text('• Cross-device sync (cloud backup)'),
+        const Text('• Guest mode (no account required)'),
+        const Text('• Full account deletion and data portability'),
+        const SizedBox(height: 12),
+                          const Text(
+                    'Privacy & Data:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const Text(
+                    '• We collect only data needed for your learning experience'
+                  ),
+                  const Text(
+                    '• All data is securely stored using Google Firebase'
+                  ),
+                  const Text(
+                    '• You can delete your account and all data at any time'
+                  ),
+                  const Text(
+                    '• No personal data is shared with third parties'
+                  ),
+        const SizedBox(height: 12),
+        const Text(
+          'Open Source Licenses:',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        const Text('This app uses the following open source libraries:'),
+        const SizedBox(height: 8),
+        const Text('• Flutter (Apache 2.0)'),
+        const Text('• Firebase (Apache 2.0)'),
+        const Text('• Provider (MIT)'),
+        const Text('• Riverpod (MIT)'),
+        const Text('• Flutter Riverpod (MIT)'),
+        const Text('• Go Router (BSD 3-Clause)'),
+        const Text('• Google Generative AI (Apache 2.0)'),
+        const Text('• SQLite (Public Domain)'),
+        const Text('• Hive (Apache 2.0)'),
+        const Text('• Hive Flutter (Apache 2.0)'),
+        const Text('• Shared Preferences (Apache 2.0)'),
+        const Text('• Cached Network Image (MIT)'),
+        const Text('• Shimmer (MIT)'),
+        const Text('• Flutter Markdown (MIT)'),
+        const Text('• Flutter TTS (MIT)'),
+        const Text('• Speech to Text (MIT)'),
+        const Text('• Intl (BSD 3-Clause)'),
+        const Text('• HTTP (BSD 3-Clause)'),
+        const Text('• Connectivity Plus (Apache 2.0)'),
+        const Text('• Path Provider (Apache 2.0)'),
+        const Text('• Permission Handler (MIT)'),
+        const Text('• RxDart (Apache 2.0)'),
+        const Text('• Path (BSD 3-Clause)'),
+        const Text('• UUID (MIT)'),
+        const Text('• CSV (MIT)'),
+        const Text('• Cupertino Icons (MIT)'),
+        const Text('• Google APIs Auth (Apache 2.0)'),
+        const Text('• Audio Players (MIT)'),
+        const SizedBox(height: 8),
+                          const Text('For full license texts, visit:'),
+                  const Text('https://pub.dev/packages/[package_name]'),
+        const SizedBox(height: 12),
+                          const Text(
+                    'Contact & Legal:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const Text('Email: support@lingolamp.app'),
+                  const Text('Privacy Policy: https://sites.google.com/view/lingolamp-privacypolicy/'),
+                  const Text('Terms of Service: https://sites.google.com/view/lingolamp-tos/'),
+      ],
     );
   }
 

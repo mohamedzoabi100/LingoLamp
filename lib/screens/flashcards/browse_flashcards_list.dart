@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/flashcard_model.dart';
-import '../../services/user_data_service.dart';
-import '../../utils/database_helper.dart';
 import '../../core/providers/language_provider.dart';
 import '../../core/providers/flashcard_provider.dart';
 
@@ -14,9 +12,6 @@ class BrowseFlashcardsList extends StatefulWidget {
 }
 
 class _BrowseFlashcardsListState extends State<BrowseFlashcardsList> {
-  final DatabaseHelper _db = DatabaseHelper.instance;
-  final UserDataService _userSvc = UserDataService();
-
   final TextEditingController _searchCtrl = TextEditingController();
 
   Set<String> _allTags = {};
@@ -31,11 +26,8 @@ class _BrowseFlashcardsListState extends State<BrowseFlashcardsList> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final languageProvider = context.read<LanguageProvider>();
-      await context.read<FlashcardProvider>().init(languageCode: languageProvider.currentLanguage, context: context);
-    });
-    // _searchCtrl.addListener(_applyFilters); // No longer needed
+    // Removed redundant provider initialization - main flashcards screen handles this
+    // This was causing refresh loops
   }
 
   @override
@@ -79,10 +71,11 @@ class _BrowseFlashcardsListState extends State<BrowseFlashcardsList> {
     );
     if (confirmed != true) return;
 
+    final flashcardProvider = context.read<FlashcardProvider>();
     final ids = _selectedIds.toList();
     for (final id in ids) {
       final card = all.firstWhere((c) => c.id == id);
-      await _userSvc.deleteFlashcard(card);
+      await flashcardProvider.removeFlashcard(card);
     }
     setState(() {
       _selectedIds.clear();
@@ -94,31 +87,35 @@ class _BrowseFlashcardsListState extends State<BrowseFlashcardsList> {
   Widget build(BuildContext context) {
     return Consumer<LanguageProvider>(
       builder: (context, languageProvider, child) {
-        return StreamBuilder<List<Flashcard>>(
-          stream: _db.flashcardsStream,
-          builder: (context, snapshot) {
-            print('🔄 [BROWSE] StreamBuilder update - hasData: ${snapshot.hasData}, dataLength: ${snapshot.data?.length ?? 0}');
-            if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
+        return Consumer<FlashcardProvider>(
+          builder: (context, flashcardProvider, child) {
+            final all = flashcardProvider.flashcards;
+            print('📊 [BROWSE] Received ${all.length} flashcards from provider for language: ${languageProvider.currentLanguage}');
+            
+            // Check for duplicates in the provider's list
+            final duplicates = <String, List<Flashcard>>{};
+            for (final card in all) {
+              final key = '${card.originalText}_${card.translatedText}';
+              duplicates.putIfAbsent(key, () => []).add(card);
             }
-            final all = snapshot.data!;
-            print('📊 [BROWSE] Received ${all.length} flashcards from stream');
+            
+            final actualDuplicates = duplicates.values.where((cards) => cards.length > 1);
+            if (actualDuplicates.isNotEmpty) {
+              print('⚠️ [BROWSE] Found ${actualDuplicates.length} duplicate groups in provider:');
+              for (final group in actualDuplicates) {
+                print('   - "${group.first.originalText}" appears ${group.length} times');
+              }
+            }
+            
             if (all.isNotEmpty) {
               print('📝 [BROWSE] First flashcard: ${all.first.toMap()}');
               print('📝 [BROWSE] Last flashcard: ${all.last.toMap()}');
             }
             
-            // Filter flashcards by current language
-            final currentLanguage = languageProvider.currentLanguage;
-            final languageFiltered = all.where((flashcard) => 
-              flashcard.languageCode == currentLanguage
-            ).toList();
-            
-            print('🔍 [BROWSE] Filtered to ${languageFiltered.length} flashcards for language: $currentLanguage');
-            
-            _allTags = languageFiltered.expand((c) => c.tags).toSet();
-            final visible = _applyFiltersToList(languageFiltered);
-            print('👁️ [BROWSE] After filtering: ${visible.length} visible flashcards');
+            // The provider already filters by language, so use the flashcards directly
+            _allTags = all.expand((c) => c.tags).toSet();
+            final visible = _applyFiltersToList(all);
+            print('👁️ [BROWSE] After search filtering: ${visible.length} visible flashcards');
 
             return Scaffold(
               appBar: _selectMode
@@ -149,10 +146,15 @@ class _BrowseFlashcardsListState extends State<BrowseFlashcardsList> {
                   Expanded(
                     child: visible.isEmpty
                         ? const Center(child: Text('No cards match your filters'))
-                        : ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            itemCount: visible.length,
-                            itemBuilder: (context, index) {
+                        : RefreshIndicator(
+                            onRefresh: () async {
+                              final flashcardProvider = context.read<FlashcardProvider>();
+                              await flashcardProvider.forceRefresh();
+                            },
+                            child: ListView.builder(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              itemCount: visible.length,
+                              itemBuilder: (context, index) {
                               final card = visible[index];
                               final selected = _selectedIds.contains(card.id);
                               return GestureDetector(
@@ -203,7 +205,7 @@ class _BrowseFlashcardsListState extends State<BrowseFlashcardsList> {
                                                 icon: const Icon(Icons.delete_outline),
                                                 tooltip: 'Delete',
                                                 onPressed: () async {
-                                                  await _userSvc.deleteFlashcard(card);
+                                                  await flashcardProvider.removeFlashcard(card);
                                                 },
                                               ),
                                           ],
@@ -215,6 +217,7 @@ class _BrowseFlashcardsListState extends State<BrowseFlashcardsList> {
                               );
                             },
                           ),
+                        ),
                   ),
                 ],
               ),

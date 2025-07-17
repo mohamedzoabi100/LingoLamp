@@ -30,9 +30,13 @@ class SyncService {
   static const String _lastFavoritesSyncKey = 'last_favorites_sync';
   static const String _lastRecommendationsSyncKey = 'last_recommendations_sync';
 
+
   // Device ID for conflict resolution
   static const String _deviceIdKey = 'device_id';
   String? _deviceId;
+  
+  // Rate limiting for sync operations
+  int? _lastChatSyncTime;
 
   // Getters
   User? get currentUser => _auth.currentUser;
@@ -71,24 +75,15 @@ class SyncService {
 
       // Get local flashcards
       final localFlashcards = await _dbHelper.getAllFlashcards();
+      print('🔄 [SYNC] Found ${localFlashcards.length} local flashcards');
       
-      // Get cloud flashcards
-      final cloudDoc = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('flashcards')
-          .doc('data')
-          .get();
-
-      List<Flashcard> cloudFlashcards = [];
-      if (cloudDoc.exists) {
-        final data = cloudDoc.data()!;
-        final cloudData = List<Map<String, dynamic>>.from(data['flashcards'] ?? []);
-        cloudFlashcards = cloudData.map((map) => Flashcard.fromMap(map)).toList();
-      }
+      // Get cloud flashcards from all languages
+      final cloudFlashcards = await _getAllCloudFlashcards();
+      print('🔄 [SYNC] Found ${cloudFlashcards.length} cloud flashcards');
 
       // Merge and resolve conflicts
       final mergedFlashcards = await _mergeFlashcards(localFlashcards, cloudFlashcards);
+      print('🔄 [SYNC] Merged to ${mergedFlashcards.length} flashcards');
       
       // Update local database
       await _updateLocalFlashcards(mergedFlashcards);
@@ -110,66 +105,171 @@ class SyncService {
     }
   }
 
+  Future<List<Flashcard>> _getAllCloudFlashcards() async {
+    final List<Flashcard> allFlashcards = [];
+    
+    // Get all language documents
+    final languagesSnapshot = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('flashcards')
+        .get();
+    
+    for (final languageDoc in languagesSnapshot.docs) {
+      final languageCode = languageDoc.id;
+      
+      // Get all flashcards for this language
+      final flashcardsSnapshot = await languageDoc.reference
+          .collection('items')
+          .get();
+      
+      for (final flashcardDoc in flashcardsSnapshot.docs) {
+        try {
+          final data = flashcardDoc.data();
+          // Use the document ID as the UUID (since we're now using UUID as document ID)
+          data['uuid'] = flashcardDoc.id;
+          data['languageCode'] = languageCode; // Ensure language code is set
+          allFlashcards.add(Flashcard.fromMap(data));
+          print('📥 [SYNC] Loaded cloud flashcard: ${data['originalText']} -> ${data['translatedText']} (${flashcardDoc.id})');
+        } catch (e) {
+          print('⚠️ [SYNC] Error parsing cloud flashcard: $e');
+        }
+      }
+    }
+    
+    print('📊 [SYNC] Total cloud flashcards loaded: ${allFlashcards.length}');
+    return allFlashcards;
+  }
+
   Future<List<Flashcard>> _mergeFlashcards(List<Flashcard> local, List<Flashcard> cloud) async {
+    print('🔄 [SYNC] _mergeFlashcards called with ${local.length} local and ${cloud.length} cloud flashcards');
+    
     final Map<String, Flashcard> merged = {};
     
     // Add local flashcards
+    print('📝 [SYNC] Adding local flashcards:');
     for (final flashcard in local) {
+      print('  - ${flashcard.originalText} -> ${flashcard.translatedText} (${flashcard.uuid})');
       merged[flashcard.uuid] = flashcard;
     }
     
     // Merge with cloud flashcards
+    print('📝 [SYNC] Merging with cloud flashcards:');
     for (final cloudFlashcard in cloud) {
+      print('  - ${cloudFlashcard.originalText} -> ${cloudFlashcard.translatedText} (${cloudFlashcard.uuid})');
       final localFlashcard = merged[cloudFlashcard.uuid];
       
       if (localFlashcard == null) {
         // New cloud flashcard
+        print('    -> New cloud flashcard, adding');
         merged[cloudFlashcard.uuid] = cloudFlashcard;
       } else {
         // Conflict resolution - use the most recently updated
         final localTime = localFlashcard.lastStudied.millisecondsSinceEpoch;
         final cloudTime = cloudFlashcard.lastStudied.millisecondsSinceEpoch;
         
+        print('    -> Conflict detected: local=${localTime}, cloud=${cloudTime}');
         if (cloudTime > localTime) {
+          print('    -> Using cloud version (newer)');
           merged[cloudFlashcard.uuid] = cloudFlashcard;
+        } else {
+          print('    -> Using local version (newer or same)');
         }
       }
     }
     
-    return merged.values.toList();
+    final result = merged.values.toList();
+    print('✅ [SYNC] _mergeFlashcards completed with ${result.length} merged flashcards');
+    return result;
   }
 
   Future<void> _updateLocalFlashcards(List<Flashcard> flashcards) async {
-    // Clear existing flashcards by deleting them one by one
+    print('🔄 [SYNC] _updateLocalFlashcards called with ${flashcards.length} flashcards');
+    
+    // Get existing flashcards to avoid duplicates (like chat sync does)
     final existingFlashcards = await _dbHelper.getAllFlashcards();
-    for (final flashcard in existingFlashcards) {
-      await _dbHelper.deleteFlashcardByUuid(flashcard.uuid);
+    final existingUuids = existingFlashcards.map((f) => f.uuid).toSet();
+    
+    print('📊 [SYNC] Found ${existingFlashcards.length} existing flashcards');
+    
+    // Only insert new flashcards (don't clear existing ones)
+    int insertedCount = 0;
+    for (final flashcard in flashcards) {
+      if (!existingUuids.contains(flashcard.uuid)) {
+        print('➕ [SYNC] Inserting new flashcard: ${flashcard.originalText} -> ${flashcard.translatedText} (${flashcard.uuid})');
+        try {
+          await _dbHelper.insertFlashcard(flashcard);
+          insertedCount++;
+          print('✅ [SYNC] Successfully inserted flashcard: ${flashcard.originalText}');
+        } catch (e) {
+          print('❌ [SYNC] Error inserting flashcard: ${flashcard.originalText} - $e');
+        }
+      } else {
+        print('⏭️ [SYNC] Skipping existing flashcard: ${flashcard.originalText} (${flashcard.uuid})');
+      }
     }
     
-    // Insert merged flashcards
-    for (final flashcard in flashcards) {
-      await _dbHelper.insertFlashcard(flashcard);
-    }
+    print('✅ [SYNC] _updateLocalFlashcards completed - inserted $insertedCount new flashcards');
   }
 
   Future<void> _updateCloudFlashcards(List<Flashcard> flashcards) async {
-    final flashcardData = flashcards.map((f) => f.toMap()).toList();
+    print('🔄 [SYNC] _updateCloudFlashcards called with ${flashcards.length} flashcards');
     
-    await _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('flashcards')
-        .doc('data')
-        .set({
-      'flashcards': flashcardData,
-      'lastModified': FieldValue.serverTimestamp(),
-      'deviceId': _deviceId,
-    });
+    // Group flashcards by language
+    final Map<String, List<Flashcard>> flashcardsByLanguage = {};
+    for (final flashcard in flashcards) {
+      final languageCode = flashcard.languageCode;
+      flashcardsByLanguage.putIfAbsent(languageCode, () => []).add(flashcard);
+    }
+    
+    // Update each language collection
+    for (final entry in flashcardsByLanguage.entries) {
+      final languageCode = entry.key;
+      final languageFlashcards = entry.value;
+      
+      print('📝 [SYNC] Updating cloud flashcards for language: $languageCode');
+      
+      final languageRef = _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('flashcards')
+          .doc(languageCode);
+      
+      final batch = _firestore.batch();
+      
+      // Use UUID as document ID (like phrases do) and upsert all flashcards
+      int upsertedCount = 0;
+      for (final flashcard in languageFlashcards) {
+        final docRef = languageRef.collection('items').doc(flashcard.uuid);
+        batch.set(docRef, {
+          ...flashcard.toMap(),
+          'lastModified': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        upsertedCount++;
+        print('🔄 [SYNC] Upserting cloud flashcard: ${flashcard.originalText} (${flashcard.uuid})');
+      }
+      
+      if (upsertedCount > 0) {
+        await batch.commit();
+        print('✅ [SYNC] Upserted $upsertedCount cloud flashcards for $languageCode');
+      } else {
+        print('⏭️ [SYNC] No cloud flashcards to upsert for $languageCode');
+      }
+    }
   }
 
   // ===== CHAT HISTORY SYNC =====
   Future<void> syncChatHistory() async {
     if (!isAuthenticated) return;
+
+    // Add rate limiting to prevent excessive sync operations
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final lastSyncTime = _lastChatSyncTime;
+    if (lastSyncTime != null && (now - lastSyncTime) < 2000) { // 2 second cooldown
+      print('⏳ [SYNC] Chat sync skipped - too soon since last sync');
+      return;
+    }
+    _lastChatSyncTime = now;
 
     try {
       _syncStatus.updateStatus(SyncStatus.syncing);
@@ -181,11 +281,14 @@ class SyncService {
 
       // Get local conversations and messages
       final localConversations = await _dbHelper.getAllConversations();
+      print('🔄 [SYNC] Found ${localConversations.length} local conversations');
+      
       // Note: We don't have getAllMessages, so we'll get messages per conversation
       List<ChatMessage> localMessages = [];
       for (final conversation in localConversations) {
         final messages = await _dbHelper.getMessagesForConversation(conversation.id);
         localMessages.addAll(messages);
+        print('🔄 [SYNC] Conversation ${conversation.title}: ${messages.length} messages');
       }
       
       // Get cloud chat data
@@ -289,19 +392,29 @@ class SyncService {
   }
 
   Future<void> _updateLocalChat(List<Conversation> conversations, List<ChatMessage> messages) async {
-    // Clear existing chat data by deleting conversations one by one
+    // Get existing data to avoid duplicates
     final existingConversations = await _dbHelper.getAllConversations();
-    for (final conversation in existingConversations) {
-      await _dbHelper.deleteConversation(conversation.id);
-    }
+    final existingConversationIds = existingConversations.map((c) => c.id).toSet();
     
-    // Insert merged data
+    // Insert only new conversations
     for (final conversation in conversations) {
-      await _dbHelper.insertConversation(conversation);
+      if (!existingConversationIds.contains(conversation.id)) {
+        await _dbHelper.insertConversation(conversation);
+      }
     }
     
+    // Get existing messages to avoid duplicates
+    final existingMessages = <String>{};
+    for (final conversation in conversations) {
+      final messages = await _dbHelper.getMessagesForConversation(conversation.id);
+      existingMessages.addAll(messages.map((m) => m.id));
+    }
+    
+    // Insert only new messages
     for (final message in messages) {
-      await _dbHelper.insertMessage(message);
+      if (!existingMessages.contains(message.id)) {
+        await _dbHelper.insertMessage(message);
+      }
     }
   }
 
@@ -479,25 +592,16 @@ class SyncService {
       }
 
       // Get local recommendations
-      final localRecommendations = await _dbHelper.getAllRecommendedFlashcards();
+      final localRecommendations = await _dbHelper.getAllRecommendations();
+      print('🔄 [SYNC] Found ${localRecommendations.length} local recommendations');
       
-      // Get cloud recommendations
-      final cloudDoc = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('recommendations')
-          .doc('data')
-          .get();
+      // Get cloud recommendations from all languages
+      final cloudRecommendations = await _getAllCloudRecommendations();
+      print('🔄 [SYNC] Found ${cloudRecommendations.length} cloud recommendations');
 
-      List<RecommendedFlashcard> cloudRecommendations = [];
-      if (cloudDoc.exists) {
-        final data = cloudDoc.data()!;
-        final recommendationsData = List<Map<String, dynamic>>.from(data['recommendations'] ?? []);
-        cloudRecommendations = recommendationsData.map((map) => RecommendedFlashcard.fromMap(map)).toList();
-      }
-
-      // Merge recommendations
+      // Merge and resolve conflicts
       final mergedRecommendations = await _mergeRecommendations(localRecommendations, cloudRecommendations);
+      print('🔄 [SYNC] Merged to ${mergedRecommendations.length} recommendations');
       
       // Update local database
       await _updateLocalRecommendations(mergedRecommendations);
@@ -519,61 +623,161 @@ class SyncService {
     }
   }
 
-  Future<List<RecommendedFlashcard>> _mergeRecommendations(List<RecommendedFlashcard> local, List<RecommendedFlashcard> cloud) async {
-    final Map<String, RecommendedFlashcard> merged = {};
+  Future<List<RecommendedFlashcard>> _getAllCloudRecommendations() async {
+    final List<RecommendedFlashcard> allRecommendations = [];
     
-    // Add local recommendations
-    for (final recommendation in local) {
-      merged[recommendation.term] = recommendation;
-    }
+    // Get all language documents
+    final languagesSnapshot = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('recommendations')
+        .get();
     
-    // Merge with cloud recommendations
-    for (final cloudRecommendation in cloud) {
-      final localRecommendation = merged[cloudRecommendation.term];
+    for (final languageDoc in languagesSnapshot.docs) {
+      final languageCode = languageDoc.id;
       
-      if (localRecommendation == null) {
-        merged[cloudRecommendation.term] = cloudRecommendation;
-      } else {
-        // Use the most recently updated
-        final localTime = localRecommendation.updatedAt.millisecondsSinceEpoch;
-        final cloudTime = cloudRecommendation.updatedAt.millisecondsSinceEpoch;
-        
-        if (cloudTime > localTime) {
-          merged[cloudRecommendation.term] = cloudRecommendation;
+      // Get all recommendations for this language
+      final recommendationsSnapshot = await languageDoc.reference
+          .collection('items')
+          .get();
+      
+      for (final recommendationDoc in recommendationsSnapshot.docs) {
+        try {
+          final data = recommendationDoc.data();
+          // Use the document ID as the ID (since we're using ID as document ID)
+          data['id'] = int.parse(recommendationDoc.id);
+          data['languageCode'] = languageCode; // Ensure language code is set
+          allRecommendations.add(RecommendedFlashcard.fromMap(data));
+          print('📥 [SYNC] Loaded cloud recommendation: ${data['term']} (${recommendationDoc.id})');
+        } catch (e) {
+          print('⚠️ [SYNC] Error parsing cloud recommendation: $e');
         }
       }
     }
     
-    return merged.values.toList();
+    print('📊 [SYNC] Total cloud recommendations loaded: ${allRecommendations.length}');
+    return allRecommendations;
+  }
+
+  Future<List<RecommendedFlashcard>> _mergeRecommendations(List<RecommendedFlashcard> local, List<RecommendedFlashcard> cloud) async {
+    print('🔄 [SYNC] _mergeRecommendations called with ${local.length} local and ${cloud.length} cloud recommendations');
+    
+    final Map<String, RecommendedFlashcard> merged = {};
+    
+    // Add local recommendations
+    print('📝 [SYNC] Adding local recommendations:');
+    for (final recommendation in local) {
+      final key = '${recommendation.term}_${recommendation.languageCode}';
+      print('  - ${recommendation.term} (${recommendation.languageCode})');
+      merged[key] = recommendation;
+    }
+    
+    // Merge with cloud recommendations
+    print('📝 [SYNC] Merging with cloud recommendations:');
+    for (final cloudRecommendation in cloud) {
+      final key = '${cloudRecommendation.term}_${cloudRecommendation.languageCode}';
+      print('  - ${cloudRecommendation.term} (${cloudRecommendation.languageCode})');
+      final localRecommendation = merged[key];
+      
+      if (localRecommendation == null) {
+        // New cloud recommendation
+        print('    -> New cloud recommendation, adding');
+        merged[key] = cloudRecommendation;
+      } else {
+        // Conflict resolution - use the most recently updated
+        final localTime = localRecommendation.updatedAt.millisecondsSinceEpoch;
+        final cloudTime = cloudRecommendation.updatedAt.millisecondsSinceEpoch;
+        
+        print('    -> Conflict detected: local=${localTime}, cloud=${cloudTime}');
+        if (cloudTime > localTime) {
+          print('    -> Using cloud version (newer)');
+          merged[key] = cloudRecommendation;
+        } else {
+          print('    -> Using local version (newer or same)');
+        }
+      }
+    }
+    
+    final result = merged.values.toList();
+    print('✅ [SYNC] _mergeRecommendations completed with ${result.length} merged recommendations');
+    return result;
   }
 
   Future<void> _updateLocalRecommendations(List<RecommendedFlashcard> recommendations) async {
-    // Clear existing recommendations by deleting them one by one
-    final existingRecommendations = await _dbHelper.getAllRecommendedFlashcards();
-    for (final recommendation in existingRecommendations) {
-      await _dbHelper.deleteRecommended(recommendation.id!);
+    print('🔄 [SYNC] _updateLocalRecommendations called with ${recommendations.length} recommendations');
+    
+    // Get existing recommendations to avoid duplicates
+    final existingRecommendations = await _dbHelper.getAllRecommendations();
+    final existingTerms = existingRecommendations.map((r) => '${r.term}_${r.languageCode}').toSet();
+    
+    print('📊 [SYNC] Found ${existingRecommendations.length} existing recommendations');
+    
+    // Only insert new recommendations (don't clear existing ones)
+    int insertedCount = 0;
+    for (final recommendation in recommendations) {
+      final key = '${recommendation.term}_${recommendation.languageCode}';
+      if (!existingTerms.contains(key)) {
+        print('➕ [SYNC] Inserting new recommendation: ${recommendation.term} (${recommendation.languageCode})');
+        try {
+          await _dbHelper.addRecommendation(recommendation);
+          insertedCount++;
+          print('✅ [SYNC] Successfully inserted recommendation: ${recommendation.term}');
+        } catch (e) {
+          print('❌ [SYNC] Error inserting recommendation: ${recommendation.term} - $e');
+        }
+      } else {
+        print('⏭️ [SYNC] Skipping existing recommendation: ${recommendation.term} (${recommendation.languageCode})');
+      }
     }
     
-    // Insert merged recommendations
-    for (final recommendation in recommendations) {
-      await _dbHelper.upsertRecommendedFlashcard(recommendation);
-    }
+    print('✅ [SYNC] _updateLocalRecommendations completed - inserted $insertedCount new recommendations');
   }
 
   Future<void> _updateCloudRecommendations(List<RecommendedFlashcard> recommendations) async {
-    final recommendationsData = recommendations.map((r) => r.toMap()).toList();
+    print('🔄 [SYNC] _updateCloudRecommendations called with ${recommendations.length} recommendations');
     
-    await _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('recommendations')
-        .doc('data')
-        .set({
-      'recommendations': recommendationsData,
-      'lastModified': FieldValue.serverTimestamp(),
-      'deviceId': _deviceId,
-    });
+    // Group recommendations by language
+    final Map<String, List<RecommendedFlashcard>> recommendationsByLanguage = {};
+    for (final recommendation in recommendations) {
+      final languageCode = recommendation.languageCode;
+      recommendationsByLanguage.putIfAbsent(languageCode, () => []).add(recommendation);
+    }
+    
+    // Update each language collection
+    for (final entry in recommendationsByLanguage.entries) {
+      final languageCode = entry.key;
+      final languageRecommendations = entry.value;
+      
+      print('📝 [SYNC] Updating cloud recommendations for language: $languageCode (${languageRecommendations.length} items)');
+      
+      final batch = _firestore.batch();
+      final collectionRef = _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('recommendations')
+          .doc(languageCode)
+          .collection('items');
+      
+      for (final recommendation in languageRecommendations) {
+        // Use a consistent document ID based on term and language to avoid duplicates
+        final documentId = '${recommendation.term}_${recommendation.languageCode}'.hashCode.toString();
+        final docRef = collectionRef.doc(documentId);
+        batch.set(docRef, {
+          ...recommendation.toMap(),
+          'id': int.parse(documentId), // Ensure the ID matches the document ID
+          'lastModified': FieldValue.serverTimestamp(),
+          'deviceId': _deviceId,
+        });
+      }
+      
+      await batch.commit();
+      print('✅ [SYNC] Updated cloud recommendations for language: $languageCode');
+    }
+    
+    print('✅ [SYNC] _updateCloudRecommendations completed');
   }
+
+
 
   // ===== FULL SYNC =====
   Future<void> performFullSync() async {
@@ -628,20 +832,39 @@ class SyncService {
   }
 
   Future<void> _pullFlashcardsFromCloud() async {
-    final cloudDoc = await _firestore
+    final List<Flashcard> allCloudFlashcards = [];
+    
+    // Get all language documents
+    final languagesSnapshot = await _firestore
         .collection('users')
         .doc(userId)
         .collection('flashcards')
-        .doc('data')
         .get();
-
-    if (cloudDoc.exists) {
-      final data = cloudDoc.data()!;
-      final cloudData = List<Map<String, dynamic>>.from(data['flashcards'] ?? []);
-      final cloudFlashcards = cloudData.map((map) => Flashcard.fromMap(map)).toList();
+    
+    for (final languageDoc in languagesSnapshot.docs) {
+      final languageCode = languageDoc.id;
       
-      await _updateLocalFlashcards(cloudFlashcards);
+      // Get all flashcards for this language
+      final flashcardsSnapshot = await languageDoc.reference
+          .collection('items')
+          .get();
+      
+      for (final flashcardDoc in flashcardsSnapshot.docs) {
+        try {
+          final data = flashcardDoc.data();
+          // Use the document ID as the UUID (since we're using UUID as document ID)
+          data['uuid'] = flashcardDoc.id;
+          data['languageCode'] = languageCode; // Ensure language code is set
+          allCloudFlashcards.add(Flashcard.fromMap(data));
+          print('📥 [SYNC] Pulled cloud flashcard: ${data['originalText']} -> ${data['translatedText']} (${flashcardDoc.id})');
+        } catch (e) {
+          print('⚠️ [SYNC] Error parsing cloud flashcard: $e');
+        }
+      }
     }
+    
+    print('📊 [SYNC] Total cloud flashcards pulled: ${allCloudFlashcards.length}');
+    await _updateLocalFlashcards(allCloudFlashcards);
   }
 
   Future<void> _pullChatFromCloud() async {
@@ -705,21 +928,42 @@ class SyncService {
   }
 
   Future<void> _pullRecommendationsFromCloud() async {
-    final cloudDoc = await _firestore
+    final List<RecommendedFlashcard> allCloudRecommendations = [];
+    
+    // Get all language documents
+    final languagesSnapshot = await _firestore
         .collection('users')
         .doc(userId)
         .collection('recommendations')
-        .doc('data')
         .get();
-
-    if (cloudDoc.exists) {
-      final data = cloudDoc.data()!;
-      final recommendationsData = List<Map<String, dynamic>>.from(data['recommendations'] ?? []);
-      final cloudRecommendations = recommendationsData.map((map) => RecommendedFlashcard.fromMap(map)).toList();
+    
+    for (final languageDoc in languagesSnapshot.docs) {
+      final languageCode = languageDoc.id;
       
-      await _updateLocalRecommendations(cloudRecommendations);
+      // Get all recommendations for this language
+      final recommendationsSnapshot = await languageDoc.reference
+          .collection('items')
+          .get();
+      
+      for (final recommendationDoc in recommendationsSnapshot.docs) {
+        try {
+          final data = recommendationDoc.data();
+          // Use the document ID as the ID (since we're using ID as document ID)
+          data['id'] = int.parse(recommendationDoc.id);
+          data['languageCode'] = languageCode; // Ensure language code is set
+          allCloudRecommendations.add(RecommendedFlashcard.fromMap(data));
+          print('📥 [SYNC] Pulled cloud recommendation: ${data['term']} (${recommendationDoc.id})');
+        } catch (e) {
+          print('⚠️ [SYNC] Error parsing cloud recommendation: $e');
+        }
+      }
     }
+    
+    print('📊 [SYNC] Total cloud recommendations pulled: ${allCloudRecommendations.length}');
+    await _updateLocalRecommendations(allCloudRecommendations);
   }
+
+
 
   // ===== PUSH TO CLOUD =====
   Future<void> pushToCloud() async {
@@ -777,9 +1021,11 @@ class SyncService {
   }
 
   Future<void> _pushRecommendationsToCloud() async {
-    final localRecommendations = await _dbHelper.getAllRecommendedFlashcards();
+    final localRecommendations = await _dbHelper.getAllRecommendations();
     await _updateCloudRecommendations(localRecommendations);
   }
+
+
 
   // ===== UTILITY METHODS =====
   Future<bool> _checkNetworkConnectivity() async {
@@ -891,7 +1137,6 @@ class SyncService {
         _lastChatSyncKey,
         _lastXPSyncKey,
         _lastFavoritesSyncKey,
-        _lastRecommendationsSyncKey,
         
         // Device ID
         _deviceIdKey,
@@ -1066,7 +1311,6 @@ class SyncService {
         _lastChatSyncKey,
         _lastXPSyncKey,
         _lastFavoritesSyncKey,
-        _lastRecommendationsSyncKey,
         
         // Device ID
         _deviceIdKey,

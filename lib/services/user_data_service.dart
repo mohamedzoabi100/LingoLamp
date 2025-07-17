@@ -529,33 +529,40 @@ class UserDataService {
     _syncStatusService.updateStatus(SyncStatus.syncing);
     try {
       final localFlashcards = await _dbHelper.getAllFlashcards();
-      final collection =
-          _firestore.collection('users').doc(userId).collection('flashcards');
-
-      // Get all cloud flashcard UUIDs first
-      final cloudQuery = await collection.get();
-      final cloudFlashcardUuids = cloudQuery.docs.map((doc) => doc.id).toSet();
-
-      final batch = _firestore.batch();
-      final localFlashcardUuids = <String>{};
-
-      // Batch write all local flashcards to the cloud using UUID as document ID
+      
+      // Group flashcards by language (like SyncService does)
+      final Map<String, List<Flashcard>> flashcardsByLanguage = {};
       for (final flashcard in localFlashcards) {
-        localFlashcardUuids.add(flashcard.uuid);
-        final docRef = collection.doc(flashcard.uuid);
-        batch.set(docRef, flashcard.toMap());
+        final languageCode = flashcard.languageCode;
+        flashcardsByLanguage.putIfAbsent(languageCode, () => []).add(flashcard);
       }
 
-      // Find UUIDs that are in the cloud but not locally, and delete them
-      final uuidsToDelete = cloudFlashcardUuids.difference(localFlashcardUuids);
-      for (final uuid in uuidsToDelete) {
-        final docRef = collection.doc(uuid);
-        batch.delete(docRef);
+      final batch = _firestore.batch();
+
+      // Update each language collection using UUID as document ID
+      for (final entry in flashcardsByLanguage.entries) {
+        final languageCode = entry.key;
+        final languageFlashcards = entry.value;
+        
+        final languageRef = _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('flashcards')
+            .doc(languageCode);
+        
+        // Upsert all flashcards for this language
+        for (final flashcard in languageFlashcards) {
+          final docRef = languageRef.collection('items').doc(flashcard.uuid);
+          batch.set(docRef, {
+            ...flashcard.toMap(),
+            'lastModified': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
       }
 
       await batch.commit();
       _syncStatusService.updateStatus(SyncStatus.synced);
-      print('☁️ Synced ${localFlashcards.length} flashcards to cloud. Deleted ${uuidsToDelete.length} stale cards.');
+      print('☁️ Synced ${localFlashcards.length} flashcards to cloud using language-based structure.');
     } catch (e) {
       _syncStatusService.updateStatus(SyncStatus.error);
       print('❌ Error syncing flashcards to cloud: $e');
@@ -567,27 +574,35 @@ class UserDataService {
     if (!isAuthenticated) return;
     
     try {
-      final querySnapshot = await _firestore
+      final List<Flashcard> allCloudFlashcards = [];
+      
+      // Get all language documents (like SyncService does)
+      final languagesSnapshot = await _firestore
           .collection('users')
           .doc(userId)
           .collection('flashcards')
           .get();
       
-      final cloudFlashcards = querySnapshot.docs.map((doc) {
-        final data = doc.data();
-        return Flashcard(
-          uuid: doc.id,
-          originalText: data['originalText'],
-          translatedText: data['translatedText'],
-          sourceLanguage: data['sourceLanguage'] ?? 'en-US',
-          targetLanguage: data['targetLanguage'] ?? 'es-ES',
-          createdAt: (data['createdAt'] as Timestamp).toDate(),
-          lastStudied: (data['lastStudied'] as Timestamp).toDate(),
-          timesStudied: data['timesStudied'] ?? 0,
-          difficulty: data['difficulty'] ?? 2,
-          isFavorite: data['isFavorite'] ?? false,
-        );
-      }).toList();
+      for (final languageDoc in languagesSnapshot.docs) {
+        final languageCode = languageDoc.id;
+        
+        // Get all flashcards for this language
+        final flashcardsSnapshot = await languageDoc.reference
+            .collection('items')
+            .get();
+        
+        for (final flashcardDoc in flashcardsSnapshot.docs) {
+          try {
+            final data = flashcardDoc.data();
+            // Use the document ID as the UUID (since we're using UUID as document ID)
+            data['uuid'] = flashcardDoc.id;
+            data['languageCode'] = languageCode; // Ensure language code is set
+            allCloudFlashcards.add(Flashcard.fromMap(data));
+          } catch (e) {
+            print('Error parsing cloud flashcard: $e');
+          }
+        }
+      }
       
       // Get saved guest flashcards (not current flashcards)
       final prefs = await SharedPreferences.getInstance();
@@ -624,17 +639,24 @@ class UserDataService {
       }
       
       // Add cloud flashcards (they take precedence if duplicate)
-      for (final flashcard in cloudFlashcards) {
+      for (final flashcard in allCloudFlashcards) {
         unionFlashcards[flashcard.uuid] = flashcard;
       }
       
-      // Clear database and insert union (this is the combined data for signed-in mode)
-      await _dbHelper.clearAllFlashcards();
+      // Get existing flashcards to avoid duplicates (like SyncService does)
+      final existingFlashcards = await _dbHelper.getAllFlashcards();
+      final existingUuids = existingFlashcards.map((f) => f.uuid).toSet();
+      
+      // Only insert new flashcards (don't clear existing ones)
+      int insertedCount = 0;
       for (final flashcard in unionFlashcards.values) {
-        await _dbHelper.insertFlashcard(flashcard);
+        if (!existingUuids.contains(flashcard.uuid)) {
+          await _dbHelper.insertFlashcard(flashcard);
+          insertedCount++;
+        }
       }
       
-      print('✅ UNION: Combined ${savedGuestFlashcards.length} saved guest + ${cloudFlashcards.length} cloud flashcards = ${unionFlashcards.length} total');
+      print('✅ UNION: Combined ${savedGuestFlashcards.length} saved guest + ${allCloudFlashcards.length} cloud flashcards = ${unionFlashcards.length} total. Inserted $insertedCount new flashcards.');
     } catch (e) {
       print('Error syncing flashcards from cloud: $e');
     }
@@ -700,82 +722,20 @@ class UserDataService {
     }
   }
 
-  // Sync chat history to cloud
+  // Sync chat history to cloud - DISABLED: Now handled by SyncService with SQLite
   Future<void> syncChatHistoryToCloud() async {
-    if (!isAuthenticated) return;
-    
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final conversationsString = prefs.getString('conversations');
-      
-      if (conversationsString != null) {
-        final conversationsData = json.decode(conversationsString);
-        
-        await _firestore
-            .collection('users')
-            .doc(userId)
-            .set({
-          'chatHistory': conversationsData,
-          'lastModified': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-        
-        print('Successfully synced chat history to cloud');
-      }
-    } catch (e) {
-      print('Error syncing chat history to cloud: $e');
-    }
+    // DISABLED: Chat history is now handled by SyncService using SQLite database
+    // This prevents conflicts between the old SharedPreferences system and new SQLite system
+    print('ℹ️ Chat history sync disabled - now handled by SyncService');
+    return;
   }
 
-  // UNION: Merge guest chat history with cloud chat history
+  // UNION: Merge guest chat history with cloud chat history - DISABLED: Now handled by SyncService
   Future<void> syncChatHistoryFromCloud() async {
-    if (!isAuthenticated) return;
-    
-    try {
-      final doc = await _firestore
-          .collection('users')
-          .doc(userId)
-          .get();
-      
-      if (doc.exists && doc.data()!.containsKey('chatHistory')) {
-        final cloudChatHistory = doc.data()!['chatHistory'];
-        
-        // Get saved guest chat history (not current chat history)
-        final prefs = await SharedPreferences.getInstance();
-        final savedGuestConversationsString = prefs.getString('latest_guest_conversations');
-        
-        Map<String, dynamic> unionConversations = {};
-        
-        // Add saved guest conversations first
-        if (savedGuestConversationsString != null) {
-          try {
-            final savedGuestConversations = json.decode(savedGuestConversationsString);
-            if (savedGuestConversations is Map) {
-              unionConversations.addAll(Map<String, dynamic>.from(savedGuestConversations));
-            }
-          } catch (e) {
-            print('Error parsing saved guest conversations: $e');
-          }
-        }
-        
-        // Add cloud conversations (they don't overwrite guest conversations)
-        if (cloudChatHistory != null && cloudChatHistory is Map) {
-          for (final entry in cloudChatHistory.entries) {
-            if (!unionConversations.containsKey(entry.key)) {
-              unionConversations[entry.key] = entry.value;
-            }
-          }
-        }
-        
-        // Save union locally (this is the combined data for signed-in mode)
-        await prefs.setString('conversations', json.encode(unionConversations));
-        
-        final savedGuestCount = savedGuestConversationsString != null ? (json.decode(savedGuestConversationsString) as Map).length : 0;
-        final cloudCount = cloudChatHistory is Map ? cloudChatHistory.length : 0;
-        print('✅ UNION: Combined $savedGuestCount saved guest + $cloudCount cloud conversations = ${unionConversations.length} total');
-      }
-    } catch (e) {
-      print('Error syncing chat history from cloud: $e');
-    }
+    // DISABLED: Chat history is now handled by SyncService using SQLite database
+    // This prevents conflicts between the old SharedPreferences system and new SQLite system
+    print('ℹ️ Chat history sync from cloud disabled - now handled by SyncService');
+    return;
   }
 
   // 🎯 FIXED: Sync FULL AI phrase objects to cloud (not just IDs)
@@ -904,7 +864,7 @@ class UserDataService {
           syncFlashcardsFromCloud(),  // UNION guest + cloud flashcards
           syncFavoritesFromCloud(),   // UNION guest + cloud favorites
           syncAiPhrasesFromCloud(),   // UNION guest + cloud AI phrases
-          syncChatHistoryFromCloud(), // UNION guest + cloud conversations
+          // syncChatHistoryFromCloud() - DISABLED: Now handled by SyncService
         ]).timeout(
           const Duration(seconds: 15),
           onTimeout: () {
@@ -922,7 +882,7 @@ class UserDataService {
           syncFlashcardsToCloud(),
           syncFavoritesToCloud(),
           syncAiPhrasesToCloud(),     // Sync AI phrases to cloud
-          syncChatHistoryToCloud(),
+          // syncChatHistoryToCloud() - DISABLED: Now handled by SyncService
         ]).timeout(
           const Duration(seconds: 15),
           onTimeout: () {
@@ -1373,12 +1333,11 @@ class UserDataService {
   Timer? _chatSyncDebounce;
   static const int _maxChatConversations = 20;
 
-  // Call this after any chat change
+  // Call this after any chat change - DISABLED: Now handled by SyncService
   void scheduleChatHistorySync() {
-    _chatSyncDebounce?.cancel();
-    _chatSyncDebounce = Timer(const Duration(seconds: 2), () {
-      unawaited(syncChatHistoryToCloud());
-    });
+    // DISABLED: Chat history sync is now handled by SyncService
+    // This prevents conflicts between the old SharedPreferences system and new SQLite system
+    print('ℹ️ Scheduled chat history sync disabled - now handled by SyncService');
   }
 
   // Overwrite local chat save to keep only latest 20 conversations

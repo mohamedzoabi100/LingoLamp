@@ -1,4 +1,6 @@
 //lib/screens/chat_history_screen.dart
+import 'dart:async';
+import 'dart:async' show unawaited;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +9,7 @@ import '../utils/database_helper.dart';
 import '../models/conversation_model.dart' as model;
 import '../core/providers/language_provider.dart';
 import '../core/providers/chat_provider.dart' as chatprov;
+import '../services/sync_service.dart';
 
 class ChatHistoryScreen extends StatefulWidget {
   const ChatHistoryScreen({super.key});
@@ -42,13 +45,28 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
 
   Future<void> _loadConversations() async {
     if (mounted) setState(() => _isLoading = true);
+    
+    // Trigger sync to ensure we have latest data from cloud
+    final syncService = SyncService();
+    if (syncService.isAuthenticated) {
+      unawaited(syncService.pullFromCloud());
+    }
+    
     final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
     final conversations = await _dbHelper.getAllConversations();
+    
+    print('🔍 [CHAT_HISTORY] Found ${conversations.length} total conversations');
+    for (final conv in conversations) {
+      print('🔍 [CHAT_HISTORY] Conversation: ${conv.title} (lang: ${conv.languageCode})');
+    }
     
     // Filter conversations by current language
     final filteredConversations = conversations.where(
       (conversation) => conversation.languageCode == languageProvider.currentLanguage
     ).toList();
+    
+    print('🔍 [CHAT_HISTORY] Current language: ${languageProvider.currentLanguage}');
+    print('🔍 [CHAT_HISTORY] Filtered to ${filteredConversations.length} conversations');
     
     if (mounted) {
       setState(() {
@@ -81,6 +99,13 @@ class _ChatHistoryScreenState extends State<ChatHistoryScreen> {
 
     if (shouldDelete == true && conversation.id.isNotEmpty) {
       await _dbHelper.deleteConversation(conversation.id);
+      
+      // Trigger sync to update cloud
+      final syncService = SyncService();
+      if (syncService.isAuthenticated) {
+        unawaited(syncService.syncChatHistory());
+      }
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Chat deleted successfully')));
