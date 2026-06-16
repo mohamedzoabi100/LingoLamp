@@ -27,3 +27,7 @@ LingoLamp bridges that gap by uniting true offline translation, spaced-repetitio
 
 
 > See the GitHub **Projects** board for the full, prioritised user stories.
+
+
+Link for the final app in the Play Stroe:
+https://play.google.com/store/apps/details?id=com.technion.lingo_lamp
